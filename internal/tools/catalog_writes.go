@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/avhn/trello-mcp/internal/trello"
 	"github.com/avhn/trello-mcp/internal/view"
 )
 
@@ -81,7 +82,7 @@ func (s *Service) customfieldSet(ctx context.Context, a arguments) (any, error) 
 		return nil, err
 	}
 	if field.ID != id || field.ModelID != board || field.ModelType != "board" {
-		return nil, fmt.Errorf("custom-field ownership unverifiable")
+		return nil, trello.OwnershipDenied("custom field")
 	}
 	if a.has("value") == a.has("idValue") {
 		return nil, fmt.Errorf("supply exactly one of value or idValue")
@@ -103,7 +104,7 @@ func (s *Service) customfieldSet(ctx context.Context, a arguments) (any, error) 
 				}
 			}
 			if !found {
-				return nil, fmt.Errorf("idValue does not belong to custom field")
+				return nil, trello.OwnershipDenied("custom-field option")
 			}
 			body["idValue"] = option
 		}

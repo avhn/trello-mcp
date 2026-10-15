@@ -75,7 +75,7 @@ func (s *Service) attachmentAdd(ctx context.Context, a arguments) (any, error) {
 // readUpload confines paths to the configured root and reads only a verified regular-file descriptor.
 func readUpload(root, path string) ([]byte, error) {
 	if root == "" {
-		return nil, fmt.Errorf("path uploads are disabled; set TRELLO_UPLOAD_DIR to enable them")
+		return nil, trello.PolicyDenied("TRELLO_UPLOAD_DIR", "path uploads are disabled; set TRELLO_UPLOAD_DIR to a dedicated staging directory to enable them, or supply base64")
 	}
 	root = filepath.Clean(root)
 	if !filepath.IsAbs(root) {
@@ -83,20 +83,20 @@ func readUpload(root, path string) ([]byte, error) {
 	}
 	if !filepath.IsAbs(path) {
 		if !filepath.IsLocal(path) {
-			return nil, fmt.Errorf("upload path must stay inside TRELLO_UPLOAD_DIR")
+			return nil, trello.PolicyDenied("TRELLO_UPLOAD_DIR", "upload path must stay inside TRELLO_UPLOAD_DIR; use a file under the configured root")
 		}
 		path = filepath.Join(root, path)
 	}
 	rel, err := filepath.Rel(root, filepath.Clean(path))
 	if err != nil || !filepath.IsLocal(rel) || rel == "." {
-		return nil, fmt.Errorf("upload path must name a file inside TRELLO_UPLOAD_DIR")
+		return nil, trello.PolicyDenied("TRELLO_UPLOAD_DIR", "upload path must name a file inside TRELLO_UPLOAD_DIR; use a file under the configured root")
 	}
 	info, err := os.Lstat(filepath.Join(root, rel))
 	if err != nil {
 		return nil, fmt.Errorf("inspect upload file: %w", err)
 	}
 	if !info.Mode().IsRegular() || info.Size() > trello.MaxAttachmentBytes {
-		return nil, fmt.Errorf("upload must be a regular file at most 10 MiB, not a symlink")
+		return nil, trello.PolicyDenied("upload file safety", "upload must be a regular file at most 10 MiB, not a symlink; stage a regular file under TRELLO_UPLOAD_DIR")
 	}
 	f, err := openUpload(root, rel, info)
 	if err != nil {
@@ -175,7 +175,7 @@ func downloadRoot(dir string) (*os.Root, error) {
 		return nil, err
 	}
 	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 || info.Mode().Perm()&0077 != 0 {
-		return nil, fmt.Errorf("download directory must be a private directory, not a symlink")
+		return nil, trello.PolicyDenied("download directory safety", "download directory must be a private directory, not a symlink; choose a private TRELLO_DOWNLOAD_DIR")
 	}
 	if err = checkDownloadOwner(info); err != nil {
 		return nil, err
@@ -187,7 +187,7 @@ func downloadRoot(dir string) (*os.Root, error) {
 	opened, err := root.Stat(".")
 	if err != nil || !os.SameFile(info, opened) || opened.Mode().Perm()&0077 != 0 {
 		_ = root.Close()
-		return nil, fmt.Errorf("download directory changed while opening")
+		return nil, trello.PolicyDenied("download directory safety", "download directory changed while opening; retry with a stable private TRELLO_DOWNLOAD_DIR")
 	}
 	if err = checkDownloadOwner(opened); err != nil {
 		_ = root.Close()
@@ -215,6 +215,9 @@ func downloadFileName(id, clean string, attempt int) string {
 }
 
 func (s *Service) attachmentDownload(ctx context.Context, a arguments) (any, error) {
+	if !fileTransfersSupported {
+		return nil, trello.PolicyDenied("download platform safety", "downloads unavailable on this platform because directory ownership cannot be verified; use a Unix host")
+	}
 	card, id := a.str("cardId"), a.str("attachmentId")
 	board, err := s.access.ObjectBoard(ctx, "cards", card, a.str("boardId"))
 	if err != nil {
@@ -231,7 +234,7 @@ func (s *Service) attachmentDownload(ctx context.Context, a arguments) (any, err
 		return nil, err
 	}
 	if attachment.ID != id || !attachment.IsUpload || attachment.FileName == "" || len(attachment.FileName) > 1024 {
-		return nil, fmt.Errorf("uploaded attachment ownership or fileName unverifiable")
+		return nil, trello.OwnershipDenied("uploaded attachment or filename")
 	}
 	if attachment.Bytes > trello.MaxAttachmentBytes {
 		return nil, fmt.Errorf("attachment exceeds 10 MiB limit")
@@ -240,10 +243,7 @@ func (s *Service) attachmentDownload(ctx context.Context, a arguments) (any, err
 	if _, err = s.access.ObjectBoard(ctx, "cards", card, board); err != nil {
 		return nil, err
 	}
-	dir := s.config.DownloadDir
-	if dir == "" {
-		dir = filepath.Join(os.TempDir(), "trello-mcp")
-	}
+	dir := s.downloadDir()
 	root, err := downloadRoot(dir)
 	if err != nil {
 		return nil, err

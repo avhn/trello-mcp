@@ -278,7 +278,7 @@ func (c *Client) request(ctx context.Context, method, path string, q url.Values,
 		}
 		// Error bodies can contain credentials or private data, so never surface them.
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			return fmt.Errorf("trello HTTP %d", resp.StatusCode)
+			return httpError(resp.StatusCode)
 		}
 		if out == nil {
 			return nil

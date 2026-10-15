@@ -152,7 +152,7 @@ func TestCardListOwnership(t *testing.T) {
 	defer fake.Close()
 	s := testService(t, fake, nil)
 	out, err := s.cardFind(context.Background(), arguments{strings: map[string]string{"listId": "l1"}, limit: 1})
-	if err == nil || err.Error() != "card list unverifiable" || out != nil {
+	if err == nil || !strings.Contains(err.Error(), "card list ownership could not be verified") || out != nil {
 		t.Fatalf("unverifiable list returned content: %v, %v", out, err)
 	}
 }

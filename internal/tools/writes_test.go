@@ -223,7 +223,7 @@ func TestBatchPerItemFailure(t *testing.T) {
 	}))
 	defer fake.Close()
 	text, failed := callTool(t, testService(t, fake, nil), "card_create_batch", `{"listId":"l1","cards":[{"name":"One"},{"name":"Two"}]}`)
-	if failed || text != `{"items":[{"index":0,"error":"trello HTTP 500"},{"index":1,"id":"new2"}]}` {
+	if failed || text != `{"items":[{"index":0,"error":"trello API: HTTP 500"},{"index":1,"id":"new2"}]}` {
 		t.Fatalf("batch result %s", text)
 	}
 	mu.Lock()

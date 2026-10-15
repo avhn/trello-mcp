@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strings"
 
 	"github.com/avhn/trello-mcp/internal/view"
 )
 
 // ErrDenied distinguishes filtered-out workspaces from unverifiable ownership or network failures.
-var ErrDenied = errors.New("workspace access denied")
+var ErrDenied = errors.New("access denied by TRELLO_ALLOWED_WORKSPACES")
 
 var identifier = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
@@ -62,10 +63,10 @@ func (a *Access) Workspace(ctx context.Context, id string) (view.Workspace, erro
 		return w, err
 	}
 	if w.ID != id {
-		return view.Workspace{}, fmt.Errorf("workspace ownership unverifiable")
+		return view.Workspace{}, OwnershipDenied("workspace " + id)
 	}
 	if !a.WorkspaceAllowed(w) {
-		return view.Workspace{}, ErrDenied
+		return view.Workspace{}, a.workspaceDenied("workspace " + id)
 	}
 	return w, nil
 }
@@ -84,16 +85,19 @@ func (a *Access) Board(ctx context.Context, id string, full bool) (view.Board, e
 		return b, err
 	}
 	if b.ID != id {
-		return view.Board{}, fmt.Errorf("board ownership unverifiable")
+		return view.Board{}, OwnershipDenied("board " + id)
 	}
 	if !full {
 		b.Desc = ""
 	}
 	if len(a.Allowed) > 0 {
-		if b.WorkspaceID == "" {
-			return view.Board{}, fmt.Errorf("board workspace unverifiable")
+		if !ValidID(b.WorkspaceID) {
+			return view.Board{}, OwnershipDenied("workspace for board " + id)
 		}
 		if _, err := a.Workspace(ctx, b.WorkspaceID); err != nil {
+			if errors.Is(err, ErrDenied) {
+				return view.Board{}, a.workspaceDenied("board " + id + " is in workspace " + b.WorkspaceID)
+			}
 			return view.Board{}, err
 		}
 	}
@@ -136,7 +140,7 @@ func (a *Access) ObjectBoard(ctx context.Context, kind, id, expectedBoard string
 	if kind == "actions" {
 		parent.BoardID = parent.Data.Board.ID
 		if !ValidID(parent.Data.Card.ID) {
-			return "", fmt.Errorf("action card unverifiable")
+			return "", OwnershipDenied("card for action " + id)
 		}
 		if _, err := a.ObjectBoard(ctx, "cards", parent.Data.Card.ID, parent.BoardID); err != nil {
 			return "", err
@@ -146,13 +150,22 @@ func (a *Access) ObjectBoard(ctx context.Context, kind, id, expectedBoard string
 		return a.ObjectBoard(ctx, "cards", parent.CardID, expectedBoard)
 	}
 	if !ValidID(parent.BoardID) {
-		return "", fmt.Errorf("object board unverifiable")
+		return "", OwnershipDenied("board for object " + id)
 	}
 	if expectedBoard != "" && expectedBoard != parent.BoardID {
-		return "", fmt.Errorf("object does not belong to boardId")
+		return "", PolicyDenied("boardId constraint", fmt.Sprintf("object %s belongs to board %s, not the supplied boardId %s; supply its owning boardId or omit the constraint", id, parent.BoardID, expectedBoard))
 	}
 	if _, err := a.Board(ctx, parent.BoardID, false); err != nil {
 		return "", err
 	}
 	return parent.BoardID, nil
+}
+
+// workspaceDenial keeps collection filtering distinct from unverifiable ownership.
+type workspaceDenial struct{ error }
+
+func (workspaceDenial) Unwrap() error { return ErrDenied }
+
+func (a *Access) workspaceDenied(reason string) error {
+	return workspaceDenial{PolicyDenied("TRELLO_ALLOWED_WORKSPACES", reason+", allowed: "+strings.Join(a.Allowed, ",")+"; use an allowed workspace or ask the operator to update the allowlist")}
 }

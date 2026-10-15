@@ -53,10 +53,10 @@ func (s *Service) cardFind(ctx context.Context, a arguments) (any, error) {
 		c.Checklists = nil
 		c.Members = nil
 		if board != "" && c.BoardID != board {
-			return nil, fmt.Errorf("card board unverifiable")
+			return nil, trello.OwnershipDenied("card board")
 		}
 		if list := a.str("listId"); list != "" && c.ListID != list {
-			return nil, fmt.Errorf("card list unverifiable")
+			return nil, trello.OwnershipDenied("card list")
 		}
 		if a.mine {
 			if !checked[c.BoardID] {
@@ -136,7 +136,7 @@ func (s *Service) cardGet(ctx context.Context, a arguments) (any, error) {
 		return nil, err
 	}
 	if c.ID != id || c.BoardID != board {
-		return nil, fmt.Errorf("card ownership changed or unverifiable")
+		return nil, trello.OwnershipDenied("card")
 	}
 	c = view.ProjectCard(c, a.full(), false)
 	// Ignore unsolicited expansions even if an upstream endpoint sends them by default.

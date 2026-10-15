@@ -41,7 +41,7 @@ func TestAllowlistDeniesEveryScopedTool(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if !result.IsError || result.Content[0].(*mcp.TextContent).Text != `{"error":"workspace access denied"}` {
+					if !result.IsError || !strings.Contains(result.Content[0].(*mcp.TextContent).Text, "access denied by TRELLO_ALLOWED_WORKSPACES") {
 						t.Fatalf("authorization result: %+v", result)
 					}
 				}

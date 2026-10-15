@@ -26,6 +26,8 @@ func TestReleaseVersion(t *testing.T) {
 		t.Fatalf("build: %v\n%s", err, output)
 	}
 
+	checkInstructions(t, ctx, binary)
+
 	version := exec.CommandContext(ctx, binary, "--version")
 	version.Env = []string{}
 	output, err := version.CombinedOutput()
@@ -68,5 +70,40 @@ func TestReleaseVersion(t *testing.T) {
 	}
 	if metadata.Version != tag {
 		t.Fatalf("metadata version = %q, want %q", metadata.Version, tag)
+	}
+}
+
+// checkInstructions exercises the command's InitializeResult, not only the formatter.
+func checkInstructions(t *testing.T, ctx context.Context, binary string) {
+	t.Helper()
+	for _, tc := range []struct {
+		name           string
+		settings, want []string
+	}{
+		{"unrestricted", nil, []string{"workspaces unrestricted", "Read-only: no"}},
+		{"restricted", []string{"TRELLO_ALLOWED_WORKSPACES=team,w2"}, []string{"workspaces restricted to team,w2", "Read-only: no"}},
+		{"read-only", []string{"TRELLO_ALLOWED_WORKSPACES=team", "TRELLO_READ_ONLY=1"}, []string{"workspaces restricted to team", "Read-only: yes (write tools hidden)", "Downloads: disabled"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			command := exec.CommandContext(ctx, binary)
+			command.Env = append([]string{"TRELLO_API_KEY=synthetic-key", "TRELLO_TOKEN=synthetic-token", "TRELLO_BOARD_ID=saved-board", "XDG_CONFIG_HOME=" + t.TempDir()}, tc.settings...)
+			client := mcp.NewClient(&mcp.Implementation{Name: "policy-test", Version: "1"}, nil)
+			session, err := client.Connect(ctx, &mcp.CommandTransport{Command: command}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = session.Close() }()
+			instructions := session.InitializeResult().Instructions
+			for _, want := range append(tc.want, `server_health with detail "policy"`) {
+				if !strings.Contains(instructions, want) {
+					t.Errorf("instructions missing %q: %s", want, instructions)
+				}
+			}
+			for _, hidden := range []string{"synthetic-key", "synthetic-token", "saved-board"} {
+				if strings.Contains(instructions, hidden) {
+					t.Errorf("instructions exposed %q: %s", hidden, instructions)
+				}
+			}
+		})
 	}
 }

@@ -79,11 +79,11 @@ func (c *Client) Download(ctx context.Context, cardID, attachmentID, fileName st
 				c.mu.Unlock()
 				continue
 			}
-			return 0, "", fmt.Errorf("trello HTTP %d", resp.StatusCode)
+			return 0, "", httpError(resp.StatusCode)
 		}
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			_ = resp.Body.Close()
-			return 0, "", fmt.Errorf("trello HTTP %d", resp.StatusCode)
+			return 0, "", httpError(resp.StatusCode)
 		}
 		if resp.ContentLength > MaxAttachmentBytes {
 			_ = resp.Body.Close()

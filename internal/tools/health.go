@@ -6,9 +6,11 @@ import (
 	"time"
 )
 
-// serverHealth reports local diagnostics only; persisted identifiers and credentials are never exposed.
-func (s *Service) serverHealth(_ context.Context, a arguments) (any, error) {
+// serverHealth reports diagnostics; persisted identifiers and credentials are never exposed.
+func (s *Service) serverHealth(ctx context.Context, a arguments) (any, error) {
 	switch a.str("detail") {
+	case "policy":
+		return s.policy(ctx), nil
 	case "detailed":
 		selection := s.state.Get()
 		return struct {

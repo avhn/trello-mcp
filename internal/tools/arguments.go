@@ -200,7 +200,7 @@ func validate(raw json.RawMessage, d definition) (arguments, error) {
 	if detail := a.str("detail"); seen["detail"] {
 		valid := detail == "summary" || detail == "full"
 		if d.name == "server_health" {
-			valid = detail == "basic" || detail == "detailed" || detail == "metadata" || detail == "performance"
+			valid = detail == "basic" || detail == "detailed" || detail == "metadata" || detail == "performance" || detail == "policy"
 		}
 		if !valid {
 			return a, fmt.Errorf("invalid detail")
@@ -294,7 +294,7 @@ func schema(d definition) map[string]any {
 		case "detail":
 			values := []string{"summary", "full"}
 			if d.name == "server_health" {
-				values = []string{"basic", "detailed", "metadata", "performance"}
+				values = []string{"basic", "detailed", "metadata", "performance", "policy"}
 			}
 			p["enum"] = values
 		case "view":

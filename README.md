@@ -20,12 +20,46 @@ PATH, or use the full executable path. Windows uses `trello-mcp.exe`.
 
 - Choose a release with `TRELLO_MCP_VERSION=v0.1.0` or a directory with
   `INSTALL_DIR=/your/bin`. For a piped install, set these on `sh`, not `curl`.
-- Supported binaries: Linux amd64/arm64, macOS amd64/arm64, Windows amd64.
+- Supported binaries: Linux amd64/arm64, macOS amd64/arm64, Windows amd64/arm64.
+  The POSIX installer supports Windows amd64; use PowerShell for Windows ARM64.
 - Requires `curl`, `tar` (or `unzip` on Windows), and `sha256sum` or `shasum`.
 - If a release or platform asset is unavailable, it falls back to `go install`
   at `@latest` when Go is available, even if a release version was requested.
 - The installer prints setup instructions only. It never asks for credentials
   or registers an MCP server automatically.
+
+#### Windows (PowerShell or cmd)
+
+In Windows PowerShell 5.1 or PowerShell 7:
+
+```powershell
+irm https://raw.githubusercontent.com/avhn/trello-mcp/main/install.ps1 | iex
+```
+
+From cmd:
+
+```cmd
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/avhn/trello-mcp/main/install.ps1 | iex"
+```
+
+The native installer downloads the latest Windows amd64 or ARM64 release,
+verifies SHA-256, and installs `trello-mcp.exe` to
+`%LOCALAPPDATA%\Programs\trello-mcp`. It adds the directory to your user PATH
+(not the machine PATH), without duplicating an existing entry. Open a new
+terminal afterward. No administrator privileges or Go installation are needed.
+Set `$env:TRELLO_MCP_VERSION = 'v0.1.0'` to pin a release or
+`$env:INSTALL_DIR = 'C:\your\bin'` to change the destination before running it.
+Unlike the POSIX installer, it fails if the release is unavailable rather than
+building from source.
+
+It prints placeholder-only setup instructions for Claude Code, Claude Desktop
+(`%APPDATA%\Claude\claude_desktop_config.json`), and Codex
+(`~/.codex/config.toml`), using the full installed executable path. It never
+asks for credentials or registers a server automatically.
+
+**Windows limitations:** local path uploads and attachment downloads are refused
+(fail closed), because their filesystem ownership and path checks require Unix.
+Base64 uploads and URL attachments remain available when read-only mode is off.
 
 Prefer installing from source? Requires Go 1.26 or newer; the module selects the
 Go 1.27.1 toolchain:
@@ -43,7 +77,7 @@ Replace the placeholders below locally. Supply credentials through the client's
 server environment, not arguments to `trello-mcp`. Never commit real credentials
 in a client configuration or share them in chat.
 
-### 3. Connect your MCP client
+### 3. Use with your client
 
 **Claude Code**
 
@@ -61,16 +95,26 @@ substitute credentials only on your own machine, mindful of shell history.
 The examples enable read-only mode. Remove `TRELLO_READ_ONLY` or set it to `0`
 to expose writes and attachment transfers.
 
-**Other MCP clients**
+**Claude Desktop**
 
-Merge this into a client configuration that supports `mcpServers`. The executable
-must be on the client's PATH, or `command` must be its full installed path.
+Merge the following `mcpServers` object into your local configuration:
+
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+- Claude Desktop has no official Linux build.
+
+Replace `/absolute/path/to/trello-mcp` with the full installed executable path.
+Desktop apps do not inherit your shell PATH. On Windows, use `trello-mcp.exe`
+and escape backslashes in JSON, for example
+`C:\\Users\\YOUR_USER\\AppData\\Local\\Programs\\trello-mcp\\trello-mcp.exe`.
+The installers print the correct path and escaping. Restart Claude Desktop after
+saving. Keep real credentials in local configuration only, never committed files.
 
 ```json
 {
   "mcpServers": {
     "trello": {
-      "command": "trello-mcp",
+      "command": "/absolute/path/to/trello-mcp",
       "env": {
         "TRELLO_API_KEY": "YOUR_API_KEY",
         "TRELLO_TOKEN": "YOUR_TOKEN",
@@ -81,6 +125,29 @@ must be on the client's PATH, or `command` must be its full installed path.
 }
 ```
 
+**Codex (CLI and desktop)**
+
+Codex CLI and desktop share `~/.codex/config.toml`. Merge the following into that
+local file and restart your Codex client. Use the full executable path and replace
+placeholders only on your machine. Windows TOML basic strings need doubled
+backslashes, just like the JSON example above.
+
+```toml
+[mcp_servers.trello]
+command = "/absolute/path/to/trello-mcp"
+
+[mcp_servers.trello.env]
+TRELLO_API_KEY = "YOUR_API_KEY"
+TRELLO_TOKEN = "YOUR_TOKEN"
+TRELLO_READ_ONLY = "1"
+```
+
+**Other MCP clients (generic MCP JSON)**
+
+For clients accepting `mcpServers`, use the same JSON as the Claude Desktop
+example, with the full executable path. Keep credentials out of committed files.
+Client-specific formats may differ, as in the OpenCode example below.
+
 <details>
 <summary>OpenCode configuration</summary>
 
@@ -90,7 +157,7 @@ must be on the client's PATH, or `command` must be its full installed path.
   "mcp": {
     "trello": {
       "type": "local",
-      "command": ["trello-mcp"],
+      "command": ["/absolute/path/to/trello-mcp"],
       "environment": {
         "TRELLO_API_KEY": "YOUR_API_KEY",
         "TRELLO_TOKEN": "YOUR_TOKEN",
@@ -159,13 +226,37 @@ counts.
 | `TRELLO_API_KEY` | required | Trello API key |
 | `TRELLO_TOKEN` | required | Trello API token |
 | `TRELLO_BOARD_ID` | saved selection | Initial board; changing it clears the old saved workspace |
-| `TRELLO_ALLOWED_WORKSPACES` | unrestricted | Comma-separated workspace ids or canonical names, not display names |
+| `TRELLO_ALLOWED_WORKSPACES` | unrestricted | Comma-separated workspace ids or canonical names, not display names; additional server policy, not token permissions |
 | `TRELLO_TOOLS` | `all` | Comma-separated tool names or prefix groups: `workspace`, `board`, `list`, `card`, `comment`, `checklist`, `member`, `label`, `customfield`, `attachment`, `server` |
 | `TRELLO_READ_ONLY` | `0` | `1` hides all 29 mutation/transfer tools, including local-file downloads; 19 tools remain |
 | `TRELLO_DOWNLOAD_DIR` | `os.TempDir()/trello-mcp` | Absolute download directory; created as 0700, existing directories must be private and owned by the current user |
 | `TRELLO_UPLOAD_DIR` | unset (path uploads disabled) | Absolute root for local-file uploads; only regular files inside this directory may be uploaded, without following symlinks |
 | `XDG_CONFIG_HOME` | platform configuration directory | Active selection is stored under `trello-mcp/state.json` |
 | `HTTPS_PROXY` | unset | Standard Go HTTP proxy configuration |
+
+### Discovering access policy
+
+MCP initialization instructions summarize the configured workspace restriction,
+read-only mode and effective file-transfer availability in one short paragraph.
+They never include credentials or saved active ids. If a tool is hidden or an
+operation is refused, call `server_health` with `detail: "policy"` before assuming
+that the Trello token is broken. Include `server` or `server_health` in custom
+`TRELLO_TOOLS` profiles to keep this diagnostic available.
+
+Policy health returns `restricted`, `allowedWorkspaces` (each configured
+`selector`, plus resolved `id` and canonical `name` when available), `readOnly`,
+`toolProfile`, `enabledToolCount`, `hiddenWriteTools`, and `uploads`/`downloads`
+with `enabled` and `dir`. Counts follow the selected profile; `hiddenWriteTools`
+counts selected tools removed by read-only mode. Transfer availability also
+accounts for read-only mode, tool selection and platform support; uploads here
+means local path uploads, not base64. Directory paths describe configuration,
+not a filesystem readiness check. Long selectors/paths may be shortened in
+instructions; policy health retains their full configured values.
+
+Workspace resolution uses one cached, best-effort request to
+`/members/me/organizations` with only `id,name`. A failed lookup leaves selectors
+unresolved without failing health. This diagnostic cache never authorizes
+operations, and names of workspaces outside the allowlist are not returned.
 
 ### Active selection
 
@@ -249,7 +340,7 @@ cannot be combined with `boardId` or `listId`.
 | `attachment_add` | Attach an HTTP(S) URL; the server does not fetch it locally. |
 | `attachment_upload` | Upload a local `path` or `base64` with `fileName`. |
 | `attachment_download` | Save an uploaded attachment under the private download directory. |
-| `server_health` | Get local basic, detailed, metadata or performance diagnostics. |
+| `server_health` | Get basic, detailed, metadata, performance or access-policy diagnostics (`detail: "policy"`). |
 
 See [docs/tools.md](docs/tools.md) for parameters and the full reference name mapping.
 
@@ -319,7 +410,17 @@ See [docs/tools.md](docs/tools.md) for parameters and the full reference name ma
 ## Security model
 
 - **Token permissions are the ceiling.** The workspace allowlist is an additional
-  restriction, not a replacement for token permissions.
+  restriction, not a replacement for token permissions. Unset means unrestricted;
+  ids and canonical names match, not display names. Initialization instructions
+  and `server_health(detail: "policy")` explain the effective server policy.
+- **Distinct denials.** Policy failures return compact `{"error":"access denied
+  by <policy>: <reason>. This is server policy, not a token/permission error. ..."}`
+  with a corrective action and policy-health pointer. Allowlist errors include
+  configured selectors and denied ids, never denied board/workspace names.
+  Ownership failures explicitly refuse access when ownership cannot be verified;
+  a `boardId` mismatch identifies the object's actual and supplied board ids.
+  Genuine upstream HTTP failures use `trello API: HTTP <status>`; 401/403 explicitly
+  identify a token/permission issue. Do not change credentials to fix server policy.
 - **Ownership checks, not caller claims.** Every scoped read and write resolves
   the actual owning board. Moves and copies check source and destination;
   comments, checklist items, attachments, labels, custom fields and member
@@ -368,7 +469,12 @@ sh tests/install_test.sh
 ```
 
 Tests use only synthetic fixtures and `httptest`, never a Trello account. CI runs
-lint and race checks on Linux and macOS. Also run `shellcheck install.sh` and
+lint and race checks on Linux and macOS, plus offline native installer tests on
+Windows with PowerShell 7 and Windows PowerShell 5.1 (`pwsh -File
+tests/install_test.ps1` or `powershell -File tests/install_test.ps1`). The
+PowerShell tests mock user PATH access and use synthetic local release files via
+`TRELLO_MCP_RELEASE_BASE_URL` (an absolute fixture directory containing tag
+subdirectories, with `TRELLO_MCP_VERSION` set). Also run `shellcheck install.sh` and
 `actionlint` if installed.
 
 Print the local raw/projected character and estimated-token table:
@@ -390,7 +496,7 @@ For a whole-suite refresh, use `TRELLO_BENCH_UPDATE=1 go test ./...`.
 Push a signed version tag matching `v*` (for example, `v0.1.0`) to trigger
 [the release workflow](.github/workflows/release.yml). It runs the race-tested
 suite first, then cross-compiles with `CGO_ENABLED=0` and plain `go build` for the
-five supported platforms. Release archives contain `trello-mcp` (or
+six supported platforms. Release archives contain `trello-mcp` (or
 `trello-mcp.exe`), with `checksums.txt` alongside them on the GitHub release.
 Release binaries report their tag with `--version` and through MCP metadata.
 No GoReleaser or local release credentials are needed; publishing uses the

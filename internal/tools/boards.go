@@ -140,7 +140,7 @@ func (s *Service) listFind(ctx context.Context, a arguments) (any, error) {
 	items := make([]view.List, 0, len(all))
 	for _, l := range all {
 		if l.BoardID != id {
-			return nil, fmt.Errorf("list board unverifiable")
+			return nil, trello.OwnershipDenied("list board")
 		}
 		if matches(l.Name, a.str("nameFilter")) {
 			items = append(items, l)

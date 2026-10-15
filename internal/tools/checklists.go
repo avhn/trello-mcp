@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/avhn/trello-mcp/internal/trello"
 	"github.com/avhn/trello-mcp/internal/view"
 )
 
@@ -24,7 +25,7 @@ func (s *Service) checklistItems(ctx context.Context, a arguments) (any, error) 
 		return nil, err
 	}
 	if list.ID != id || list.BoardID != board {
-		return nil, fmt.Errorf("checklist ownership changed or unverifiable")
+		return nil, trello.OwnershipDenied("checklist")
 	}
 	return view.Collection(list.Items, ""), nil
 }
@@ -47,7 +48,7 @@ func (s *Service) checklistGet(ctx context.Context, a arguments) (any, error) {
 	}
 	for _, list := range lists {
 		if list.BoardID != board || list.CardID != id {
-			return nil, fmt.Errorf("checklist ownership unverifiable")
+			return nil, trello.OwnershipDenied("checklist")
 		}
 		if list.Name == name {
 			if list.Items == nil {

@@ -76,6 +76,44 @@ Downloads are filtered too because they write local files.
 - Every result is one compact JSON text block, without structured content or an
   output schema. Writes return `{id,name?,url?}` or `{ok:true}`, never raw objects.
 
+## Discovering access policy
+
+The MCP initialize response includes short `instructions` generated from startup
+configuration: workspace restrictions (configured ids/canonical names or
+unrestricted), read-only mode, path uploads and downloads. Credentials and saved
+active ids are never included. Long selectors/paths are shortened there.
+
+Call `server_health` with `detail: "policy"` for compact text-only JSON containing:
+
+- `restricted` and `allowedWorkspaces`: entries contain the configured `selector`
+  as given, plus resolved `id` and canonical `name` when available. Only allowed
+  workspace names are returned. One cached best-effort request to
+  `/members/me/organizations` with explicit `fields=id,name` resolves selectors;
+  lookup failures leave them unresolved and do not fail health. This diagnostic
+  cache is never used to grant access.
+- `readOnly`, `toolProfile` (the `TRELLO_TOOLS` selectors), `enabledToolCount`, and
+  `hiddenWriteTools` (selected tools hidden specifically by read-only mode).
+- `uploads` and `downloads`, each with `enabled` and `dir`. Availability accounts
+  for tool selection, read-only mode and platform support; `uploads` describes
+  local path uploads, not base64. Paths report configuration, not filesystem
+  readiness. Unconfigured upload directories are empty strings.
+
+Custom profiles should include `server` or `server_health` to retain diagnostics.
+The health `detail` enum is `basic`, `detailed`, `metadata`, `performance`, `policy`.
+
+Policy denials use `{"error":"access denied by <policy>: <reason>. This is server
+policy, not a token/permission error. ..."}` and include a corrective action plus
+`server_health` with `detail "policy"`. Allowlist errors identify
+`TRELLO_ALLOWED_WORKSPACES`, configured selectors and denied board/workspace ids,
+never denied names. Unverifiable ownership explicitly fails closed. A supplied
+`boardId` mismatch reports `object <id> belongs to board <actual>, not the supplied
+boardId <expected>`. Read-only, confined path uploads and platform transfer
+refusals follow the same format. Do not assume these failures mean a broken token.
+
+Upstream HTTP failures instead use `trello API: HTTP <status>`; 401/403 explicitly
+say `token/permission issue, not server policy`. Error bodies are never returned,
+and credentials remain scrubbed from diagnostics.
+
 ## Mutation parameters
 
 | Tool(s) | Required input | Optional input beyond `boardId` |
@@ -195,7 +233,8 @@ currently Unix-only (including Linux and macOS); other platforms fail closed.
 9. Health modes `basic`, `detailed`, `metadata`, `performance` are all local:
    `basic` returns `ok`; `detailed` adds profile and selection-presence booleans;
    `metadata` reports implementation/runtime/transport; `performance` reports
-   uptime/request/retry counters. None exposes saved ids, credentials or upstream
-   content. This is not an upstream readiness check.
+   uptime/request/retry counters. `policy` reports configured/effective access
+   policy with one cached best-effort workspace-resolution request. No mode
+   exposes saved ids or credentials. This is not an upstream readiness check.
 10. Dropdown ids and all scalar types are preserved and tested, including writes
     and empty-value clearing for each type.

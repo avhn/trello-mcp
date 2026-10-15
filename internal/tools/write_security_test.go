@@ -51,7 +51,7 @@ func TestEveryWriteRejectsDeniedOwner(t *testing.T) {
 			}))
 			defer fake.Close()
 			text, failed := callTool(t, testService(t, fake, []string{"allowed"}), d.name, raw)
-			if !failed || text != `{"error":"workspace access denied"}` {
+			if !failed || !strings.Contains(text, "access denied by TRELLO_ALLOWED_WORKSPACES") {
 				t.Fatalf("not denied at ownership boundary: %s", text)
 			}
 		})
@@ -106,7 +106,7 @@ func TestBothEndsChecked(t *testing.T) {
 				}))
 				defer fake.Close()
 				text, failed := callTool(t, testService(t, fake, []string{"w1"}), tc.tool, tc.args)
-				if !failed || text != `{"error":"workspace access denied"}` || writes.Load() != 0 {
+				if !failed || !strings.Contains(text, "access denied by TRELLO_ALLOWED_WORKSPACES") || writes.Load() != 0 {
 					t.Fatalf("unchecked %s: %s writes=%d", denied, text, writes.Load())
 				}
 			})

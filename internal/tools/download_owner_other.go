@@ -3,10 +3,13 @@
 package tools
 
 import (
-	"fmt"
 	"os"
+
+	"github.com/avhn/trello-mcp/internal/trello"
 )
 
+const fileTransfersSupported = false
+
 func checkDownloadOwner(_ os.FileInfo) error {
-	return fmt.Errorf("download directory ownership verification is unavailable on this platform")
+	return trello.PolicyDenied("download platform safety", "downloads unavailable on this platform because directory ownership cannot be verified; use a Unix host")
 }

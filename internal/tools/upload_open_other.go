@@ -3,10 +3,11 @@
 package tools
 
 import (
-	"fmt"
 	"os"
+
+	"github.com/avhn/trello-mcp/internal/trello"
 )
 
 func openUpload(_, _ string, _ os.FileInfo) (*os.File, error) {
-	return nil, fmt.Errorf("upload file path verification is unavailable on this platform")
+	return nil, trello.PolicyDenied("upload platform safety", "path uploads unavailable on this platform because file paths cannot be verified; supply base64 or use a Unix host")
 }

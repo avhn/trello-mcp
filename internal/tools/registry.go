@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -17,10 +18,12 @@ import (
 
 // Service owns domain dependencies and the shared authorization boundary.
 type Service struct {
-	access  *trello.Access
-	state   *state.Store
-	config  config.Config
-	started time.Time
+	access           *trello.Access
+	state            *state.Store
+	config           config.Config
+	started          time.Time
+	policyOnce       sync.Once
+	policyWorkspaces []view.Workspace
 }
 
 // definition binds one concise schema to a domain method. Write is separate from local selection changes.
@@ -55,7 +58,7 @@ func (s *Service) definitions() []definition {
 		{name: "member_find", description: "Find board members.", params: "boardId nameFilter", call: s.memberFind},
 		{name: "label_find", description: "Find board labels.", params: "boardId nameFilter", call: s.labelFind},
 		{name: "customfield_find", description: "Get custom-field types and dropdown option ids.", params: "boardId", call: s.customfieldFind},
-		{name: "server_health", description: "Local health: basic, detailed, metadata or performance.", params: "detail", call: s.serverHealth},
+		{name: "server_health", description: "Health: basic, detailed, metadata, performance or policy (access restrictions).", params: "detail", call: s.serverHealth},
 	}, s.deliveryDefinitions()...)
 }
 
@@ -67,19 +70,13 @@ func (s *Service) Register(server *mcp.Server) error {
 		valid[d.name] = true
 		valid[strings.SplitN(d.name, "_", 2)[0]] = true
 	}
-	selected := map[string]bool{}
 	for _, name := range s.config.Tools {
 		if !valid[name] {
 			return fmt.Errorf("unknown TRELLO_TOOLS selector %q", name)
 		}
-		selected[name] = true
-	}
-	if len(selected) == 0 {
-		selected["all"] = true
 	}
 	for _, d := range defs {
-		group := strings.SplitN(d.name, "_", 2)[0]
-		if (s.config.ReadOnly && d.write) || (!selected["all"] && !selected[d.name] && !selected[group]) {
+		if (s.config.ReadOnly && d.write) || !s.selected(d) {
 			continue
 		}
 		readOnly := !d.write && d.name != "workspace_use" && d.name != "board_use"
@@ -93,6 +90,9 @@ func (s *Service) handler(d definition) mcp.ToolHandler {
 	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args, err := validate(req.Params.Arguments, d)
 		var out any
+		if s.config.ReadOnly && d.write {
+			err = trello.PolicyDenied("TRELLO_READ_ONLY", "write tools are hidden; use read tools or ask the operator to change the configuration")
+		}
 		if err == nil {
 			ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 			defer cancel()

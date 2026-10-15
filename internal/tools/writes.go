@@ -81,7 +81,7 @@ func (s *Service) members(ctx context.Context, board string, ids []string) error
 			}
 		}
 		if !found {
-			return fmt.Errorf("member does not belong to the owning board")
+			return trello.OwnershipDenied("board member")
 		}
 	}
 	return nil
@@ -309,7 +309,7 @@ func (s *Service) commentOwner(ctx context.Context, a arguments) error {
 		return err
 	}
 	if action.ID != a.str("commentId") || action.Type != "commentCard" || action.Data.Card == nil || action.Data.Board == nil || action.Data.Card.ID != a.str("cardId") || action.Data.Board.ID != board {
-		return fmt.Errorf("comment ownership unverifiable")
+		return trello.OwnershipDenied("comment")
 	}
 	return nil
 }

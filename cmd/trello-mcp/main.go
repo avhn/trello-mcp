@@ -53,8 +53,8 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	server := mcp.NewServer(&mcp.Implementation{Name: "trello-mcp", Version: tools.Version}, &mcp.ServerOptions{Logger: logger})
 	service := tools.New(c, trello.New(c.APIKey, c.Token), store)
+	server := mcp.NewServer(&mcp.Implementation{Name: "trello-mcp", Version: tools.Version}, &mcp.ServerOptions{Logger: logger, Instructions: service.Instructions()})
 	if err = service.Register(server); err != nil {
 		return err
 	}

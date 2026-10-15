@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/url"
 
@@ -23,7 +22,7 @@ func (s *Service) loadChecklist(ctx context.Context, a arguments) (view.Checklis
 		return list, err
 	}
 	if list.ID != id || list.BoardID != board || !trello.ValidID(list.CardID) {
-		return list, fmt.Errorf("checklist ownership unverifiable")
+		return list, trello.OwnershipDenied("checklist")
 	}
 	if _, err = s.access.ObjectBoard(ctx, "cards", list.CardID, board); err != nil {
 		return list, err
@@ -94,7 +93,7 @@ func (s *Service) checklistItemOwner(ctx context.Context, a arguments) (view.Che
 			return list, nil
 		}
 	}
-	return list, fmt.Errorf("item does not belong to checklist")
+	return list, trello.OwnershipDenied("checklist item")
 }
 
 func (s *Service) checklistItemUpdate(ctx context.Context, a arguments) (any, error) {
