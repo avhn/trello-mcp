@@ -119,8 +119,10 @@ Write-Output 'CALLER_ALIVE'
         foreach ($invocation in @('File', 'Expression')) {
             $body = $installer
             if ($invocation -eq 'Expression') {
+                # Invoke-Expression cannot forward arguments, so remote callers pass them
+                # through a script block: & ([scriptblock]::Create((irm URL))) -Help.
                 # Escape quotes instead of nesting the installer's own here strings.
-                $body = "Invoke-Expression '" + $installer.Replace("'", "''") + "'"
+                $body = "& ([scriptblock]::Create('" + $installer.Replace("'", "''") + "')) @args"
             }
             Set-Content -LiteralPath $sentinelScript -Value ($prefix + "`n" + $body + "`n" + $suffix) -Encoding UTF8
             foreach ($argument in @('-Help', '--help', '-h', '--unknown', 'unknown')) {

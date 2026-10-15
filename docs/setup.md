@@ -48,6 +48,7 @@ irm https://raw.githubusercontent.com/avhn/trello-mcp/main/install.ps1 | iex
 - The POSIX installer needs `curl`, `tar` (or `unzip` for Windows archives) and `sha256sum` or `shasum`.
 - Both installers fail closed. A missing release, missing asset, unsupported platform or failed checksum stops the install; nothing is built from source and a pinned version never becomes latest.
 - Both accept `--help` and `-h` (PowerShell also `-Help`), and reject unknown arguments, before doing any work.
+- `irm | iex` cannot pass arguments; for PowerShell help run `& ([scriptblock]::Create((irm https://raw.githubusercontent.com/avhn/trello-mcp/main/install.ps1))) -Help`.
 - Neither installer reads credentials or edits client configuration.
 - Building from source is a separate manual choice and needs Go 1.26 or newer. It installs to `GOBIN`, normally `~/go/bin`:
 

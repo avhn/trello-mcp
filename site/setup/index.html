@@ -59,6 +59,7 @@
 <li>The POSIX installer needs <code>curl</code>, <code>tar</code> (or <code>unzip</code> for Windows archives) and <code>sha256sum</code> or <code>shasum</code>.</li>
 <li>Both installers fail closed. A missing release, missing asset, unsupported platform or failed checksum stops the install; nothing is built from source and a pinned version never becomes latest.</li>
 <li>Both accept <code>--help</code> and <code>-h</code> (PowerShell also <code>-Help</code>), and reject unknown arguments, before doing any work.</li>
+<li><code>irm | iex</code> cannot pass arguments; for PowerShell help run <code>&amp; ([scriptblock]::Create((irm https://raw.githubusercontent.com/avhn/trello-mcp/main/install.ps1))) -Help</code>.</li>
 <li>Neither installer reads credentials or edits client configuration.</li>
 <li>Building from source is a separate manual choice and needs Go 1.26 or newer. It installs to <code>GOBIN</code>, normally <code>~/go/bin</code>:</li>
 </ul>
