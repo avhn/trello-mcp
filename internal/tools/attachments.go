@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -195,6 +196,24 @@ func downloadRoot(dir string) (*os.Root, error) {
 	return root, nil
 }
 
+// downloadFileName keeps the sanitized component within its 120-byte cap, including the suffix.
+func downloadFileName(id, clean string, attempt int) string {
+	if attempt == 0 {
+		return id + "-" + clean
+	}
+	suffix := fmt.Sprintf("-%d", attempt)
+	ext := filepath.Ext(clean)
+	stem := strings.TrimSuffix(clean, ext)
+	// Unusually long extensions must also leave room for a stem and the suffix.
+	if len(ext) > 119-len(suffix) {
+		ext = ext[:119-len(suffix)]
+	}
+	if len(stem) > 120-len(ext)-len(suffix) {
+		stem = stem[:120-len(ext)-len(suffix)]
+	}
+	return id + "-" + stem + suffix + ext
+}
+
 func (s *Service) attachmentDownload(ctx context.Context, a arguments) (any, error) {
 	card, id := a.str("cardId"), a.str("attachmentId")
 	board, err := s.access.ObjectBoard(ctx, "cards", card, a.str("boardId"))
@@ -230,10 +249,22 @@ func (s *Service) attachmentDownload(ctx context.Context, a arguments) (any, err
 		return nil, err
 	}
 	defer func() { _ = root.Close() }()
-	name := id + "-" + safeFileName(attachment.FileName)
-	f, err := root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	clean := safeFileName(attachment.FileName)
+	var name string
+	var f *os.File
+	const maxSuffix = 100
+	for attempt := 0; attempt <= maxSuffix; attempt++ {
+		name = downloadFileName(id, clean, attempt)
+		f, err = root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, os.ErrExist) {
+			return nil, fmt.Errorf("create download exclusively: %w", err)
+		}
+	}
 	if err != nil {
-		return nil, fmt.Errorf("create download exclusively: %w", err)
+		return nil, fmt.Errorf("create download exclusively: filename collisions exhausted suffixes 1-%d: %w", maxSuffix, err)
 	}
 	complete := false
 	defer func() {

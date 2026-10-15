@@ -258,6 +258,7 @@ func TestAttachmentDownload(t *testing.T) {
 	if info.Mode().Perm() != 0600 {
 		t.Error("download not private")
 	}
+	original := info
 	info, err = os.Stat(s.config.DownloadDir)
 	if err != nil {
 		t.Fatal(err)
@@ -265,9 +266,30 @@ func TestAttachmentDownload(t *testing.T) {
 	if info.Mode().Perm() != 0700 {
 		t.Error("directory not private")
 	}
-	text, failed = callTool(t, s, "attachment_download", `{"cardId":"c1","attachmentId":"at1"}`)
-	if !failed || !strings.Contains(text, "exclusively") {
-		t.Fatalf("overwrote existing file: %s", text)
+	for attempt := 1; attempt <= 2; attempt++ {
+		text, failed = callTool(t, s, "attachment_download", `{"cardId":"c1","attachmentId":"at1"}`)
+		if failed {
+			t.Fatal(text)
+		}
+		if err := json.Unmarshal([]byte(text), &got); err != nil {
+			t.Fatal(err)
+		}
+		want := filepath.Join(s.config.DownloadDir, fmt.Sprintf("at1-report_final-%d.txt", attempt))
+		if got.Path != want || got.Size != 9 {
+			t.Fatalf("repeat download response: %s", text)
+		}
+		data, err := os.ReadFile(want)
+		if err != nil || string(data) != "synthetic" {
+			t.Fatalf("repeat download body %q: %v", data, err)
+		}
+	}
+	unchanged, err := os.Stat(path)
+	if err != nil || !os.SameFile(original, unchanged) || !original.ModTime().Equal(unchanged.ModTime()) {
+		t.Fatalf("inspect original: %v", err)
+	}
+	data, err = os.ReadFile(path)
+	if err != nil || string(data) != "synthetic" {
+		t.Fatalf("original file changed: %q, %v", data, err)
 	}
 }
 
@@ -302,7 +324,17 @@ func TestDownloadRejectsUnsafeStorage(t *testing.T) {
 			}
 			s.config.DownloadDir = dir
 			text, failed := callTool(t, s, "attachment_download", `{"cardId":"c1","attachmentId":"at1"}`)
-			if !failed || transfers.Load() != 0 {
+			if kind == "file-symlink" {
+				if failed || transfers.Load() != 1 {
+					t.Fatalf("did not skip existing symlink: %s", text)
+				}
+				if _, err := os.Stat(filepath.Join(base, "outside")); !os.IsNotExist(err) {
+					t.Fatalf("symlink target touched: %v", err)
+				}
+				if info, err := os.Lstat(filepath.Join(dir, "at1-report_final.txt")); err != nil || info.Mode()&os.ModeSymlink == 0 {
+					t.Fatalf("symlink changed: %v", err)
+				}
+			} else if !failed || transfers.Load() != 0 {
 				t.Fatalf("unsafe download proceeded: %s", text)
 			}
 		})
@@ -332,6 +364,13 @@ func TestDownloadFailureCleansPartialFile(t *testing.T) {
 			defer fake.Close()
 			s := testService(t, fake, nil)
 			s.config.DownloadDir = filepath.Join(t.TempDir(), "download")
+			if err := os.Mkdir(s.config.DownloadDir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			original := filepath.Join(s.config.DownloadDir, "at1-report_final.txt")
+			if err := os.WriteFile(original, []byte("keep"), 0600); err != nil {
+				t.Fatal(err)
+			}
 			text, failed := callTool(t, s, "attachment_download", `{"cardId":"c1","attachmentId":"at1"}`)
 			if !failed || leaked.Load() != 0 {
 				t.Fatalf("unsafe transfer: %s", text)
@@ -340,8 +379,12 @@ func TestDownloadFailureCleansPartialFile(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(entries) != 0 {
-				t.Error("partial file not removed")
+			if len(entries) != 1 || entries[0].Name() != filepath.Base(original) {
+				t.Error("partial file not removed or original removed")
+			}
+			data, err := os.ReadFile(original)
+			if err != nil || string(data) != "keep" {
+				t.Fatalf("original changed: %q, %v", data, err)
 			}
 		})
 	}
@@ -375,6 +418,59 @@ func TestSafeFileName(t *testing.T) {
 	for input, want := range map[string]string{"../../etc/passwd": "passwd", `..\..\report.txt`: "report.txt", "..": "attachment", "a\nb.txt": "a_b.txt", "é.txt": "_.txt"} {
 		if got := safeFileName(input); got != want {
 			t.Errorf("%q: got %q; want %q", input, got, want)
+		}
+	}
+}
+
+func TestDownloadCollisionExhaustion(t *testing.T) {
+	fake := attachmentFake(t, func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("transfer attempted after collision exhaustion")
+		w.WriteHeader(500)
+	}, "")
+	defer fake.Close()
+	s := testService(t, fake, nil)
+	s.config.DownloadDir = filepath.Join(t.TempDir(), "private")
+	if err := os.Mkdir(s.config.DownloadDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	for attempt := 0; attempt <= 100; attempt++ {
+		name := "at1-report_final.txt"
+		if attempt > 0 {
+			name = fmt.Sprintf("at1-report_final-%d.txt", attempt)
+		}
+		if err := os.WriteFile(filepath.Join(s.config.DownloadDir, name), []byte("keep"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	text, failed := callTool(t, s, "attachment_download", `{"cardId":"c1","attachmentId":"at1"}`)
+	if !failed || !strings.Contains(text, "filename collisions exhausted suffixes 1-100") {
+		t.Fatalf("expected collision exhaustion: %s", text)
+	}
+	entries, err := os.ReadDir(s.config.DownloadDir)
+	if err != nil || len(entries) != 101 {
+		t.Fatalf("existing files changed: count %d, %v", len(entries), err)
+	}
+	for _, entry := range entries {
+		data, err := os.ReadFile(filepath.Join(s.config.DownloadDir, entry.Name()))
+		if err != nil || string(data) != "keep" {
+			t.Fatalf("existing file changed: %s, %q, %v", entry.Name(), data, err)
+		}
+	}
+}
+
+func TestDownloadFileName(t *testing.T) {
+	for _, test := range []struct {
+		input string
+		want  string
+	}{
+		{"../../report final.jpg", "report_final-100.jpg"},
+		{"report", "report-100"},
+		{strings.Repeat("a", 116) + ".jpg", strings.Repeat("a", 112) + "-100.jpg"},
+		{"a." + strings.Repeat("x", 118), "a-100." + strings.Repeat("x", 114)},
+	} {
+		got := downloadFileName("at1", safeFileName(test.input), 100)
+		if got != "at1-"+test.want || len(got) > len("at1-")+120 {
+			t.Errorf("%q: got %q; want %q", test.input, got, "at1-"+test.want)
 		}
 	}
 }
