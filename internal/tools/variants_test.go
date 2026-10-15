@@ -133,7 +133,7 @@ func TestActionCursors(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			want := `{"items":[` + actionJSON + `],"next":"a1"}`
+			want := `{"items":[` + projectedActionJSON + `],"next":"a1"}`
 			if got != want {
 				t.Errorf("got %s, want %s", got, want)
 			}

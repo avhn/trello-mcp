@@ -26,6 +26,7 @@ const workspaceJSON = `{"id":"w1","name":"allowed","displayName":"Allowed Worksp
 const cardJSON = `{"id":"c1","name":"Fix login","url":"https://trello.com/c/c1","idBoard":"b1","idList":"l1","desc":"Synthetic card description","due":"2026-10-20T09:00:00Z","labels":[{"id":"label1","name":"Ready","color":"green"}],"idMembers":["m1"]}`
 const itemJSON = `{"id":"i1","name":"Works","state":"complete","pos":1}`
 const actionJSON = `{"id":"a1","type":"commentCard","date":"2026-10-15T12:00:00Z","data":{"text":"Looks good","card":{"id":"c1","name":"Fix login"}},"memberCreator":{"id":"m1","username":"synthetic"}}`
+const projectedActionJSON = `{"id":"a1","type":"commentCard","date":"2026-10-15T12:00:00Z","by":"synthetic","cardId":"c1","card":"Fix login","text":"Looks good"}`
 
 // requestSpec describes every expected HTTP request, including authentication and field selection.
 type requestSpec struct {
@@ -82,13 +83,13 @@ func TestTools(t *testing.T) {
 		{"board_find", `{}`, `{"items":[` + boardJSON + `]}`, []requestSpec{{"/members/me/boards", query("fields", "id,name,url,idOrganization,closed", "filter", "open"), "boards"}, {"/organizations/w1", query("fields", "id,name,displayName"), "workspace"}, {"/organizations/w2", query("fields", "id,name,displayName"), "workspace_other"}}},
 		{"board_use", `{"boardId":"b1"}`, boardJSON, boardRequests()},
 		{"board_get", `{}`, boardJSON, boardRequests()},
-		{"board_activity", `{}`, `{"items":[` + actionJSON + `]}`, append(boardRequests(), requestSpec{"/boards/b1/actions", actionQuery("all"), "actions"})},
+		{"board_activity", `{}`, `{"items":[` + projectedActionJSON + `]}`, append(boardRequests(), requestSpec{"/boards/b1/actions", actionQuery("all"), "actions"})},
 		{"list_find", `{}`, `{"items":[{"id":"l1","name":"Doing","idBoard":"b1","pos":1}]}`, append(boardRequests(), requestSpec{"/boards/b1/lists", query("fields", "id,name,idBoard,closed,pos", "filter", "open"), "lists"})},
 		{"card_find", `{"listId":"l1","nameFilter":"login","limit":1}`, `{"items":[` + cardJSON + `]}`, append(objectRequests("lists", "l1", "list"), requestSpec{"/lists/l1/cards", query("fields", cardFields, "filter", "open"), "cards"})},
 		{"card_get", `{"cardId":"c1"}`, cardJSON, append(objectRequests("cards", "c1", "card"), requestSpec{"/cards/c1", query("fields", cardFields), "card"})},
-		{"card_history", `{"cardId":"c1"}`, `{"items":[` + actionJSON + `]}`, cardActionRequests("all")},
+		{"card_history", `{"cardId":"c1"}`, `{"items":[` + projectedActionJSON + `]}`, cardActionRequests("all")},
 		{"attachment_find", `{"cardId":"c1","boardId":"b1"}`, `{"items":[{"id":"at1","name":"Report","fileName":"report.txt","mimeType":"text/plain","bytes":12,"date":"2026-10-15T12:00:00Z","isUpload":true},{"id":"at2","name":"Design","fileName":"","mimeType":"","bytes":0,"date":"2026-10-15T13:00:00Z","isUpload":false,"url":"https://example.invalid/design"}]}`, append(append(objectRequests("cards", "c1", "card"), requestSpec{"/cards/c1/attachments", query("fields", "id,name,fileName,mimeType,bytes,date,isUpload,url"), "attachments"}), objectRequests("cards", "c1", "card")...)},
-		{"comment_find", `{"cardId":"c1"}`, `{"items":[` + actionJSON + `]}`, cardActionRequests("commentCard")},
+		{"comment_find", `{"cardId":"c1"}`, `{"items":[` + projectedActionJSON + `]}`, cardActionRequests("commentCard")},
 		{"checklist_items", `{"checklistId":"cl1"}`, `{"items":[` + itemJSON + `]}`, append(objectRequests("checklists", "cl1", "checklist"), requestSpec{"/checklists/cl1", query("fields", checklistFields, "checkItems", "all", "checkItem_fields", itemFields), "checklist"})},
 		{"checklist_get", `{"cardId":"c1"}`, `{"id":"cl1","name":"Acceptance Criteria","idBoard":"b1","idCard":"c1","checkItems":[` + itemJSON + `]}`, append(objectRequests("cards", "c1", "card"), requestSpec{"/cards/c1/checklists", query("fields", checklistFields, "checkItems", "all", "checkItem_fields", itemFields), "checklists"})},
 		{"member_find", `{}`, `{"items":[{"id":"m1","username":"synthetic","fullName":"Synthetic Member"}]}`, catalog("members", "id,username,fullName", "members")},

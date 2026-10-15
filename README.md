@@ -202,9 +202,10 @@ counts.
 | --- | --- | --- | --- |
 | 20 boards | ~2.17k | ~0.43k | 80.0% |
 | 30 cards in a list | ~9.27k | ~3.21k | 65.4% |
-| 20 comments | ~5.42k | ~2.29k | 57.8% |
-| 50 board actions | ~25.73k | ~3.10k | 88.0% |
-| Card with 20 comments | ~6.21k | ~2.42k | 61.0% |
+| 20 comments | ~6.74k | ~4.31k | 36.0% |
+| 50 board actions | ~11.91k | ~4.10k | 65.5% |
+| 22 card actions | ~4.89k | ~1.36k | 72.2% |
+| Card with 20 comments | ~7.40k | ~4.46k | 39.7% |
 | Tool definitions | 57 tools, ~7.3k (static audit) | 48 tools, ~5.23k | not comparable |
 
 <!-- bench:end -->
@@ -212,6 +213,9 @@ counts.
 - Response rows use the same synthetic fixtures on both sides: pretty-printed raw
   Trello-shaped JSON, as the Node server returns it, versus actual compact MCP
   text responses. This server's registered `tools/list` result is also measured.
+- Action fixtures model mixed updates, checklist progress and long comments,
+  without padding every card with descriptions or profile metadata. Savings
+  depend on the action mix, especially the share of intact comment text.
 - The reference tool-definition estimate (57 tools, ~7.3k tokens) comes from the
   plan's static 1.8.1 audit, not the offline benchmark. The 48 tools merge the
   reference's parameter variants; repair is intentionally replaced by local
@@ -374,13 +378,18 @@ a partially created checklist.
 - Collections return `{"items":[...],"next":"cursor"}`; empty cursors are omitted.
 - `card_find` defaults to 100 results (maximum 1000), comments to 20 (maximum 100),
   and activity/history to 20 (maximum 1000).
-- Activity/history/comments retain only action id, type, date, compact actor
-  (`id,username`) and curated data references. Board references contain only id
-  and are omitted for the queried board. Moves keep before/after list names and
-  ids; checklist items keep name/state; attachments keep id/name, never URLs.
-  Changed previous scalar values are limited to 200 Unicode characters per
-  string, with `...` for truncation. Comment text is preserved. Nested Trello
-  metadata and profile details are dropped.
+- Activity/history/comments use flat, type-specific summaries: `id,type,date`,
+  `by` (username, falling back to member id), `cardId`, and relevant optional
+  fields. Full `card` names appear on the first occurrence of each card in a
+  page and whenever its name changes; an omitted name means the last name for
+  that card in this page. Every page is self-contained, and card ids remain on
+  every action. Lists and `listBefore`/`listAfter` moves use names only;
+  `checklist,item,state` describe progress. Attachments keep id/name, never URLs.
+  The queried board is omitted; other boards use `boardId`. `old` retains
+  previous scalar values, including false, zero, null and empty strings, capped
+  at 80 Unicode characters per string. `oldTruncated` lists shortened fields;
+  `changed` lists fields whose non-scalar old values were omitted. Comment
+  `text` is preserved. Nested Trello metadata and profile details are dropped.
 - Actions use Trello's last-action-id `before` cursor and accept `since`. History
   also accepts a comma-separated action `filter`. A full action page advertises
   a possible next page, which may be empty.
