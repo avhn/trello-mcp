@@ -1,0 +1,12 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.avhn/trello-mcp",
+  "title": "trello-mcp",
+  "description": "Local Trello MCP with compact responses, workspace allowlists and read-only opt-in.",
+  "repository": {
+    "url": "https://github.com/avhn/trello-mcp",
+    "source": "github"
+  },
+  "websiteUrl": "https://avhn.github.io/trello-mcp/",
+  "version": "0.5.0"
+}
