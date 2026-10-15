@@ -8,12 +8,27 @@
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
       "extra": "drop"
     },
@@ -22,7 +37,13 @@
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -40,28 +61,61 @@
   },
   {
     "id": "a2",
-    "type": "commentCard",
+    "type": "updateCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 2. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "old": {
+        "idList": "l1"
+      },
+      "listBefore": {
+        "id": "l1",
+        "name": "Doing",
+        "pos": 1
+      },
+      "listAfter": {
+        "id": "l2",
+        "name": "Done",
+        "pos": 2
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -79,28 +133,51 @@
   },
   {
     "id": "a3",
-    "type": "commentCard",
+    "type": "updateCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 3. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "old": {
+        "desc": "Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. "
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -118,28 +195,54 @@
   },
   {
     "id": "a4",
-    "type": "commentCard",
+    "type": "createCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 4. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "list": {
+        "id": "l1",
+        "name": "Doing",
+        "pos": 1,
+        "idBoard": "b1"
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -157,28 +260,60 @@
   },
   {
     "id": "a5",
-    "type": "commentCard",
+    "type": "updateCheckItemStateOnCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 5. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "checklist": {
+        "id": "cl1",
+        "name": "Acceptance Criteria",
+        "idCard": "c1",
+        "pos": 1
+      },
+      "checkItem": {
+        "id": "ci1",
+        "name": "Works offline",
+        "state": "complete",
+        "pos": 2
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -196,28 +331,60 @@
   },
   {
     "id": "a6",
-    "type": "commentCard",
+    "type": "addAttachmentToCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 6. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "attachment": {
+        "id": "at1",
+        "name": "report.txt",
+        "url": "https://trello.com/1/cards/c1/attachments/at1/download/report.txt",
+        "isUpload": true,
+        "previews": [
+          {
+            "url": "https://example.invalid/preview",
+            "width": 100
+          }
+        ]
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -235,28 +402,55 @@
   },
   {
     "id": "a7",
-    "type": "commentCard",
+    "type": "addLabelToCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 7. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "label": {
+        "id": "lb1",
+        "name": "Ready",
+        "color": "green",
+        "idBoard": "b1",
+        "uses": 2
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -274,28 +468,55 @@
   },
   {
     "id": "a8",
-    "type": "commentCard",
+    "type": "addMemberToCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 8. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "member": {
+        "id": "m2",
+        "username": "teammate",
+        "fullName": "Synthetic Teammate",
+        "avatarUrl": "https://example.invalid/avatar",
+        "bio": "drop"
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -313,28 +534,51 @@
   },
   {
     "id": "a9",
-    "type": "commentCard",
+    "type": "updateCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 9. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "old": {
+        "closed": false
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -352,19 +596,30 @@
   },
   {
     "id": "a10",
-    "type": "commentCard",
+    "type": "moveCardFromBoard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 10. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
-        "id": "b1",
-        "name": "Release",
-        "shortLink": "b1"
+        "id": "b2",
+        "name": "Other board",
+        "shortLink": "b2",
+        "prefs": {
+          "background": "red"
+        }
       },
       "extra": "drop"
     },
@@ -373,7 +628,13 @@
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -398,12 +659,27 @@
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
       "extra": "drop"
     },
@@ -412,7 +688,13 @@
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -430,28 +712,61 @@
   },
   {
     "id": "a12",
-    "type": "commentCard",
+    "type": "updateCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 12. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "old": {
+        "idList": "l1"
+      },
+      "listBefore": {
+        "id": "l1",
+        "name": "Doing",
+        "pos": 1
+      },
+      "listAfter": {
+        "id": "l2",
+        "name": "Done",
+        "pos": 2
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -469,28 +784,51 @@
   },
   {
     "id": "a13",
-    "type": "commentCard",
+    "type": "updateCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 13. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "old": {
+        "desc": "Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. "
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -508,28 +846,54 @@
   },
   {
     "id": "a14",
-    "type": "commentCard",
+    "type": "createCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 14. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "list": {
+        "id": "l1",
+        "name": "Doing",
+        "pos": 1,
+        "idBoard": "b1"
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -547,28 +911,60 @@
   },
   {
     "id": "a15",
-    "type": "commentCard",
+    "type": "updateCheckItemStateOnCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 15. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "checklist": {
+        "id": "cl1",
+        "name": "Acceptance Criteria",
+        "idCard": "c1",
+        "pos": 1
+      },
+      "checkItem": {
+        "id": "ci1",
+        "name": "Works offline",
+        "state": "complete",
+        "pos": 2
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -586,28 +982,60 @@
   },
   {
     "id": "a16",
-    "type": "commentCard",
+    "type": "addAttachmentToCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 16. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "attachment": {
+        "id": "at1",
+        "name": "report.txt",
+        "url": "https://trello.com/1/cards/c1/attachments/at1/download/report.txt",
+        "isUpload": true,
+        "previews": [
+          {
+            "url": "https://example.invalid/preview",
+            "width": 100
+          }
+        ]
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -625,28 +1053,55 @@
   },
   {
     "id": "a17",
-    "type": "commentCard",
+    "type": "addLabelToCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 17. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "label": {
+        "id": "lb1",
+        "name": "Ready",
+        "color": "green",
+        "idBoard": "b1",
+        "uses": 2
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -664,28 +1119,55 @@
   },
   {
     "id": "a18",
-    "type": "commentCard",
+    "type": "addMemberToCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 18. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "member": {
+        "id": "m2",
+        "username": "teammate",
+        "fullName": "Synthetic Teammate",
+        "avatarUrl": "https://example.invalid/avatar",
+        "bio": "drop"
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -703,28 +1185,51 @@
   },
   {
     "id": "a19",
-    "type": "commentCard",
+    "type": "updateCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 19. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "old": {
+        "closed": false
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -742,19 +1247,30 @@
   },
   {
     "id": "a20",
-    "type": "commentCard",
+    "type": "moveCardFromBoard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 20. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
-        "id": "b1",
-        "name": "Release",
-        "shortLink": "b1"
+        "id": "b2",
+        "name": "Other board",
+        "shortLink": "b2",
+        "prefs": {
+          "background": "red"
+        }
       },
       "extra": "drop"
     },
@@ -763,7 +1279,13 @@
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -788,12 +1310,27 @@
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
       "extra": "drop"
     },
@@ -802,7 +1339,13 @@
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -820,28 +1363,61 @@
   },
   {
     "id": "a22",
-    "type": "commentCard",
+    "type": "updateCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 22. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "old": {
+        "idList": "l1"
+      },
+      "listBefore": {
+        "id": "l1",
+        "name": "Doing",
+        "pos": 1
+      },
+      "listAfter": {
+        "id": "l2",
+        "name": "Done",
+        "pos": 2
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -859,28 +1435,51 @@
   },
   {
     "id": "a23",
-    "type": "commentCard",
+    "type": "updateCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 23. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "old": {
+        "desc": "Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. "
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -898,28 +1497,54 @@
   },
   {
     "id": "a24",
-    "type": "commentCard",
+    "type": "createCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 24. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "list": {
+        "id": "l1",
+        "name": "Doing",
+        "pos": 1,
+        "idBoard": "b1"
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -937,28 +1562,60 @@
   },
   {
     "id": "a25",
-    "type": "commentCard",
+    "type": "updateCheckItemStateOnCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 25. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "checklist": {
+        "id": "cl1",
+        "name": "Acceptance Criteria",
+        "idCard": "c1",
+        "pos": 1
+      },
+      "checkItem": {
+        "id": "ci1",
+        "name": "Works offline",
+        "state": "complete",
+        "pos": 2
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -976,28 +1633,60 @@
   },
   {
     "id": "a26",
-    "type": "commentCard",
+    "type": "addAttachmentToCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 26. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "attachment": {
+        "id": "at1",
+        "name": "report.txt",
+        "url": "https://trello.com/1/cards/c1/attachments/at1/download/report.txt",
+        "isUpload": true,
+        "previews": [
+          {
+            "url": "https://example.invalid/preview",
+            "width": 100
+          }
+        ]
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1015,28 +1704,55 @@
   },
   {
     "id": "a27",
-    "type": "commentCard",
+    "type": "addLabelToCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 27. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "label": {
+        "id": "lb1",
+        "name": "Ready",
+        "color": "green",
+        "idBoard": "b1",
+        "uses": 2
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1054,28 +1770,55 @@
   },
   {
     "id": "a28",
-    "type": "commentCard",
+    "type": "addMemberToCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 28. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "member": {
+        "id": "m2",
+        "username": "teammate",
+        "fullName": "Synthetic Teammate",
+        "avatarUrl": "https://example.invalid/avatar",
+        "bio": "drop"
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1093,28 +1836,51 @@
   },
   {
     "id": "a29",
-    "type": "commentCard",
+    "type": "updateCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 29. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "old": {
+        "closed": false
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1132,19 +1898,30 @@
   },
   {
     "id": "a30",
-    "type": "commentCard",
+    "type": "moveCardFromBoard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 30. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
-        "id": "b1",
-        "name": "Release",
-        "shortLink": "b1"
+        "id": "b2",
+        "name": "Other board",
+        "shortLink": "b2",
+        "prefs": {
+          "background": "red"
+        }
       },
       "extra": "drop"
     },
@@ -1153,7 +1930,13 @@
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1178,12 +1961,27 @@
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
       "extra": "drop"
     },
@@ -1192,7 +1990,13 @@
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1210,28 +2014,61 @@
   },
   {
     "id": "a32",
-    "type": "commentCard",
+    "type": "updateCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 32. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "old": {
+        "idList": "l1"
+      },
+      "listBefore": {
+        "id": "l1",
+        "name": "Doing",
+        "pos": 1
+      },
+      "listAfter": {
+        "id": "l2",
+        "name": "Done",
+        "pos": 2
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1249,28 +2086,51 @@
   },
   {
     "id": "a33",
-    "type": "commentCard",
+    "type": "updateCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 33. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "old": {
+        "desc": "Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. "
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1288,28 +2148,54 @@
   },
   {
     "id": "a34",
-    "type": "commentCard",
+    "type": "createCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 34. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "list": {
+        "id": "l1",
+        "name": "Doing",
+        "pos": 1,
+        "idBoard": "b1"
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1327,28 +2213,60 @@
   },
   {
     "id": "a35",
-    "type": "commentCard",
+    "type": "updateCheckItemStateOnCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 35. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "checklist": {
+        "id": "cl1",
+        "name": "Acceptance Criteria",
+        "idCard": "c1",
+        "pos": 1
+      },
+      "checkItem": {
+        "id": "ci1",
+        "name": "Works offline",
+        "state": "complete",
+        "pos": 2
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1366,28 +2284,60 @@
   },
   {
     "id": "a36",
-    "type": "commentCard",
+    "type": "addAttachmentToCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 36. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "attachment": {
+        "id": "at1",
+        "name": "report.txt",
+        "url": "https://trello.com/1/cards/c1/attachments/at1/download/report.txt",
+        "isUpload": true,
+        "previews": [
+          {
+            "url": "https://example.invalid/preview",
+            "width": 100
+          }
+        ]
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1405,28 +2355,55 @@
   },
   {
     "id": "a37",
-    "type": "commentCard",
+    "type": "addLabelToCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 37. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "label": {
+        "id": "lb1",
+        "name": "Ready",
+        "color": "green",
+        "idBoard": "b1",
+        "uses": 2
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1444,28 +2421,55 @@
   },
   {
     "id": "a38",
-    "type": "commentCard",
+    "type": "addMemberToCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 38. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "member": {
+        "id": "m2",
+        "username": "teammate",
+        "fullName": "Synthetic Teammate",
+        "avatarUrl": "https://example.invalid/avatar",
+        "bio": "drop"
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1483,28 +2487,51 @@
   },
   {
     "id": "a39",
-    "type": "commentCard",
+    "type": "updateCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 39. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "old": {
+        "closed": false
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1522,19 +2549,30 @@
   },
   {
     "id": "a40",
-    "type": "commentCard",
+    "type": "moveCardFromBoard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 40. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
-        "id": "b1",
-        "name": "Release",
-        "shortLink": "b1"
+        "id": "b2",
+        "name": "Other board",
+        "shortLink": "b2",
+        "prefs": {
+          "background": "red"
+        }
       },
       "extra": "drop"
     },
@@ -1543,7 +2581,13 @@
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1568,12 +2612,27 @@
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
       "extra": "drop"
     },
@@ -1582,7 +2641,13 @@
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1600,28 +2665,61 @@
   },
   {
     "id": "a42",
-    "type": "commentCard",
+    "type": "updateCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 42. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "old": {
+        "idList": "l1"
+      },
+      "listBefore": {
+        "id": "l1",
+        "name": "Doing",
+        "pos": 1
+      },
+      "listAfter": {
+        "id": "l2",
+        "name": "Done",
+        "pos": 2
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1639,28 +2737,51 @@
   },
   {
     "id": "a43",
-    "type": "commentCard",
+    "type": "updateCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 43. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "old": {
+        "desc": "Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. Previous synthetic description. "
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1678,28 +2799,54 @@
   },
   {
     "id": "a44",
-    "type": "commentCard",
+    "type": "createCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 44. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "list": {
+        "id": "l1",
+        "name": "Doing",
+        "pos": 1,
+        "idBoard": "b1"
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1717,28 +2864,60 @@
   },
   {
     "id": "a45",
-    "type": "commentCard",
+    "type": "updateCheckItemStateOnCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 45. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "checklist": {
+        "id": "cl1",
+        "name": "Acceptance Criteria",
+        "idCard": "c1",
+        "pos": 1
+      },
+      "checkItem": {
+        "id": "ci1",
+        "name": "Works offline",
+        "state": "complete",
+        "pos": 2
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1756,28 +2935,60 @@
   },
   {
     "id": "a46",
-    "type": "commentCard",
+    "type": "addAttachmentToCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 46. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "attachment": {
+        "id": "at1",
+        "name": "report.txt",
+        "url": "https://trello.com/1/cards/c1/attachments/at1/download/report.txt",
+        "isUpload": true,
+        "previews": [
+          {
+            "url": "https://example.invalid/preview",
+            "width": 100
+          }
+        ]
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1795,28 +3006,55 @@
   },
   {
     "id": "a47",
-    "type": "commentCard",
+    "type": "addLabelToCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 47. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "label": {
+        "id": "lb1",
+        "name": "Ready",
+        "color": "green",
+        "idBoard": "b1",
+        "uses": 2
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1834,28 +3072,55 @@
   },
   {
     "id": "a48",
-    "type": "commentCard",
+    "type": "addMemberToCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 48. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "member": {
+        "id": "m2",
+        "username": "teammate",
+        "fullName": "Synthetic Teammate",
+        "avatarUrl": "https://example.invalid/avatar",
+        "bio": "drop"
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1873,28 +3138,51 @@
   },
   {
     "id": "a49",
-    "type": "commentCard",
+    "type": "updateCard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 49. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
         "id": "b1",
         "name": "Release",
-        "shortLink": "b1"
+        "shortLink": "b1",
+        "prefs": {
+          "permissionLevel": "private",
+          "background": "blue"
+        },
+        "idOrganization": "w1",
+        "url": "https://trello.com/b/b1/release"
       },
-      "extra": "drop"
+      "extra": "drop",
+      "old": {
+        "closed": false
+      }
     },
     "memberCreator": {
       "id": "m1",
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {
@@ -1912,19 +3200,30 @@
   },
   {
     "id": "a50",
-    "type": "commentCard",
+    "type": "moveCardFromBoard",
     "date": "2026-10-15T12:00:00Z",
     "data": {
-      "text": "Synthetic action 50. A representative activity detail. A representative activity detail. A representative activity detail. A representative activity detail. ",
       "card": {
         "id": "c1",
         "name": "Fix login",
-        "shortLink": "c1"
+        "shortLink": "c1",
+        "idShort": 42,
+        "desc": "Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. Synthetic card context. ",
+        "idList": "l1",
+        "closed": false,
+        "cover": {
+          "color": "blue",
+          "size": "normal"
+        },
+        "url": "https://trello.com/c/c1/fix-login"
       },
       "board": {
-        "id": "b1",
-        "name": "Release",
-        "shortLink": "b1"
+        "id": "b2",
+        "name": "Other board",
+        "shortLink": "b2",
+        "prefs": {
+          "background": "red"
+        }
       },
       "extra": "drop"
     },
@@ -1933,7 +3232,13 @@
       "username": "synthetic",
       "fullName": "Synthetic Member",
       "avatarHash": null,
-      "bio": "Not projected"
+      "bio": "Not projected",
+      "avatarUrl": "https://example.invalid/avatar",
+      "initials": "SM",
+      "nonPublic": {
+        "fullName": "Synthetic Member"
+      },
+      "activityBlocked": false
     },
     "appCreator": null,
     "display": {

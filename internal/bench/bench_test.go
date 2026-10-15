@@ -69,7 +69,7 @@ func TestSizes(t *testing.T) {
 		t.Fatal(err)
 	}
 	server := mcp.NewServer(&mcp.Implementation{Name: "bench", Version: "1"}, nil)
-	service := tools.New(config.Config{Tools: []string{"all"}}, trello.NewClient(fake.URL, "synthetic-key", "synthetic-token", fake.Client()), store)
+	service := tools.New(config.Config{APIKey: "synthetic-key", Token: "synthetic-token", Tools: []string{"all"}}, trello.NewClient(fake.URL, "synthetic-key", "synthetic-token", fake.Client()), store)
 	if err = service.Register(server); err != nil {
 		t.Fatal(err)
 	}

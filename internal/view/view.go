@@ -197,13 +197,36 @@ type Attachment struct {
 
 // ActionData projects common activity entities instead of returning arbitrary raw data.
 type ActionData struct {
-	Text       string   `json:"text,omitempty"`
-	Card       *Named   `json:"card,omitempty"`
-	List       *Named   `json:"list,omitempty"`
-	Board      *Named   `json:"board,omitempty"`
-	ListBefore *Named   `json:"listBefore,omitempty"`
-	ListAfter  *Named   `json:"listAfter,omitempty"`
-	Old        *Changes `json:"old,omitempty"`
+	Text       string         `json:"text,omitempty"`
+	Card       *Named         `json:"card,omitempty"`
+	List       *Named         `json:"list,omitempty"`
+	Board      *Reference     `json:"board,omitempty"`
+	ListBefore *Named         `json:"listBefore,omitempty"`
+	ListAfter  *Named         `json:"listAfter,omitempty"`
+	Old        map[string]any `json:"old,omitempty"`
+	Checklist  *Named         `json:"checklist,omitempty"`
+	CheckItem  *ActionItem    `json:"checkItem,omitempty"`
+	Attachment *Named         `json:"attachment,omitempty"`
+	Label      *Label         `json:"label,omitempty"`
+	Member     *Actor         `json:"member,omitempty"`
+}
+
+// Reference retains only the identity of a related board.
+type Reference struct {
+	ID string `json:"id"`
+}
+
+// Actor excludes full names and all profile metadata from activity results.
+type Actor struct {
+	ID       string `json:"id"`
+	Username string `json:"username,omitempty"`
+}
+
+// ActionItem retains checklist-item identity, name and completion state only.
+type ActionItem struct {
+	ID    string `json:"id,omitempty"`
+	Name  string `json:"name,omitempty"`
+	State string `json:"state,omitempty"`
 }
 
 // Named is a compact entity reference within an action.
@@ -212,13 +235,30 @@ type Named struct {
 	Name string `json:"name,omitempty"`
 }
 
-// Changes is a bounded set of previous card values for update actions.
-type Changes struct {
-	Name   string `json:"name,omitempty"`
-	Desc   string `json:"desc,omitempty"`
-	Closed *bool  `json:"closed,omitempty"`
-	Due    string `json:"due,omitempty"`
-	ListID string `json:"idList,omitempty"`
+// ProjectAction removes redundant board references and bounds previous values.
+// Comment text is preserved unchanged, as in the existing comments projection.
+func ProjectAction(a Action, boardID string) Action {
+	if a.Data.Board != nil && a.Data.Board.ID == boardID {
+		a.Data.Board = nil
+	}
+	old := make(map[string]any)
+	for _, key := range []string{"name", "desc", "closed", "due", "start", "dueComplete", "idList", "pos", "state"} {
+		value, ok := a.Data.Old[key]
+		if !ok {
+			continue
+		}
+		switch v := value.(type) {
+		case string:
+			if utf8.RuneCountInString(v) > 200 {
+				v = string([]rune(v)[:197]) + "..."
+			}
+			old[key] = v
+		case nil, bool, float64:
+			old[key] = v
+		}
+	}
+	a.Data.Old = old
+	return a
 }
 
 // Action preserves type, timestamp, actor and relevant changes for history and comments.
@@ -227,7 +267,7 @@ type Action struct {
 	Type    string     `json:"type"`
 	Date    string     `json:"date"`
 	Data    ActionData `json:"data"`
-	Creator *Member    `json:"memberCreator,omitempty"`
+	Creator *Actor     `json:"memberCreator,omitempty"`
 }
 
 // Option includes dropdown ids, which callers need for customfield_set in phase 2.

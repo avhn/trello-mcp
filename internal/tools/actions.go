@@ -10,8 +10,8 @@ import (
 )
 
 // actions shares field selection and cursor handling without erasing domain authorization.
-func (s *Service) actions(ctx context.Context, path, filter string, a arguments) (any, error) {
-	q := url.Values{"fields": {"id,type,date,data,idMemberCreator"}, "memberCreator": {"true"}, "memberCreator_fields": {"id,username,fullName"}, "filter": {filter}, "limit": {strconv.Itoa(a.limit)}}
+func (s *Service) actions(ctx context.Context, path, filter, boardID string, a arguments) (any, error) {
+	q := url.Values{"fields": {"id,type,date,data,idMemberCreator"}, "memberCreator": {"true"}, "memberCreator_fields": {"id,username"}, "filter": {filter}, "limit": {strconv.Itoa(a.limit)}}
 	for _, key := range []string{"since", "before"} {
 		if value := a.str(key); value != "" {
 			q.Set(key, value)
@@ -23,6 +23,9 @@ func (s *Service) actions(ctx context.Context, path, filter string, a arguments)
 	}
 	if len(actions) > a.limit {
 		return nil, fmt.Errorf("trello action page exceeds requested limit")
+	}
+	for i := range actions {
+		actions[i] = view.ProjectAction(actions[i], boardID)
 	}
 	next := ""
 	if len(actions) == a.limit {
@@ -40,7 +43,7 @@ func (s *Service) boardActivity(ctx context.Context, a arguments) (any, error) {
 	if _, err = s.access.Board(ctx, id, false); err != nil {
 		return nil, err
 	}
-	return s.actions(ctx, "/boards/"+id+"/actions", "all", a)
+	return s.actions(ctx, "/boards/"+id+"/actions", "all", id, a)
 }
 
 // cardActions rechecks the resolved owner after fetching actions, including any retries.
@@ -50,7 +53,7 @@ func (s *Service) cardActions(ctx context.Context, filter string, a arguments) (
 	if err != nil {
 		return nil, err
 	}
-	out, err := s.actions(ctx, "/cards/"+id+"/actions", filter, a)
+	out, err := s.actions(ctx, "/cards/"+id+"/actions", filter, board, a)
 	if err != nil {
 		return nil, err
 	}
