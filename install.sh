@@ -131,8 +131,9 @@ printf "'"
 printf '%s' "$client_binary" | sed "s/'/'\\\\''/g"
 printf "' auth"
 printf '` to connect your Trello account\n'
+printf 'Credentials: ~/.secrets/.trello-mcp.secret; override with absolute TRELLO_MCP_CREDENTIALS or auth --file PATH.\n'
 printf 'Read-only opt-in: TRELLO_READ_ONLY=1 or trello-mcp auth --read-only.\n'
-printf 'Alternative: set both TRELLO_API_KEY and TRELLO_TOKEN in the server environment.\n'
+printf 'Alternative: set both TRELLO_API_KEY and TRELLO_TOKEN in the server environment; env vars still override the file.\n'
 printf '\nRegister with Claude Code (run locally):\n'
 printf 'claude mcp add trello --transport stdio -- '
 # Quote the installed path as a single shell argument, including embedded quotes.

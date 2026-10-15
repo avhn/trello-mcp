@@ -85,12 +85,15 @@ Approve access, then paste the token at the hidden prompt. Non-terminal input
 reads one line per prompt for scripting; the token is never echoed by the command.
 The authorization link necessarily contains the API key, so keep it private too.
 
-Credentials are validated and saved in your user configuration directory, not in
-client snippets. Use `trello-mcp auth --read-only` for a read-only token, or
+Credentials are validated and saved in `~/.secrets/.trello-mcp.secret` on every
+platform (`%USERPROFILE%\.secrets\.trello-mcp.secret` on Windows), not in
+client snippets. See [Credential storage](#credential-storage) for permissions,
+manual setup and overrides. Use `trello-mcp auth --read-only` for a read-only token, or
 `--write` to skip the scope question. `--expiration 1day|30days|never` selects the
 token lifetime (default `never`). `trello-mcp auth status` reports the credential
 source, username and granted scope without secrets. `trello-mcp auth logout`
-removes the saved credentials, but does not revoke the token at Trello or unset
+removes only the three Trello keys, preserving unrelated lines and comments
+(deleting the file only if empty), but does not revoke the token at Trello or unset
 environment variables. Restart your MCP client after connecting or logging out.
 
 Alternatively, set **both** `TRELLO_API_KEY` and `TRELLO_TOKEN` in the server's
@@ -237,9 +240,142 @@ counts.
 | `TRELLO_READ_ONLY` | `0` (or saved scope `read`) | Opt-in: `1` hides all 29 mutation/transfer tools, including local-file downloads; 19 tools remain. `0` cannot override a saved read-only token |
 | `TRELLO_DOWNLOAD_DIR` | `os.TempDir()/trello-mcp` | Absolute download directory; created as 0700, existing directories must be private and owned by the current user |
 | `TRELLO_UPLOAD_DIR` | unset (path uploads disabled) | Absolute root for local-file uploads; only regular files inside this directory may be uploaded, without following symlinks |
-| Credentials file | `<os.UserConfigDir()>/trello-mcp/credentials.json` | Saved by `auth`; honors `XDG_CONFIG_HOME`, like `state.json` |
-| `XDG_CONFIG_HOME` | platform configuration directory | Absolute root for `trello-mcp/state.json` and `trello-mcp/credentials.json` |
+| `TRELLO_MCP_CREDENTIALS` | `~/.secrets/.trello-mcp.secret` | Absolute dotenv credential file path; `auth --file PATH` overrides it for that command |
+| Shared fallback | `~/.secrets.env` | Read only the three Trello keys if no earlier source exists; auth never modifies it |
+| `TRELLO_TOKEN_SCOPE` (file only) | unknown, writable | `read` forces read-only; `read,write` permits writes subject to server policy |
+| `XDG_CONFIG_HOME` | platform configuration directory | Absolute root for `trello-mcp/state.json` only; does not affect credentials |
 | `HTTPS_PROXY` | unset | Standard Go HTTP proxy configuration |
+
+### Credential storage
+
+File locations and the unquoted `KEY=VALUE` format follow
+[avhn/secret](https://github.com/avhn/secret), "Let coding agents use your
+credentials without reading them". The bare name `trello-mcp` resolves to
+`~/.secrets/.trello-mcp.secret` in that tool: `secret show trello-mcp` lists masked
+names and `secret exec -f trello-mcp ...` can launch a configured consumer.
+Values follow the same rules as `secret stash`. Using avhn/secret is optional;
+trello-mcp reads the files itself.
+
+`~/.secrets.env` is secret's shared top-level store and the final fallback.
+Only `TRELLO_API_KEY`, `TRELLO_TOKEN` and optional `TRELLO_TOKEN_SCOPE` are
+interpreted there; unrelated keys and values are ignored and never logged.
+Both key and token must exist in the same file; sources are never merged.
+Missing or credential-free earlier files fall through. Unsafe or malformed
+earlier files fail closed. An unsafe shared file is never read when an earlier
+source exists; otherwise its ownership, file privacy and symlink errors are
+reported clearly. Shared files need the same private file mode/DACL; their home
+parent is not required to have an owner-only Windows DACL.
+Auth never writes to or removes keys from the shared store, even via `--file`.
+`auth status` identifies it as `Credential source: file ~/.secrets.env (shared store)`.
+After logout, credentials in the shared store can still be active.
+
+The default on every platform is `~/.secrets/.trello-mcp.secret`, resolved with
+`os.UserHomeDir()` (`%USERPROFILE%\.secrets\.trello-mcp.secret` on Windows).
+Precedence is **environment `TRELLO_API_KEY` + `TRELLO_TOKEN` > absolute
+`TRELLO_MCP_CREDENTIALS` file > default file > `~/.secrets.env`**. Both
+environment values are required together; a partial pair is an error, not a fallback. MCP client
+configs need only the full binary path, with no credential env block.
+
+The dedicated plaintext file uses unquoted dotenv:
+
+```dotenv
+TRELLO_API_KEY=your-api-key
+TRELLO_TOKEN=your-token
+TRELLO_TOKEN_SCOPE=read,write
+```
+
+`TRELLO_TOKEN_SCOPE` is optional: absent means unknown and is treated as writable;
+`read` forces read-only even with `TRELLO_READ_ONLY=0`. Status validates the
+actual granted scope with Trello. Values must be nonempty and unquoted, without
+NUL, CR, embedded newlines, boundary whitespace or surrounding quote pairs. A
+final LF terminating the file is allowed. Comments beginning with `#`, blank
+lines and unrelated keys are preserved byte-for-byte and in order on save.
+Do not put secrets in committed files, shell history or chat.
+
+`trello-mcp auth` creates a missing parent directory as 0700 and its file as 0600
+on Unix. On Windows both use protected owner-only DACLs. An existing folder's
+permissions are never changed: it must belong to the current user and must not
+be group/world writable on Unix (0755 is acceptable). Files must belong to the
+current user with no group/world access, normally 0600. Windows checks owner and
+protected owner-only DACL on both. Symlinks in the file or parent path,
+nonregular files and unsafe ownership/permissions are refused. Saves use a
+same-directory private temporary file, fsync and atomic rename.
+
+All auth commands accept an absolute file override:
+
+```sh
+trello-mcp auth --file /absolute/path/account.secret
+trello-mcp auth status --file /absolute/path/account.secret
+trello-mcp auth logout --file /absolute/path/account.secret
+```
+
+`--file` overrides `TRELLO_MCP_CREDENTIALS` for that command. Set
+`TRELLO_MCP_CREDENTIALS` in the server environment to use the same custom file in
+MCP clients; the environment credential pair still wins. `auth status` prints
+one fact per line, never credentials:
+
+```text
+Credential source: file /home/alice/.secrets/.trello-mcp.secret
+Connected as alice, scope read,write
+```
+
+For environment credentials the first line is exactly
+`Credential source: env (TRELLO_API_KEY, TRELLO_TOKEN)`. With none found:
+
+```text
+No credentials in this shell or <path>. MCP clients may pass them through their own config; run `trello-mcp auth` to save them for all clients.
+```
+
+Validation failure starts with:
+
+```text
+credential validation failed; check the token and its read permission, then run `trello-mcp auth`:
+```
+
+The scrubbed upstream error follows that prefix.
+Logout removes only these three keys; unrelated lines and comments remain, and
+the file is deleted only if no bytes remain. It does not revoke the token or
+unset environment values. Restart clients after credential changes.
+
+#### Manual setup without the browser flow
+
+If you already have a key and token, create the file in a private editor with
+the three dotenv lines above, using your own values, without quotes. Use the
+actual token scope (`read` or `read,write`); do not mark a read-only token writable.
+On Unix, create a missing directory with `mkdir -m 700 ~/.secrets`, then create
+the empty file privately after `umask 077`, run
+`chmod 600 ~/.secrets/.trello-mcp.secret`, then edit it. Use LF line endings. Do not chmod an existing
+shared folder automatically. If using the `secret` tool, `secret stash FILE KEY`
+prompts privately for each key; never place values in command arguments. On
+Windows use a current-user-owned folder and a protected owner-only DACL in
+Properties > Security for both directory and file. Then run `trello-mcp auth status`.
+
+#### Credential troubleshooting
+
+The CLI prefixes errors with `trello-mcp auth:`; source resolution may also
+prepend `credentials file <path>:`. Exact storage messages include:
+
+- `credentials directory is group/world writable; remove group/world write permissions (chmod go-w) or choose a private directory with TRELLO_MCP_CREDENTIALS`
+- `credentials file is group/world accessible; chmod 600 the credentials file or rerun trello-mcp auth`
+- `credentials must be owned by the current user; rerun trello-mcp auth as that user`
+- `credentials parent must be a directory, not a symlink; choose a real directory with TRELLO_MCP_CREDENTIALS`
+- `credentials file must be a regular file, not a symlink`
+- Windows: `credentials require a protected owner-only Windows DACL and ownership by the current user; remove access for other users in Properties > Security on the credentials directory and .trello-mcp.secret, then rerun trello-mcp auth`
+
+Fix permissions only on a path you own and intend to keep private, or select a
+new private parent with `TRELLO_MCP_CREDENTIALS`. Replace symlinks with real
+paths, and rerun as the owner rather than bypassing ownership checks.
+
+- **No credentials found / only `server_health`:** run `trello-mcp auth` to save
+  the default file, check any override, and restart the client. A client may
+  supply its own environment values not visible in your shell.
+- **Permission refused:** use the exact corrective message above; auth will not
+  silently chmod an existing folder or read an unsafe file to preserve its lines.
+- **401 token rejected:** reconnect with `trello-mcp auth`; check token expiry,
+  revocation and the matching API key. 403 can indicate insufficient permission.
+- **Wrong workspace denial:** inspect `server_health` with `detail: "policy"`
+  and correct `TRELLO_ALLOWED_WORKSPACES` or the object selection. Server policy
+  is distinct from a rejected token.
 
 ### Discovering access policy
 
@@ -252,7 +388,7 @@ that the Trello token is broken. Include `server` or `server_health` in custom
 
 Without credentials the server still initializes, registers only `server_health`,
 and includes this message in initialization instructions and every health mode:
-"Trello credentials not configured: run `trello-mcp auth` in a terminal, or set
+"Trello credentials not configured: run `trello-mcp auth` to save ~/.secrets/.trello-mcp.secret, or set
 TRELLO_API_KEY and TRELLO_TOKEN." Invalid-token HTTP 401 errors include the same
 setup hint.
 
@@ -453,19 +589,16 @@ a partially created checklist.
 
 ## Security model
 
-- **Private saved credentials.** `auth` stores `apiKey`, `token`, granted `scope`
-  and `savedAt` in `trello-mcp/credentials.json` under `os.UserConfigDir()` (or
-  the absolute `XDG_CONFIG_HOME` override). On Unix the directory is 0700 and
-  file 0600, owned by the current user. Group/world-accessible or foreign-owned
-  files are refused with corrective guidance. Symlinks and nonregular files are
-  refused; writes use exclusive temporary files and atomic rename in a pinned
-  directory. Windows keeps the type/symlink checks and relies on the user's
-  config-directory ACL rather than Unix permission bits. Keep that ACL private.
-  Environment credentials take precedence only as a complete key/token pair;
-  they bypass the saved file. A saved `scope=read` automatically hides writes,
-  even with `TRELLO_READ_ONLY=0`, and is reported in policy instructions/health.
-  Credentials remain plaintext on disk, so protect backups too. Logout removes
-  the file only; revoke the token through Trello when necessary.
+- **Private saved credentials.** See [Credential storage](#credential-storage).
+  The plaintext dotenv file is `~/.secrets/.trello-mcp.secret`, with an absolute
+  `TRELLO_MCP_CREDENTIALS` override. New directories are 0700, files 0600 on Unix;
+  Windows uses protected owner-only DACLs. Existing folder permissions are never
+  changed. Symlinks, foreign owners, writable directories and accessible files
+  are refused. Saves use a private same-directory temporary file, fsync and
+  atomic rename. The environment pair overrides files. Saved `TRELLO_TOKEN_SCOPE=read`
+  forces read-only even with `TRELLO_READ_ONLY=0`. Logout removes only the three
+  keys, keeping unrelated lines; it does not revoke Trello authorization.
+  Protect plaintext files and backups.
 - **Token permissions are the ceiling.** The workspace allowlist is an additional
   restriction, not a replacement for token permissions. Unset means unrestricted;
   ids and canonical names match, not display names. Initialization instructions
@@ -566,3 +699,5 @@ workflow's `GITHUB_TOKEN`.
 MIT, copyright Mert Dede. [delorenj/mcp-server-trello](https://github.com/delorenj/mcp-server-trello)
 (MIT), version 1.8.1, is the reference for tool coverage. This is an independent Go
 implementation; the reference server is not a runtime dependency.
+
+Trello is a trademark of Atlassian. trello-mcp is an independent project, not affiliated with or endorsed by Atlassian.

@@ -97,8 +97,9 @@
         Write-Output @"
 
 Next: run ``& $quotedExe auth`` to connect your Trello account
+Credentials: %USERPROFILE%\.secrets\.trello-mcp.secret; override with absolute TRELLO_MCP_CREDENTIALS or auth --file PATH.
 Read-only opt-in: TRELLO_READ_ONLY=1 or trello-mcp auth --read-only.
-Alternative: set both TRELLO_API_KEY and TRELLO_TOKEN in the server environment.
+Alternative: set both TRELLO_API_KEY and TRELLO_TOKEN in the server environment; env vars still override the file.
 
 Register with Claude Code (run locally in PowerShell):
 claude mcp add trello --transport stdio -- $quotedExe

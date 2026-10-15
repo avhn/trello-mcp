@@ -94,6 +94,8 @@ try {
     Assert-True ($script:fakeUserPath -eq ('%LOCALAPPDATA%\Existing;C:\Other;' + $env:INSTALL_DIR)) 'existing PATH was not preserved'
     Assert-True ($output.Contains('Next: run `& ') -and $output.Contains(' auth` to connect your Trello account')) 'missing auth next step'
     Assert-True ($output.Contains('set both TRELLO_API_KEY and TRELLO_TOKEN')) 'missing environment alternative'
+    Assert-True ($output.Contains('TRELLO_MCP_CREDENTIALS') -and $output.Contains('env vars still override the file')) 'missing credential path and precedence guidance'
+    Assert-True ($output.Contains('%USERPROFILE%\.secrets\.trello-mcp.secret')) 'missing default credential path'
     Assert-True ($output.Contains('TRELLO_READ_ONLY=1 or trello-mcp auth --read-only')) 'missing read-only opt-in'
     Assert-True (-not ($output.Contains('YOUR_API_KEY') -or $output.Contains('YOUR_TOKEN') -or $output.Contains('--env') -or $output.Contains('[mcp_servers.trello.env]'))) 'snippets must use saved credentials and writable defaults'
     Assert-True ($output.Contains('claude mcp add') -and $output.Contains("bin with ''quote")) 'missing PowerShell-quoted registration'
