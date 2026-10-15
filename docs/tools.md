@@ -56,105 +56,11 @@ local selection.
 | `attachment_download` | `download_attachment` |
 | `server_health` | `get_health`, `get_health_detailed`, `get_health_metadata`, `get_health_performance` |
 
-## Credentials and diagnostics
+## Credentials
 
-File locations and the unquoted `KEY=VALUE` format follow
-[avhn/secret](https://github.com/avhn/secret), "Let coding agents use your
-credentials without reading them". The bare name `trello-mcp` resolves to
-`~/.secrets/.trello-mcp.secret` in that tool: `secret show trello-mcp` lists masked
-names and `secret exec -f trello-mcp ...` can launch a configured consumer.
-Values follow the same rules as `secret stash`. Using avhn/secret is optional;
-trello-mcp reads the files itself.
-
-`~/.secrets.env` is secret's shared top-level store and the final fallback.
-Only `TRELLO_API_KEY`, `TRELLO_TOKEN` and optional `TRELLO_TOKEN_SCOPE` are
-interpreted there; unrelated keys and values are ignored and never logged.
-Both key and token must exist in the same file; sources are never merged.
-Missing or credential-free earlier files fall through. Unsafe or malformed
-earlier files fail closed. An unsafe shared file is never read when an earlier
-source exists; otherwise its ownership, file privacy and symlink errors are
-reported clearly. Shared files need the same private file mode/DACL; their home
-parent is not required to have an owner-only Windows DACL.
-Auth never writes to or removes keys from the shared store, even via `--file`.
-`auth status` identifies it as `Credential source: file ~/.secrets.env (shared store)`.
-After logout, credentials in the shared store can still be active.
-
-
-Client configs need only the full binary path. Run `trello-mcp auth` outside MCP
-to validate and save `~/.secrets/.trello-mcp.secret` on every platform
-(Windows: `%USERPROFILE%\.secrets\.trello-mcp.secret`, using `os.UserHomeDir()`).
-Precedence is the complete `TRELLO_API_KEY` + `TRELLO_TOKEN` environment pair,
-then the absolute `TRELLO_MCP_CREDENTIALS` file, then the default file, then
-`~/.secrets.env` (the shared top-level store). Partial
-environment pairs fail. `auth`, `auth status` and `auth logout` accept
-`--file /absolute/path/account.secret`; that flag overrides the file path for
-only the command, not future MCP processes.
-
-The file is plaintext, unquoted dotenv compatible with the `secret` tool:
-
-```dotenv
-TRELLO_API_KEY=your-api-key
-TRELLO_TOKEN=your-token
-TRELLO_TOKEN_SCOPE=read,write
-```
-
-Scope is optional: absent means unknown, treated as writable; `read` forces
-read-only regardless of `TRELLO_READ_ONLY=0`. Values reject empty strings, NUL,
-CR, embedded newlines, boundary whitespace and surrounding quote pairs. A final
-LF is allowed. Save rewrites only these keys and preserves all other lines and
-comments in order, using a same-directory private temp file, fsync and rename.
-
-Auth creates missing parents as 0700 and files as 0600 on Unix. It also repairs
-the default `~/.secrets` to 0700 after refusing symlinks and foreign owners,
-matching `secret stash`. Reads and logout require no group/world bits (0077)
-on that directory. Custom parents and the home parent of read-only
-`~/.secrets.env` may be 0755, but not group/world writable (0022); custom modes
-are unchanged. Files always require current-user ownership and no group/world
-bits, normally 0600. Windows keeps its ownership and protected owner-only DACL
-checks; the shared file's home parent is exempt from the directory DACL check.
-Symlinked files/parent paths and nonregular files are refused.
-
-Save and logout hold the target parent's `.write-lock` across the complete
-read-modify-write, including deletion. This mkdir protocol matches `secret stash`
-for the default store, with private token/PID files and token-checked release.
-Reads do not lock. Writers retry every 100ms for up to 3s. Timeout errors name
-the lock: verify its PID is stopped before manually removing it. Locks are
-never auto-stolen. Logout rechecks content before deletion and rewrites a
-changed file instead. Writers ignoring the protocol cannot be serialized.
-
-Default directory refusal says
-`credentials directory is group/world accessible; chmod 700 ~/.secrets or rerun trello-mcp auth`.
-Other examples:
-`credentials file is group/world accessible; chmod 600 the credentials file or rerun trello-mcp auth`.
-Directory refusal says
-`credentials directory is group/world writable; remove group/world write permissions (chmod go-w) or choose a private directory with TRELLO_MCP_CREDENTIALS`.
-See the [README credential troubleshooting](../README.md#credential-troubleshooting)
-for exact ownership, symlink and Windows errors and safe fixes.
-
-To configure without the browser flow, create a missing `~/.secrets` with
-`mkdir -m 700 ~/.secrets`, privately edit the three lines with your existing key,
-token and actual scope, and `chmod 600 ~/.secrets/.trello-mcp.secret` on Unix.
-Ensure an existing `~/.secrets` belongs to you and is intended to be private,
-then run `chmod 700 ~/.secrets`; auth and `secret stash` also repair this default.
-`secret stash FILE KEY`
-can prompt privately for each value, without putting it in command arguments.
-Windows manual setup needs protected owner-only DACLs on folder and file.
-
-`trello-mcp auth status` validates identity and granted scope with Trello and
-prints `Credential source: env (TRELLO_API_KEY, TRELLO_TOKEN)` or
-`Credential source: file <path>`, then `Connected as <username>, scope <granted scope>`.
-With none found it explains that MCP clients may provide their own environment
-and suggests auth to save for all clients. Validation failures explicitly ask
-you to check the token and read permission; no secret values are printed.
-`auth logout` removes only the three keys, deleting the file only when empty;
-unrelated lines, comments, environment credentials and Trello authorization
-remain. Restart clients after changes.
-
-Troubleshooting: no credentials means run auth and restart; permission refusal
-means repair only your intended private path or choose a new one; HTTP 401 means
-check the key, token expiry/revocation and reconnect; wrong workspace denial is
-server policy, so inspect `server_health` with `detail: "policy"` rather than
-changing credentials.
+Credential storage, precedence, permissions and troubleshooting are documented once, in
+[configuration](configuration.md). Install and client registration are in [setup](setup.md).
+Credentials never appear in tool arguments, tool results or client snippets.
 
 ## Profiles and common parameters
 
@@ -162,41 +68,55 @@ changing credentials.
 `board`, `list`, `card`, `comment`, `checklist`, `member`, `label`, `customfield`,
 `attachment`, `server`, or `all`. Selectors form a union, not an intersection.
 For example, `card` includes both card-member tools. Unknown selectors fail
-startup. Write access is the default for `trello-mcp auth` (Enter at
-`Allow write access? [Y/n]` means yes). Read-only is opt-in via
+startup. Write access is the default for `trello-mcp auth`. Read-only is opt-in via
 `trello-mcp auth --read-only` or `TRELLO_READ_ONLY=1`; either then removes all 29
 mutation/transfer tools, even explicitly selected ones. The 19 reads and
-local-selection tools remain eligible. Downloads are filtered too because they
-write local files. A saved token with `scope=read` implies read-only mode even if
-`TRELLO_READ_ONLY=0`.
+local-selection tools remain eligible. A saved token with `scope=read` implies
+read-only mode even if `TRELLO_READ_ONLY=0`.
 
-With no credentials the server still initializes and registers only
-`server_health`, regardless of the selected profile. Initialization instructions
-and every health mode say: "Trello credentials not configured: run
-`trello-mcp auth` to save ~/.secrets/.trello-mcp.secret, or set TRELLO_API_KEY and TRELLO_TOKEN." Run auth
-outside the MCP transport, then restart the client. A complete environment pair
-overrides the saved credentials file; partial pairs are rejected.
+The named read-oriented discovery profile has exactly ten tools. `board_use` still changes
+the local default board, so the profile is not wholly read-only:
 
-- `boardId` defaults to the active board on board-scoped calls. On object-scoped
-  calls it is an optional ownership constraint, not a source of authorization.
+```text
+TRELLO_TOOLS=workspace_find,board_find,board_use,list_find,card_find,card_get,comment_find,checklist_get,checklist_items,server_health
+```
+
+With no credentials the server still initializes and registers only `server_health`,
+regardless of the selected profile. Initialization instructions and every health mode
+tell the human to run `trello-mcp auth` in a private terminal, then restart or reconnect the
+client. Never request keys, tokens or authorization links in chat. See
+[configuration](configuration.md) for the exact message and precedence.
+
+- `boardId` is described per tool. Board collection tools default to the active board;
+  `board_use` requires it; object-scoped tools accept it only as an optional expected
+  owning-board constraint, never as authorization. `card_find` with `listId` checks that
+  list's board and otherwise uses the active board unless `mine` is true.
 - Object ids are required for object-scoped calls: `cardId`, `listId`,
   `checklistId`, `commentId`, `itemId`, `labelId`, `customFieldId`, `memberId`,
   `attachmentId`, as appropriate. Item mutations require both `checklistId` and
   `itemId`; comment mutations require both `cardId` and `commentId`.
 - `pos` accepts `top`, `bottom`, or a positive number. Dates use RFC 3339;
-  empty `due` or `start` clears a date. Optional booleans preserve explicit false.
+  empty `due` or `start` clears a date, and empty label `color` clears a color. Optional
+  booleans preserve explicit false.
 - Every result is one compact JSON text block, without structured content or an
   output schema. Writes return `{id,name?,url?}` or `{ok:true}`, never raw objects;
   card creation can also include checklist progress and an error.
+- `card_find` (default `detail: "summary"`) returns IDs, ownership, labels, members, dates,
+  status and a description preview of at most 200 characters with `descTruncated`, but no `url`.
+  `detail: "full"` adds `url`; `card_get` keeps `url` at both detail levels. This summary change is
+  intentional before 1.0. Filters, authorization, IDs and `next` cursors are identical in both modes.
+- `card_find` `before` is a card ID returned earlier in the same filtered snapshot, never a date.
+  Dates and malformed IDs are rejected before any request; syntactically valid IDs are checked against
+  the freshly fetched filtered snapshot and rejected if absent. `mine: true` selects account-wide assigned cards and
+  cannot be combined with `boardId` or `listId`. `state` accepts `complete` or `incomplete`.
 - Unknown arguments name the key, object location and allowed keys. Duplicate
   arguments name the key and location; type errors name the field and expected type.
 
 ## Discovering access policy
 
-The MCP initialize response includes short `instructions` generated from startup
-configuration: workspace restrictions (configured ids/canonical names or
-unrestricted), read-only mode, path uploads and downloads. Credentials and saved
-active ids are never included. Long selectors/paths are shortened there.
+The MCP initialize response includes a short `instructions` summary generated from startup
+configuration: whether workspaces are restricted or unrestricted, read-only mode, path uploads and
+downloads, and a pointer to policy health. Selectors, credentials and saved active ids are never included.
 
 Call `server_health` with `detail: "policy"` for compact text-only JSON containing:
 
@@ -234,15 +154,41 @@ and credentials remain scrubbed from diagnostics.
 
 ## Activity and comments
 
-`board_activity`, `card_history` and `comment_find` share a compact projection:
-`id`, `type`, `date`, `memberCreator: {id,username}`, and curated `data`.
-Card/list/move/checklist/attachment references keep only id/name; checklist items
-also keep state, labels keep color, and member references keep id/username.
-Boards keep id only, omitted when equal to the queried/resolved board. Attachments
-never include URLs or previews. `old` contains only supported changed scalar keys,
-with previous strings capped at 200 Unicode characters (including `...`). Comment
-text is unchanged. Other nested metadata is dropped, even for unknown action types.
-Explicit request fields, limits, filters and since/before paging are retained.
+`board_activity`, `card_history` and `comment_find` share a flat, type-specific projection:
+`id`, `type`, `date`, then only relevant fields. `by` is the username (the member id when Trello has no
+username); `cardId`, `listId`, `listBeforeId`, `listAfterId` and `boardId` are IDs, with `boardId` omitted
+when it equals the queried board. Entity names (`card`, `list`, `listBefore`, `listAfter`) appear on the first
+occurrence in a page and whenever the name changes; an omitted name means the last name for that ID earlier in
+the same page. Every new page starts fresh, so its first occurrence is complete. `checklist`, `item` and `state`
+describe progress; attachments keep id and name, never URLs. Comment `text` is unchanged.
+`old` keeps previous scalar values, including false, zero, null and empty strings, with strings capped at
+80 Unicode characters; `oldTruncated` lists shortened fields and `changed` lists fields whose non-scalar old
+values were omitted. Other nested metadata and profile details are dropped.
+
+Actions page with the last action ID as `before` and accept `since`; both take an action ID or an RFC 3339
+date. `board_activity` and `card_history` accept `filter`, which defaults to `all`: either `all` alone, or one
+or more comma-separated action identifiers made of letters, digits and underscores that start with a letter,
+with no spaces, empty parts or `all` component. Examples are `commentCard`, `createCard`, `updateCard` and
+`updateCheckItemStateOnCard`. The grammar is open-ended rather than a closed list, and filtering happens
+upstream before paging, not after. A full page advertises a possible next page, which can be empty.
+
+<!-- activity-example:start -->
+Synthetic page input and its `ProjectActions` output (`boardId` is the resolved board):
+
+```json
+{
+  "boardId": "b1",
+  "input": [
+    {"id":"a1","type":"commentCard","date":"2026-10-15T12:00:00Z","memberCreator":{"id":"m1","username":"synthetic"},"data":{"board":{"id":"b1"},"card":{"id":"c1","name":"Example"},"list":{"id":"l1","name":"Doing"},"text":"Keep this text.\nNext line."}},
+    {"id":"a2","type":"updateCard","date":"2026-10-15T11:00:00Z","memberCreator":{"id":"m1","username":"synthetic"},"data":{"card":{"id":"c1","name":"Example"},"list":{"id":"l1","name":"Doing"},"old":{"name":"Draft","idLabels":["label1"]}}}
+  ],
+  "output": [
+    {"id":"a1","type":"commentCard","date":"2026-10-15T12:00:00Z","by":"synthetic","cardId":"c1","card":"Example","text":"Keep this text.\nNext line.","listId":"l1","list":"Doing"},
+    {"id":"a2","type":"updateCard","date":"2026-10-15T11:00:00Z","by":"synthetic","cardId":"c1","listId":"l1","old":{"name":"Draft"},"changed":["idLabels"]}
+  ]
+}
+```
+<!-- activity-example:end -->
 
 ## Mutation parameters
 
@@ -307,6 +253,27 @@ Example batch result:
 
 `checklist_item_find` is read-only and accepts `checklistId`, optional `boardId`
 and case-insensitive `nameFilter` (matching the item's description/name).
+
+`checklist_get` matches an exact name, default `Acceptance Criteria`. On a miss it returns an error with the
+searched `name`, up to 20 `available` `{id,name}` choices, `total` and `truncated`, and no items. Every
+checklist on the card is ownership-checked before any name is disclosed. Item `due` and `idMember` appear in
+`checklist_items`, `checklist_get`, `checklist_item_find` and full `card_get`.
+
+## Mutation verification and partial results
+
+Clearing `due`, `start` or a label `color` with an empty string is sent as Trello query parameters, because an
+HTTP JSON null is silently ignored upstream. Checklist item `due` and `memberId` use query parameters too. The
+response is checked first: requested values that come back populated are compared immediately with no extra
+request, including a mismatch. A GET happens only for fields the response omits, for one bounded authorized read.
+Mutations are not retried after ambiguous transport failures, invalid success responses or verification
+mismatches. HTTP 429 responses get bounded retries (at most three). In live checks Trello ignored checklist item `due` and
+`memberId` while still answering with a populated item, so those requests surface as a partial result rather
+than success when the value does not come back; the cause is not diagnosed further.
+
+When the object is confirmed but a requested field is not, the result is `{id, error, unconfirmed}` (plus the
+usual `name` or `url`), where `unconfirmed` lists input names. The MCP result sets `isError`. The mutation
+may have been applied, so inspect the object before repeating anything. A created card or item is never
+recreated to repair a partial result.
 
 ## Custom fields
 
