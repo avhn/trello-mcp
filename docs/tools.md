@@ -1,7 +1,7 @@
 # Tool coverage
 
 The MIT-licensed `@delorenj/mcp-server-trello` 1.8.1 is the coverage reference.
-All 47 planned tools are registered by default. Parameter variants are merged;
+All 48 tools are registered by default. Parameter variants are merged;
 the reference's repair operation is replaced by explicit local selection.
 
 | This server | Reference names |
@@ -49,6 +49,7 @@ the reference's repair operation is replaced by explicit local selection.
 | `label_delete` | `delete_label` |
 | `customfield_find` | `get_board_custom_fields` |
 | `customfield_set` | `update_card_custom_field` |
+| `attachment_find` | No reference equivalent; discover card attachment ids |
 | `attachment_add` | `attach_image_to_card`, `attach_file_to_card` |
 | `attachment_upload` | `attach_data_to_card`, `attach_image_data_to_card` |
 | `attachment_download` | `download_attachment` |
@@ -61,7 +62,7 @@ the reference's repair operation is replaced by explicit local selection.
 `attachment`, `server`, or `all`. Selectors form a union, not an intersection.
 For example, `card` includes both card-member tools. Unknown selectors fail
 startup. `TRELLO_READ_ONLY=1` then removes all 29 mutation/transfer tools, even
-explicitly selected ones. The 18 reads and local-selection tools remain eligible.
+explicitly selected ones. The 19 reads and local-selection tools remain eligible.
 Downloads are filtered too because they write local files.
 
 - `boardId` defaults to the active board on board-scoped calls. On object-scoped
@@ -133,6 +134,14 @@ into Trello's empty-value clear request. Unknown types and mismatched values
 are rejected before mutation.
 
 ## Attachments
+
+`attachment_find` requires `cardId` and accepts an optional `boardId` ownership
+constraint. It remains available in read-only mode. Card ownership is resolved
+before fetching metadata and rechecked afterward. The result is `{"items":[...]}`
+with `id`, `name`, `fileName`, `mimeType`, `bytes`, `date`, and `isUpload`. Only
+non-upload (link) attachments include `url`; uploaded-file URLs require OAuth
+and are omitted. No attachment bodies or previews are returned. Use the returned
+`id` as `attachmentId` for `attachment_download`.
 
 Uploads accept regular local files (not symlinks) or standard base64. Path
 uploads are disabled by default. To enable them, set `TRELLO_UPLOAD_DIR` to an

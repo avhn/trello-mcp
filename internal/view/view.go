@@ -183,6 +183,18 @@ type Checklist struct {
 	Items   []Item `json:"checkItems"`
 }
 
+// Attachment retains metadata only; uploaded-file URLs are removed before returning results.
+type Attachment struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	FileName string `json:"fileName"`
+	MimeType string `json:"mimeType"`
+	Bytes    int64  `json:"bytes"`
+	Date     string `json:"date"`
+	IsUpload bool   `json:"isUpload"`
+	URL      string `json:"url,omitempty"`
+}
+
 // ActionData projects common activity entities instead of returning arbitrary raw data.
 type ActionData struct {
 	Text       string   `json:"text,omitempty"`

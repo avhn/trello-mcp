@@ -13,7 +13,31 @@ import (
 	"strings"
 
 	"github.com/avhn/trello-mcp/internal/trello"
+	"github.com/avhn/trello-mcp/internal/view"
 )
+
+// attachmentFind rechecks card ownership after reading metadata and omits upload URLs.
+func (s *Service) attachmentFind(ctx context.Context, a arguments) (any, error) {
+	id := a.str("cardId")
+	board, err := s.access.ObjectBoard(ctx, "cards", id, a.str("boardId"))
+	if err != nil {
+		return nil, err
+	}
+	var items []view.Attachment
+	q := url.Values{"fields": {"id,name,fileName,mimeType,bytes,date,isUpload,url"}}
+	if err = s.access.Client.Get(ctx, "/cards/"+id+"/attachments", q, &items); err != nil {
+		return nil, err
+	}
+	if _, err = s.access.ObjectBoard(ctx, "cards", id, board); err != nil {
+		return nil, err
+	}
+	for i := range items {
+		if items[i].IsUpload {
+			items[i].URL = ""
+		}
+	}
+	return view.Collection(items, ""), nil
+}
 
 // safeFileName discards path components and reduces names to a bounded portable alphabet.
 func safeFileName(name string) string {

@@ -48,6 +48,7 @@ func (s *Service) definitions() []definition {
 		{name: "card_find", description: "Find cards; filter names before paging a snapshot.", params: "boardId listId mine nameFilter detail limit before", call: s.cardFind},
 		{name: "card_get", description: "Get a card; optional curated extras or markdown.", params: "boardId cardId detail view extraFields", required: "cardId", call: s.cardGet},
 		{name: "card_history", description: "Page card actions with an action-type filter.", params: "boardId cardId limit before since filter", required: "cardId", call: s.cardHistory},
+		{name: "attachment_find", description: "Find card attachment metadata and link URLs.", params: "boardId cardId", required: "cardId", call: s.attachmentFind},
 		{name: "comment_find", description: "Page card comments.", params: "boardId cardId limit before since", required: "cardId", call: s.commentFind},
 		{name: "checklist_items", description: "Get checklist items by checklist id.", params: "boardId checklistId", required: "checklistId", call: s.checklistItems},
 		{name: "checklist_get", description: "Find a card checklist by exact name.", params: "boardId cardId name", required: "cardId", call: s.checklistGet},

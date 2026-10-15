@@ -87,6 +87,7 @@ func TestTools(t *testing.T) {
 		{"card_find", `{"listId":"l1","nameFilter":"login","limit":1}`, `{"items":[` + cardJSON + `]}`, append(objectRequests("lists", "l1", "list"), requestSpec{"/lists/l1/cards", query("fields", cardFields, "filter", "open"), "cards"})},
 		{"card_get", `{"cardId":"c1"}`, cardJSON, append(objectRequests("cards", "c1", "card"), requestSpec{"/cards/c1", query("fields", cardFields), "card"})},
 		{"card_history", `{"cardId":"c1"}`, `{"items":[` + actionJSON + `]}`, cardActionRequests("all")},
+		{"attachment_find", `{"cardId":"c1","boardId":"b1"}`, `{"items":[{"id":"at1","name":"Report","fileName":"report.txt","mimeType":"text/plain","bytes":12,"date":"2026-10-15T12:00:00Z","isUpload":true},{"id":"at2","name":"Design","fileName":"","mimeType":"","bytes":0,"date":"2026-10-15T13:00:00Z","isUpload":false,"url":"https://example.invalid/design"}]}`, append(append(objectRequests("cards", "c1", "card"), requestSpec{"/cards/c1/attachments", query("fields", "id,name,fileName,mimeType,bytes,date,isUpload,url"), "attachments"}), objectRequests("cards", "c1", "card")...)},
 		{"comment_find", `{"cardId":"c1"}`, `{"items":[` + actionJSON + `]}`, cardActionRequests("commentCard")},
 		{"checklist_items", `{"checklistId":"cl1"}`, `{"items":[` + itemJSON + `]}`, append(objectRequests("checklists", "cl1", "checklist"), requestSpec{"/checklists/cl1", query("fields", checklistFields, "checkItems", "all", "checkItem_fields", itemFields), "checklist"})},
 		{"checklist_get", `{"cardId":"c1"}`, `{"id":"cl1","name":"Acceptance Criteria","idBoard":"b1","idCard":"c1","checkItems":[` + itemJSON + `]}`, append(objectRequests("cards", "c1", "card"), requestSpec{"/cards/c1/checklists", query("fields", checklistFields, "checkItems", "all", "checkItem_fields", itemFields), "checklists"})},
@@ -174,7 +175,7 @@ func testService(t *testing.T, fake *httptest.Server, allowed []string) *Service
 // TestValidation ensures untrusted raw handlers reject malformed input without any HTTP calls.
 func TestValidation(t *testing.T) {
 	cases := []struct{ tool, raw string }{
-		{"card_get", `{}`}, {"card_get", `{"cardId":"../bad"}`}, {"card_get", `{"cardId":"c1","boardId":"b1?key=x"}`}, {"card_find", `{"limit":0}`}, {"card_find", `{"limit":1001}`}, {"card_find", `{"limit":1.5}`}, {"card_find", `{"mine":"yes"}`}, {"card_find", `{"mine":true,"listId":"l1"}`}, {"board_get", `{"detail":"all"}`}, {"server_health", `{"detail":"full"}`}, {"card_get", `{"cardId":"c1","extraFields":["attachments"]}`}, {"card_get", `{"cardId":"c1","extraFields":["votes","votes"]}`}, {"card_get", `{"cardId":"c1","view":"html"}`}, {"board_activity", `{"before":"../bad"}`}, {"card_history", `{"cardId":"c1","filter":"updateCard&key=bad"}`}, {"server_health", `null`}, {"server_health", `[]`}, {"server_health", `{} {}`}, {"card_get", `{"cardId":null}`}, {"card_get", `{"cardId":"c1","cardId":"c2"}`}, {"board_get", `{"extra":true}`},
+		{"attachment_find", `{}`}, {"attachment_find", `{"cardId":"../bad"}`}, {"card_get", `{}`}, {"card_get", `{"cardId":"../bad"}`}, {"card_get", `{"cardId":"c1","boardId":"b1?key=x"}`}, {"card_find", `{"limit":0}`}, {"card_find", `{"limit":1001}`}, {"card_find", `{"limit":1.5}`}, {"card_find", `{"mine":"yes"}`}, {"card_find", `{"mine":true,"listId":"l1"}`}, {"board_get", `{"detail":"all"}`}, {"server_health", `{"detail":"full"}`}, {"card_get", `{"cardId":"c1","extraFields":["attachments"]}`}, {"card_get", `{"cardId":"c1","extraFields":["votes","votes"]}`}, {"card_get", `{"cardId":"c1","view":"html"}`}, {"board_activity", `{"before":"../bad"}`}, {"card_history", `{"cardId":"c1","filter":"updateCard&key=bad"}`}, {"server_health", `null`}, {"server_health", `[]`}, {"server_health", `{} {}`}, {"card_get", `{"cardId":null}`}, {"card_get", `{"cardId":"c1","cardId":"c2"}`}, {"board_get", `{"extra":true}`},
 	}
 	service := &Service{}
 	for i, tc := range cases {
@@ -198,7 +199,7 @@ func TestRegistration(t *testing.T) {
 		selectors []string
 		count     int
 		readOnly  bool
-	}{{[]string{"all"}, 47, false}, {[]string{"all"}, 18, true}, {[]string{"card"}, 12, false}, {[]string{"card"}, 3, true}, {[]string{"board_get", "server"}, 2, false}, {[]string{"checklist"}, 8, false}, {[]string{"attachment"}, 3, false}, {[]string{"attachment"}, 0, true}, {[]string{"card", "card_get"}, 12, false}} {
+	}{{[]string{"all"}, 48, false}, {[]string{"all"}, 19, true}, {[]string{"card"}, 12, false}, {[]string{"card"}, 3, true}, {[]string{"board_get", "server"}, 2, false}, {[]string{"checklist"}, 8, false}, {[]string{"attachment"}, 4, false}, {[]string{"attachment"}, 1, true}, {[]string{"card", "card_get"}, 12, false}} {
 		t.Run(strings.Join(tc.selectors, ","), func(t *testing.T) {
 			fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(500) }))
 			defer fake.Close()
@@ -231,11 +232,14 @@ func TestRegistration(t *testing.T) {
 				t.Fatalf("got %d tools, want %d", len(result.Tools), tc.count)
 			}
 			for _, tool := range result.Tools {
+				if tc.readOnly && strings.HasPrefix(tool.Name, "attachment_") && (tool.Name != "attachment_find" || tool.Annotations == nil || !tool.Annotations.ReadOnlyHint) {
+					t.Errorf("unexpected read-only attachment tool: %+v", tool)
+				}
 				if tool.OutputSchema != nil {
 					t.Errorf("output schema on %s", tool.Name)
 				}
 			}
-			if tc.count == 18 {
+			if tc.count == 19 {
 				response, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "server_health", Arguments: map[string]any{}})
 				if err != nil {
 					t.Fatal(err)

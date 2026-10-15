@@ -117,8 +117,8 @@ must be on the client's PATH, or `command` must be its full installed path.
 - **Small responses.** Curated fields, compact text-only JSON, no duplicate
   structured content or output schemas, and no inline attachment bodies.
 - **Focused tool surface.** Select tools or groups, restrict workspaces, and enable
-  read-only mode. All 47 planned tools are available by default; read-only mode
-  exposes 18 reads and local-selection tools.
+  read-only mode. All 48 tools are available by default; read-only mode
+  exposes 19 reads and local-selection tools.
 
 ## Token cost
 
@@ -136,7 +136,7 @@ counts.
 | 20 comments | ~5.42k | ~2.62k | 51.6% |
 | 50 board actions | ~11.95k | ~4.95k | 58.6% |
 | Card with 20 comments | ~6.21k | ~2.76k | 55.6% |
-| Tool definitions | 57 tools, ~7.3k (static audit) | 47 tools, ~4.99k | not comparable |
+| Tool definitions | 57 tools, ~7.3k (static audit) | 48 tools, ~5.08k | not comparable |
 
 <!-- bench:end -->
 
@@ -144,7 +144,7 @@ counts.
   Trello-shaped JSON, as the Node server returns it, versus actual compact MCP
   text responses. This server's registered `tools/list` result is also measured.
 - The reference tool-definition estimate (57 tools, ~7.3k tokens) comes from the
-  plan's static 1.8.1 audit, not the offline benchmark. The 47 tools merge the
+  plan's static 1.8.1 audit, not the offline benchmark. The 48 tools merge the
   reference's parameter variants; repair is intentionally replaced by local
   selection. The definition row is not a like-for-like measured comparison.
 - The card-with-comments scenario sums `card_get(detail: "full")` and
@@ -161,7 +161,7 @@ counts.
 | `TRELLO_BOARD_ID` | saved selection | Initial board; changing it clears the old saved workspace |
 | `TRELLO_ALLOWED_WORKSPACES` | unrestricted | Comma-separated workspace ids or canonical names, not display names |
 | `TRELLO_TOOLS` | `all` | Comma-separated tool names or prefix groups: `workspace`, `board`, `list`, `card`, `comment`, `checklist`, `member`, `label`, `customfield`, `attachment`, `server` |
-| `TRELLO_READ_ONLY` | `0` | `1` hides all 29 mutation/transfer tools, including local-file downloads; 18 tools remain |
+| `TRELLO_READ_ONLY` | `0` | `1` hides all 29 mutation/transfer tools, including local-file downloads; 19 tools remain |
 | `TRELLO_DOWNLOAD_DIR` | `os.TempDir()/trello-mcp` | Absolute download directory; created as 0700, existing directories must be private and owned by the current user |
 | `TRELLO_UPLOAD_DIR` | unset (path uploads disabled) | Absolute root for local-file uploads; only regular files inside this directory may be uploaded, without following symlinks |
 | `XDG_CONFIG_HOME` | platform configuration directory | Active selection is stored under `trello-mcp/state.json` |
@@ -245,6 +245,7 @@ cannot be combined with `boardId` or `listId`.
 | `label_delete` | Delete an authorized label. |
 | `customfield_find` | Get field definitions, types and dropdown option ids. |
 | `customfield_set` | Set a typed value or dropdown option, or clear a value. |
+| `attachment_find` | Find card attachment ids and metadata, with URLs for links only. |
 | `attachment_add` | Attach an HTTP(S) URL; the server does not fetch it locally. |
 | `attachment_upload` | Upload a local `path` or `base64` with `fileName`. |
 | `attachment_download` | Save an uploaded attachment under the private download directory. |
@@ -281,6 +282,10 @@ See [docs/tools.md](docs/tools.md) for parameters and the full reference name ma
   `{"date":"2026-10-20T09:00:00Z"}`, or `{"checked":"false"}`. Dropdowns use
   `idValue: "option-id"`, not the display text. Clear a scalar with `value: ""`
   or a dropdown with `idValue: ""`.
+- Discover attachment ids with `attachment_find` using required `cardId` and an
+  optional `boardId` constraint. It returns `items` with `id`, `name`, `fileName`,
+  `mimeType`, `bytes`, `date`, and `isUpload`. Only link attachments include `url`;
+  uploaded-file URLs require OAuth and are omitted. Available in read-only mode.
 - Upload accepts exactly one local `path` or standard `base64` string. Path
   uploads are disabled by default: set `TRELLO_UPLOAD_DIR` to an absolute directory
   containing only files intended for upload. Paths may be relative to that root

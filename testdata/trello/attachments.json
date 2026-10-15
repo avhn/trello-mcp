@@ -1,0 +1,26 @@
+[
+  {
+    "id": "at1",
+    "name": "Report",
+    "fileName": "report.txt",
+    "mimeType": "text/plain",
+    "bytes": 12,
+    "date": "2026-10-15T12:00:00Z",
+    "isUpload": true,
+    "url": "https://trello.com/1/cards/c1/attachments/at1/download/report.txt",
+    "previews": [{"url": "https://example.invalid/preview"}],
+    "idMember": "m1",
+    "body": "must not escape"
+  },
+  {
+    "id": "at2",
+    "name": "Design",
+    "fileName": "",
+    "mimeType": "",
+    "bytes": 0,
+    "date": "2026-10-15T13:00:00Z",
+    "isUpload": false,
+    "url": "https://example.invalid/design",
+    "pos": 1
+  }
+]

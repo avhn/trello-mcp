@@ -15,7 +15,7 @@ import (
 // TestAllowlistDeniesEveryScopedTool checks that explicit and default selections cannot bypass ownership.
 func TestAllowlistDeniesEveryScopedTool(t *testing.T) {
 	cases := []struct{ name, args string }{
-		{"workspace_use", `{"workspaceId":"w2"}`}, {"board_find", `{"workspaceId":"w2"}`}, {"board_use", `{"boardId":"b1"}`}, {"board_get", `{}`}, {"board_activity", `{}`}, {"list_find", `{}`}, {"card_find", `{"listId":"l1","boardId":"b1"}`}, {"card_get", `{"cardId":"c1","boardId":"b1"}`}, {"card_history", `{"cardId":"c1"}`}, {"comment_find", `{"cardId":"c1"}`}, {"checklist_items", `{"checklistId":"cl1"}`}, {"checklist_get", `{"cardId":"c1"}`}, {"member_find", `{}`}, {"label_find", `{}`}, {"customfield_find", `{}`},
+		{"workspace_use", `{"workspaceId":"w2"}`}, {"board_find", `{"workspaceId":"w2"}`}, {"board_use", `{"boardId":"b1"}`}, {"board_get", `{}`}, {"board_activity", `{}`}, {"list_find", `{}`}, {"card_find", `{"listId":"l1","boardId":"b1"}`}, {"card_get", `{"cardId":"c1","boardId":"b1"}`}, {"card_history", `{"cardId":"c1"}`}, {"attachment_find", `{"cardId":"c1","boardId":"b1"}`}, {"comment_find", `{"cardId":"c1"}`}, {"checklist_items", `{"checklistId":"cl1"}`}, {"checklist_get", `{"cardId":"c1"}`}, {"member_find", `{}`}, {"label_find", `{}`}, {"customfield_find", `{}`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
