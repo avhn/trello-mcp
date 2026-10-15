@@ -27,7 +27,7 @@ func TestUploadRejectsAncestorSymlink(t *testing.T) {
 	if err = os.Symlink(private, link); err != nil {
 		t.Fatal(err)
 	}
-	data, err := readUpload(filepath.Join(link, "settings.json"))
+	data, err := readUpload(base, filepath.Join(link, "settings.json"))
 	if err == nil || len(data) != 0 {
 		t.Fatalf("ancestor symlink accepted: %q, %v", data, err)
 	}
@@ -66,7 +66,7 @@ func TestUploadRejectsFileSubstitution(t *testing.T) {
 			}
 			result := make(chan error, 1)
 			go func() {
-				f, openErr := openUpload(path, info)
+				f, openErr := openUpload(base, "upload.txt", info)
 				if f != nil {
 					_ = f.Close()
 				}

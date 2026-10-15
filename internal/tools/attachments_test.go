@@ -58,7 +58,7 @@ func attachmentFake(t *testing.T, transfer http.HandlerFunc, fileName string) *h
 }
 
 func TestAttachmentUploadSources(t *testing.T) {
-	for _, source := range []string{"base64", "path"} {
+	for _, source := range []string{"base64", "absolute", "relative", "clean-absolute", "clean-relative", "dotfile"} {
 		t.Run(source, func(t *testing.T) {
 			var uploads atomic.Int32
 			fake := attachmentFake(t, func(w http.ResponseWriter, r *http.Request) {
@@ -102,16 +102,28 @@ func TestAttachmentUploadSources(t *testing.T) {
 				_, _ = w.Write([]byte(`{"id":"at1","name":"Display","url":"https://trello.com/file","bytes":9,"previews":["must not escape"]}`))
 			}, "")
 			defer fake.Close()
+			s := testService(t, fake, []string{"w1"})
 			arg := `"base64":"c3ludGhldGlj"`
-			if source == "path" {
-				path := filepath.Join(t.TempDir(), "local.txt")
+			if source != "base64" {
+				s.config.UploadDir = t.TempDir()
+				rel := filepath.Join("nested", "local.txt")
+				if source == "dotfile" {
+					rel = filepath.Join(".private", ".local.txt")
+				}
+				path := filepath.Join(s.config.UploadDir, rel)
+				if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+					t.Fatal(err)
+				}
 				if err := os.WriteFile(path, []byte("synthetic"), 0600); err != nil {
 					t.Fatal(err)
 				}
-				// System temporary directories can have symlink ancestors, such as /var on macOS.
-				path, err := filepath.EvalSymlinks(path)
-				if err != nil {
-					t.Fatal(err)
+				switch source {
+				case "relative", "dotfile":
+					path = rel
+				case "clean-absolute":
+					path = s.config.UploadDir + "/nested/../" + rel
+				case "clean-relative":
+					path = "nested/../" + rel
 				}
 				encoded, err := json.Marshal(path)
 				if err != nil {
@@ -119,9 +131,84 @@ func TestAttachmentUploadSources(t *testing.T) {
 				}
 				arg = `"path":` + string(encoded)
 			}
-			text, failed := callTool(t, testService(t, fake, []string{"w1"}), "attachment_upload", `{"cardId":"c1","fileName":"../upload.txt","mimeType":"text/plain","name":"Display",`+arg+`}`)
+			text, failed := callTool(t, s, "attachment_upload", `{"cardId":"c1","fileName":"../upload.txt","mimeType":"text/plain","name":"Display",`+arg+`}`)
 			if failed || text != `{"id":"at1","name":"Display","url":"https://trello.com/file"}` || uploads.Load() != 1 {
 				t.Fatalf("upload: %s", text)
+			}
+		})
+	}
+}
+
+func TestUploadConfinesPaths(t *testing.T) {
+	for _, kind := range []string{"unset", "outside", "parent-escape", "nested-escape", "absolute-escape", "prefix-sibling", "file-symlink", "directory-symlink", "root-symlink", "root-symlink-trailing-slash"} {
+		t.Run(kind, func(t *testing.T) {
+			var uploads atomic.Int32
+			fake := attachmentFake(t, func(w http.ResponseWriter, _ *http.Request) {
+				uploads.Add(1)
+				w.WriteHeader(500)
+			}, "")
+			defer fake.Close()
+			s := testService(t, fake, nil)
+			base := t.TempDir()
+			root := filepath.Join(base, "uploads")
+			if err := os.Mkdir(root, 0700); err != nil {
+				t.Fatal(err)
+			}
+			outside := filepath.Join(base, "outside.txt")
+			if err := os.WriteFile(outside, []byte("synthetic outside data"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			s.config.UploadDir = root
+			path := outside
+			switch kind {
+			case "unset":
+				s.config.UploadDir = ""
+			case "parent-escape":
+				path = "../outside.txt"
+			case "nested-escape":
+				path = "nested/../../outside.txt"
+			case "absolute-escape":
+				path = root + "/../outside.txt"
+			case "prefix-sibling":
+				path = root + "-other/outside.txt"
+				if err := os.Mkdir(filepath.Dir(path), 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, []byte("synthetic outside data"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "file-symlink":
+				path = filepath.Join(root, "link.txt")
+				if err := os.Symlink(outside, path); err != nil {
+					t.Fatal(err)
+				}
+			case "directory-symlink":
+				link := filepath.Join(root, "link")
+				if err := os.Symlink(base, link); err != nil {
+					t.Fatal(err)
+				}
+				path = filepath.Join(link, "outside.txt")
+			case "root-symlink", "root-symlink-trailing-slash":
+				link := filepath.Join(base, "root-link")
+				if err := os.Symlink(base, link); err != nil {
+					t.Fatal(err)
+				}
+				s.config.UploadDir = link
+				if kind == "root-symlink-trailing-slash" {
+					s.config.UploadDir += string(os.PathSeparator)
+				}
+				path = "outside.txt"
+			}
+			encoded, err := json.Marshal(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			text, failed := callTool(t, s, "attachment_upload", `{"cardId":"c1","path":`+string(encoded)+`}`)
+			if !failed || uploads.Load() != 0 {
+				t.Fatalf("unconfined upload proceeded: %s", text)
+			}
+			if (kind == "unset" || kind == "outside" || kind == "parent-escape" || kind == "nested-escape" || kind == "absolute-escape" || kind == "prefix-sibling") && !strings.Contains(text, "TRELLO_UPLOAD_DIR") {
+				t.Fatalf("missing upload configuration guidance: %s", text)
 			}
 		})
 	}

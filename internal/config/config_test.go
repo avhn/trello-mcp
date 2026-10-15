@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -113,6 +114,26 @@ func TestDownloadDirectory(t *testing.T) {
 		}
 		if c.DownloadDir != want {
 			t.Errorf("download directory got %s; want %s", c.DownloadDir, want)
+		}
+	}
+}
+
+// TestUploadDirectory leaves path uploads disabled by default and requires an absolute root.
+func TestUploadDirectory(t *testing.T) {
+	for _, dir := range []string{"", t.TempDir(), "relative/uploads"} {
+		values := map[string]string{"TRELLO_API_KEY": "synthetic-key", "TRELLO_TOKEN": "synthetic-token", "TRELLO_UPLOAD_DIR": dir}
+		c, err := Parse(func(k string) string { return values[k] }, func() (string, error) { return t.TempDir(), nil })
+		if dir != "" && !filepath.IsAbs(dir) {
+			if err == nil || !strings.Contains(err.Error(), "TRELLO_UPLOAD_DIR must be an absolute path") {
+				t.Errorf("relative upload directory: %v", err)
+			}
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c.UploadDir != dir {
+			t.Errorf("upload directory got %s; want %s", c.UploadDir, dir)
 		}
 	}
 }

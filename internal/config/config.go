@@ -18,6 +18,7 @@ type Config struct {
 	ReadOnly          bool
 	StatePath         string
 	DownloadDir       string
+	UploadDir         string
 }
 
 // Load reads the environment once and rejects missing credentials or malformed settings.
@@ -65,6 +66,10 @@ func Parse(env func(string) string, configDir func() (string, error)) (Config, e
 		c.DownloadDir = filepath.Join(os.TempDir(), "trello-mcp")
 	} else if !filepath.IsAbs(c.DownloadDir) {
 		return c, fmt.Errorf("TRELLO_DOWNLOAD_DIR must be an absolute path")
+	}
+	c.UploadDir = env("TRELLO_UPLOAD_DIR")
+	if c.UploadDir != "" && !filepath.IsAbs(c.UploadDir) {
+		return c, fmt.Errorf("TRELLO_UPLOAD_DIR must be an absolute path")
 	}
 	return c, nil
 }

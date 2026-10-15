@@ -47,16 +47,33 @@ func (s *Service) attachmentAdd(ctx context.Context, a arguments) (any, error) {
 	return s.mutate(ctx, http.MethodPost, "/cards/"+a.str("cardId")+"/attachments", a.payload("url", "name"))
 }
 
-// readUpload refuses symlinks in every component and reads only a verified regular-file descriptor.
-func readUpload(path string) ([]byte, error) {
-	info, err := os.Lstat(path)
+// readUpload confines paths to the configured root and reads only a verified regular-file descriptor.
+func readUpload(root, path string) ([]byte, error) {
+	if root == "" {
+		return nil, fmt.Errorf("path uploads are disabled; set TRELLO_UPLOAD_DIR to enable them")
+	}
+	root = filepath.Clean(root)
+	if !filepath.IsAbs(root) {
+		return nil, fmt.Errorf("TRELLO_UPLOAD_DIR must be an absolute path")
+	}
+	if !filepath.IsAbs(path) {
+		if !filepath.IsLocal(path) {
+			return nil, fmt.Errorf("upload path must stay inside TRELLO_UPLOAD_DIR")
+		}
+		path = filepath.Join(root, path)
+	}
+	rel, err := filepath.Rel(root, filepath.Clean(path))
+	if err != nil || !filepath.IsLocal(rel) || rel == "." {
+		return nil, fmt.Errorf("upload path must name a file inside TRELLO_UPLOAD_DIR")
+	}
+	info, err := os.Lstat(filepath.Join(root, rel))
 	if err != nil {
 		return nil, fmt.Errorf("inspect upload file: %w", err)
 	}
 	if !info.Mode().IsRegular() || info.Size() > trello.MaxAttachmentBytes {
 		return nil, fmt.Errorf("upload must be a regular file at most 10 MiB, not a symlink")
 	}
-	f, err := openUpload(path, info)
+	f, err := openUpload(root, rel, info)
 	if err != nil {
 		return nil, err
 	}
@@ -82,10 +99,7 @@ func (s *Service) attachmentUpload(ctx context.Context, a arguments) (any, error
 	var err error
 	name := a.str("fileName")
 	if a.has("path") {
-		if !filepath.IsAbs(a.str("path")) {
-			return nil, fmt.Errorf("path must be absolute")
-		}
-		data, err = readUpload(a.str("path"))
+		data, err = readUpload(s.config.UploadDir, a.str("path"))
 		if name == "" {
 			name = filepath.Base(a.str("path"))
 		}

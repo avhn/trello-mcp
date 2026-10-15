@@ -101,7 +101,7 @@ Downloads are filtered too because they write local files.
 | `label_delete` | `labelId` | none |
 | `customfield_set` | `cardId`, `customFieldId`, exactly one value input | `value` or `idValue`, as below |
 | `attachment_add` | `cardId`, HTTP(S) `url` | display `name` |
-| `attachment_upload` | `cardId`, exactly one of absolute `path` or `base64` | `fileName` (required for base64), `mimeType`, display `name` |
+| `attachment_upload` | `cardId`, exactly one of confined `path` or `base64` | `fileName` (required for base64), `mimeType`, display `name` |
 | `attachment_download` | `cardId`, `attachmentId` | none |
 
 Batch create accepts 1-100 cards. All referenced ids are preflighted before the
@@ -134,9 +134,19 @@ are rejected before mutation.
 
 ## Attachments
 
-Uploads accept regular local files (not symlinks) or standard base64. Filenames
-are sanitized and MIME types validated. Both directions have a 10 MiB cap.
-URL attachments are passed to Trello; this process never fetches arbitrary URLs.
+Uploads accept regular local files (not symlinks) or standard base64. Path
+uploads are disabled by default. To enable them, set `TRELLO_UPLOAD_DIR` to an
+absolute directory containing only files intended for upload. A `path` may be
+relative to that root or absolute inside it after cleaning; paths escaping the
+root, including `..` escapes, are refused. The root is opened without following
+symlinks, and each child component is opened relative to a pinned directory
+descriptor without following symlinks. Dot-files and dot-directories inside the
+root are allowed. Path verification requires Unix (including Linux and macOS);
+other platforms refuse path uploads. Base64 uploads still work without
+`TRELLO_UPLOAD_DIR` and require `fileName`.
+
+Filenames are sanitized and MIME types validated. Both directions have a 10 MiB
+cap. URL attachments are passed to Trello; this process never fetches arbitrary URLs.
 
 Downloads resolve the card and verify attachment membership through its
 card-scoped metadata endpoint. The HTTP download uses OAuth Authorization,

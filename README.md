@@ -163,6 +163,7 @@ counts.
 | `TRELLO_TOOLS` | `all` | Comma-separated tool names or prefix groups: `workspace`, `board`, `list`, `card`, `comment`, `checklist`, `member`, `label`, `customfield`, `attachment`, `server` |
 | `TRELLO_READ_ONLY` | `0` | `1` hides all 29 mutation/transfer tools, including local-file downloads; 18 tools remain |
 | `TRELLO_DOWNLOAD_DIR` | `os.TempDir()/trello-mcp` | Absolute download directory; created as 0700, existing directories must be private and owned by the current user |
+| `TRELLO_UPLOAD_DIR` | unset (path uploads disabled) | Absolute root for local-file uploads; only regular files inside this directory may be uploaded, without following symlinks |
 | `XDG_CONFIG_HOME` | platform configuration directory | Active selection is stored under `trello-mcp/state.json` |
 | `HTTPS_PROXY` | unset | Standard Go HTTP proxy configuration |
 
@@ -280,9 +281,15 @@ See [docs/tools.md](docs/tools.md) for parameters and the full reference name ma
   `{"date":"2026-10-20T09:00:00Z"}`, or `{"checked":"false"}`. Dropdowns use
   `idValue: "option-id"`, not the display text. Clear a scalar with `value: ""`
   or a dropdown with `idValue: ""`.
-- Upload accepts exactly one absolute local `path` or standard `base64` string.
-  Base64 requires `fileName`; `mimeType` and display `name` are optional. Local
-  sources must be regular files, not symlinks. Uploads are bounded at 10 MiB.
+- Upload accepts exactly one local `path` or standard `base64` string. Path
+  uploads are disabled by default: set `TRELLO_UPLOAD_DIR` to an absolute directory
+  containing only files intended for upload. Paths may be relative to that root
+  or absolute inside it after cleaning; paths escaping the root are refused.
+  The root itself and every component below it must not be symlinks. Sources
+  must be regular files; dot-files and dot-directories inside the root are allowed.
+  Path verification requires Unix (including Linux and macOS); other platforms
+  refuse path uploads. Base64 works without `TRELLO_UPLOAD_DIR` and requires
+  `fileName`; `mimeType` and display `name` are optional. Uploads are capped at 10 MiB.
 - Downloads use the attachment's `fileName`, not display name or supplied URLs,
   and OAuth headers without query credentials. Redirects are refused.
 - Download directories must be private, owned by the current user and not
@@ -321,6 +328,12 @@ See [docs/tools.md](docs/tools.md) for parameters and the full reference name ma
 - **Read-only profile.** `TRELLO_READ_ONLY=1` hides every Trello mutation and
   attachment transfer, including local-file downloads. Local defaults can still
   change. This does not replace a suitably scoped Trello token.
+- **Confined local uploads.** Path uploads are disabled unless `TRELLO_UPLOAD_DIR`
+  is set. Only regular files inside that root can be read, using a pinned root
+  descriptor and no-symlink component traversal on Unix; other platforms fail
+  closed. Choose a dedicated staging directory, not your home or a credential
+  directory. Dot-files are not excluded. Base64 uploads do not need this setting
+  because the caller already supplies the bytes.
 - **Defensive HTTP handling.** Requests have deadlines, redirects are refused,
   credentials are scrubbed from errors, and upstream error bodies are never
   returned.

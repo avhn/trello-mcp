@@ -11,18 +11,18 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// openUpload pins each directory without following links, then verifies the opened file.
-func openUpload(path string, info os.FileInfo) (*os.File, error) {
+// openUpload pins the configured root and each child directory without following links.
+func openUpload(root, path string, info os.FileInfo) (*os.File, error) {
 	path = filepath.Clean(path)
-	if !filepath.IsAbs(path) {
-		return nil, fmt.Errorf("upload path must be absolute")
+	if !filepath.IsLocal(path) || path == "." {
+		return nil, fmt.Errorf("upload path must name a file inside TRELLO_UPLOAD_DIR")
 	}
-	dir, err := unix.Open("/", unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	dir, err := unix.Open(root, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open TRELLO_UPLOAD_DIR without symlinks: %w", err)
 	}
 	defer func() { _ = unix.Close(dir) }()
-	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
+	parts := strings.Split(path, string(filepath.Separator))
 	for _, part := range parts[:len(parts)-1] {
 		next, openErr := unix.Openat(dir, part, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 		if openErr != nil {
