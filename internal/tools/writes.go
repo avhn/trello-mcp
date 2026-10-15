@@ -17,6 +17,19 @@ type writeResult struct {
 	URL  string `json:"url,omitempty"`
 }
 
+// cardCreateResult retains confirmed progress when a later checklist write fails.
+type cardCreateResult struct {
+	writeResult
+	Checklist *createdChecklist `json:"checklist,omitempty"`
+	Error     string            `json:"error,omitempty"`
+}
+
+type createdChecklist struct {
+	ID    string `json:"id,omitempty"`
+	Name  string `json:"name"`
+	Items int    `json:"items"`
+}
+
 type success struct {
 	OK bool `json:"ok"`
 }
@@ -188,7 +201,23 @@ func (s *Service) cardCreate(ctx context.Context, a arguments) (any, error) {
 	if err = s.cardReferences(ctx, board, a); err != nil {
 		return nil, err
 	}
-	return s.mutate(ctx, http.MethodPost, "/cards", cardBody(a, a.str("listId")))
+	return s.createCard(ctx, a, a.str("listId"))
+}
+
+// createCard uses only the authorized list and ids returned by these writes.
+func (s *Service) createCard(ctx context.Context, a arguments, list string) (cardCreateResult, error) {
+	result, err := s.mutate(ctx, http.MethodPost, "/cards", cardBody(a, list))
+	if err != nil {
+		return cardCreateResult{}, err
+	}
+	out := cardCreateResult{writeResult: result.(writeResult)}
+	if a.checklist != nil {
+		out.Checklist, err = s.createCardChecklist(ctx, out.ID, *a.checklist)
+		if err != nil {
+			out.Error = s.access.Client.Scrub(err.Error())
+		}
+	}
+	return out, nil
 }
 
 func (s *Service) cardCreateBatch(ctx context.Context, a arguments) (any, error) {
@@ -203,9 +232,10 @@ func (s *Service) cardCreateBatch(ctx context.Context, a arguments) (any, error)
 		}
 	}
 	type item struct {
-		Index int    `json:"index"`
-		ID    string `json:"id,omitempty"`
-		Error string `json:"error,omitempty"`
+		Index     int               `json:"index"`
+		ID        string            `json:"id,omitempty"`
+		Checklist *createdChecklist `json:"checklist,omitempty"`
+		Error     string            `json:"error,omitempty"`
 	}
 	items := make([]item, 0, len(a.cards))
 	for i, card := range a.cards {
@@ -214,15 +244,15 @@ func (s *Service) cardCreateBatch(ctx context.Context, a arguments) (any, error)
 		if err == nil {
 			err = s.cardReferences(ctx, board, card)
 		}
-		var result any
+		var result cardCreateResult
 		if err == nil {
-			result, err = s.mutate(ctx, http.MethodPost, "/cards", cardBody(card, a.str("listId")))
+			result, err = s.createCard(ctx, card, a.str("listId"))
 		}
 		entry := item{Index: i}
 		if err != nil {
 			entry.Error = s.access.Client.Scrub(err.Error())
 		} else {
-			entry.ID = result.(writeResult).ID
+			entry.ID, entry.Checklist, entry.Error = result.ID, result.Checklist, result.Error
 		}
 		items = append(items, entry)
 	}

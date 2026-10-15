@@ -11,6 +11,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/avhn/trello-mcp/internal/config"
+	"github.com/avhn/trello-mcp/internal/credentials"
 	"github.com/avhn/trello-mcp/internal/state"
 	"github.com/avhn/trello-mcp/internal/trello"
 	"github.com/avhn/trello-mcp/internal/view"
@@ -76,7 +77,7 @@ func (s *Service) Register(server *mcp.Server) error {
 		}
 	}
 	for _, d := range defs {
-		if (s.config.ReadOnly && d.write) || !s.selected(d) {
+		if (!s.config.HasCredentials() && d.name != "server_health") || (s.config.ReadOnly && d.write) || (s.config.HasCredentials() && !s.selected(d)) {
 			continue
 		}
 		readOnly := !d.write && d.name != "workspace_use" && d.name != "board_use"
@@ -90,7 +91,9 @@ func (s *Service) handler(d definition) mcp.ToolHandler {
 	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args, err := validate(req.Params.Arguments, d)
 		var out any
-		if s.config.ReadOnly && d.write {
+		if !s.config.HasCredentials() && d.name != "server_health" {
+			err = fmt.Errorf("%s", credentials.Hint)
+		} else if s.config.ReadOnly && d.write {
 			err = trello.PolicyDenied("TRELLO_READ_ONLY", "write tools are hidden; use read tools or ask the operator to change the configuration")
 		}
 		if err == nil {
@@ -99,7 +102,13 @@ func (s *Service) handler(d definition) mcp.ToolHandler {
 			out, err = d.call(ctx, args)
 		}
 		failed := err != nil
-		if failed {
+		if result, ok := out.(cardCreateResult); ok && result.Error != "" {
+			failed = true
+		}
+		if err != nil {
+			if !s.config.HasCredentials() && d.name == "server_health" {
+				err = fmt.Errorf("%w. %s", err, credentials.Hint)
+			}
 			out = struct {
 				Error string `json:"error"`
 			}{s.access.Client.Scrub(err.Error())}

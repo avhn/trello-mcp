@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 
@@ -28,6 +29,25 @@ func (s *Service) loadChecklist(ctx context.Context, a arguments) (view.Checklis
 		return list, s.access.ScopeError(err, "checklist "+id)
 	}
 	return list, nil
+}
+
+// createCardChecklist only targets the card just created, never a caller-supplied parent.
+// Stop on the first failure and retain confirmed progress; ambiguous writes need inspection.
+func (s *Service) createCardChecklist(ctx context.Context, card string, a arguments) (*createdChecklist, error) {
+	out := &createdChecklist{Name: a.str("name")}
+	result, err := s.mutate(ctx, http.MethodPost, "/checklists", map[string]any{"idCard": card, "name": out.Name})
+	if err != nil {
+		return out, fmt.Errorf("checklist: %w; write may have succeeded; inspect before retrying", err)
+	}
+	out.ID = result.(writeResult).ID
+	for i, name := range a.items {
+		_, err = s.mutate(ctx, http.MethodPost, "/checklists/"+out.ID+"/checkItems", map[string]any{"name": name, "pos": "bottom"})
+		if err != nil {
+			return out, fmt.Errorf("checklist.items[%d]: %w; write may have succeeded; inspect before retrying", i, err)
+		}
+		out.Items++
+	}
+	return out, nil
 }
 
 func (s *Service) checklistCreate(ctx context.Context, a arguments) (any, error) {

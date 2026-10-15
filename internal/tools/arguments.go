@@ -15,12 +15,14 @@ import (
 
 // arguments contains only validated, schema-declared values.
 type arguments struct {
-	strings map[string]string
-	limit   int
-	mine    bool
-	extras  []string
-	values  map[string]any
-	cards   []arguments
+	strings   map[string]string
+	limit     int
+	mine      bool
+	extras    []string
+	values    map[string]any
+	cards     []arguments
+	checklist *arguments
+	items     []string
 }
 
 // str returns an optional string argument with its empty default.
@@ -45,6 +47,59 @@ var actionFilter = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*(,[A-Za-z][A-Za-z0-9
 
 // validate rejects unknown fields, nulls, duplicate keys, bad types and unsafe path components.
 func validate(raw json.RawMessage, d definition) (arguments, error) {
+	return validateAt(raw, d, "arguments")
+}
+
+// argumentPath names nested values without adding noise to top-level errors.
+func argumentPath(location, key string) string {
+	if location == "arguments" {
+		return key
+	}
+	return location + "." + key
+}
+
+func argumentType(key string, d definition) string {
+	switch key {
+	case "checked":
+		if d.name == "field_value" {
+			return "a string"
+		}
+		fallthrough
+	case "closed", "subscribed", "dueComplete", "defaultLists", "mine":
+		return "a boolean"
+	case "pos":
+		return "a string or number"
+	case "limit":
+		return "an integer"
+	case "idMembers", "idLabels", "extraFields", "items":
+		return "an array of strings"
+	case "cards":
+		return "an array of objects"
+	case "checklist":
+		return "an object"
+	case "value":
+		return "a typed scalar object or an empty string"
+	default:
+		return "a string"
+	}
+}
+
+// stringArray rejects nulls and reports the exact index of non-string elements.
+func stringArray(raw json.RawMessage, path string) ([]string, error) {
+	var items []json.RawMessage
+	if json.Unmarshal(raw, &items) != nil {
+		return nil, fmt.Errorf("%s must be an array of strings", path)
+	}
+	out := make([]string, len(items))
+	for i, item := range items {
+		if bytes.Equal(item, []byte("null")) || json.Unmarshal(item, &out[i]) != nil {
+			return nil, fmt.Errorf("%s[%d] must be a string", path, i)
+		}
+	}
+	return out, nil
+}
+
+func validateAt(raw json.RawMessage, d definition, location string) (arguments, error) {
 	a := arguments{strings: map[string]string{}, values: map[string]any{}}
 	if len(raw) == 0 {
 		raw = []byte("{}")
@@ -53,7 +108,7 @@ func validate(raw json.RawMessage, d definition) (arguments, error) {
 	switch d.name {
 	case "attachment_upload":
 		maxBytes = 14 << 20
-	case "card_create_batch":
+	case "card_create", "card_create_batch", "batch_item", "card_checklist":
 		maxBytes = 1 << 20
 	}
 	if len(raw) > maxBytes {
@@ -62,7 +117,7 @@ func validate(raw json.RawMessage, d definition) (arguments, error) {
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	token, err := dec.Token()
 	if err != nil || token != json.Delim('{') {
-		return a, fmt.Errorf("arguments must be an object")
+		return a, fmt.Errorf("%s must be an object", location)
 	}
 	allowed := map[string]bool{}
 	for _, k := range strings.Fields(d.params) {
@@ -75,20 +130,30 @@ func validate(raw json.RawMessage, d definition) (arguments, error) {
 			return a, fmt.Errorf("invalid arguments")
 		}
 		key, ok := token.(string)
-		if !ok || !allowed[key] || seen[key] {
-			return a, fmt.Errorf("unknown or duplicate argument")
+		if !ok {
+			return a, fmt.Errorf("invalid argument key in %s", location)
 		}
+		if !allowed[key] {
+			return a, fmt.Errorf("unknown argument %q in %s; allowed: %s", key, location, strings.Join(strings.Fields(d.params), ", "))
+		}
+		if seen[key] {
+			return a, fmt.Errorf("duplicate argument %q in %s", key, location)
+		}
+		path := argumentPath(location, key)
 		seen[key] = true
 		var value json.RawMessage
-		if err = dec.Decode(&value); err != nil || bytes.Equal(value, []byte("null")) {
-			return a, fmt.Errorf("invalid %s", key)
+		if err = dec.Decode(&value); err != nil {
+			return a, fmt.Errorf("invalid JSON for %s", path)
+		}
+		if bytes.Equal(value, []byte("null")) {
+			return a, fmt.Errorf("%s must be %s", path, argumentType(key, d))
 		}
 		switch key {
 		case "checked":
 			if d.name == "field_value" {
 				var v string
 				if json.Unmarshal(value, &v) != nil {
-					return a, fmt.Errorf("checked must be a string")
+					return a, fmt.Errorf("%s must be a string", path)
 				}
 				a.strings[key], a.values[key] = v, v
 				break
@@ -97,7 +162,7 @@ func validate(raw json.RawMessage, d definition) (arguments, error) {
 		case "closed", "subscribed", "dueComplete", "defaultLists":
 			var v bool
 			if err = json.Unmarshal(value, &v); err != nil {
-				return a, fmt.Errorf("%s must be a boolean", key)
+				return a, fmt.Errorf("%s must be a boolean", path)
 			}
 			a.values[key] = v
 		case "pos":
@@ -105,23 +170,26 @@ func validate(raw json.RawMessage, d definition) (arguments, error) {
 			if json.Unmarshal(value, &v) != nil {
 				var n json.Number
 				if json.Unmarshal(value, &n) != nil {
-					return a, fmt.Errorf("invalid pos")
+					return a, fmt.Errorf("%s must be a string or number", path)
 				}
 				v = n.String()
 			}
 			if n, e := strconv.ParseFloat(v, 64); v != "top" && v != "bottom" && (e != nil || !(n > 0 && n <= 1e20)) {
-				return a, fmt.Errorf("pos must be top, bottom or a positive number")
+				return a, fmt.Errorf("%s must be top, bottom or a positive number", path)
 			}
 			a.values[key] = v
 		case "idMembers", "idLabels":
-			var ids []string
-			if json.Unmarshal(value, &ids) != nil || len(ids) > 100 {
-				return a, fmt.Errorf("invalid %s", key)
+			ids, e := stringArray(value, path)
+			if e != nil {
+				return a, e
+			}
+			if len(ids) > 100 {
+				return a, fmt.Errorf("%s must contain at most 100 ids", path)
 			}
 			used := map[string]bool{}
 			for _, id := range ids {
 				if !trello.ValidID(id) || used[id] {
-					return a, fmt.Errorf("invalid or duplicate %s", key)
+					return a, fmt.Errorf("invalid or duplicate id in %s", path)
 				}
 				used[id] = true
 			}
@@ -134,31 +202,61 @@ func validate(raw json.RawMessage, d definition) (arguments, error) {
 			a.values[key] = v
 		case "cards":
 			var cards []json.RawMessage
-			if json.Unmarshal(value, &cards) != nil || len(cards) < 1 || len(cards) > 100 {
-				return a, fmt.Errorf("cards must contain 1 to 100 items")
+			if json.Unmarshal(value, &cards) != nil {
+				return a, fmt.Errorf("%s must be an array of objects", path)
 			}
-			for _, card := range cards {
-				item, e := validate(card, definition{name: "batch_item", params: cardCreateParams, required: "name"})
+			if len(cards) < 1 || len(cards) > 100 {
+				return a, fmt.Errorf("%s must contain 1 to 100 items", path)
+			}
+			for i, card := range cards {
+				item, e := validateAt(card, definition{name: "batch_item", params: cardCreateParams, required: "name"}, fmt.Sprintf("%s[%d]", path, i))
 				if e != nil {
-					return a, fmt.Errorf("invalid batch card: %w", e)
+					return a, e
 				}
 				a.cards = append(a.cards, item)
 			}
+		case "checklist":
+			list, e := validateAt(value, definition{name: "card_checklist", params: "name items", required: "items"}, path)
+			if e != nil {
+				return a, e
+			}
+			if !list.has("name") {
+				list.strings["name"] = "Checklist"
+			}
+			a.checklist = &list
+		case "items":
+			items, e := stringArray(value, path)
+			if e != nil {
+				return a, e
+			}
+			if len(items) < 1 || len(items) > 100 {
+				return a, fmt.Errorf("%s must contain 1 to 100 strings", path)
+			}
+			for i, name := range items {
+				if strings.TrimSpace(name) == "" || len(name) > 4096 {
+					return a, fmt.Errorf("%s[%d] must be a nonblank string of at most 4096 bytes", path, i)
+				}
+			}
+			a.items = items
 		case "limit":
 			if err = json.Unmarshal(value, &a.limit); err != nil {
-				return a, fmt.Errorf("limit must be an integer")
+				return a, fmt.Errorf("%s must be an integer", path)
 			}
 			_, max := maxLimit(d.name)
 			if a.limit < 1 || a.limit > max {
-				return a, fmt.Errorf("limit must be between 1 and %d", max)
+				return a, fmt.Errorf("%s must be between 1 and %d", path, max)
 			}
 		case "mine":
 			if err = json.Unmarshal(value, &a.mine); err != nil {
-				return a, fmt.Errorf("mine must be a boolean")
+				return a, fmt.Errorf("%s must be a boolean", path)
 			}
 		case "extraFields":
-			if err = json.Unmarshal(value, &a.extras); err != nil || len(a.extras) > 4 {
-				return a, fmt.Errorf("extraFields must contain at most four names")
+			a.extras, err = stringArray(value, path)
+			if err != nil {
+				return a, err
+			}
+			if len(a.extras) > 4 {
+				return a, fmt.Errorf("%s must contain at most four names", path)
 			}
 			used := map[string]bool{}
 			for _, extra := range a.extras {
@@ -173,13 +271,19 @@ func validate(raw json.RawMessage, d definition) (arguments, error) {
 			if key == "base64" {
 				maxString = 14 << 20
 			}
-			if err = json.Unmarshal(value, &v); err != nil || len(v) > maxString {
-				return a, fmt.Errorf("invalid %s", key)
+			if err = json.Unmarshal(value, &v); err != nil {
+				return a, fmt.Errorf("%s must be a string", path)
+			}
+			if len(v) > maxString {
+				return a, fmt.Errorf("%s must be at most %d bytes", path, maxString)
+			}
+			if d.name == "card_checklist" && key == "name" && strings.TrimSpace(v) == "" {
+				return a, fmt.Errorf("%s must not be blank", path)
 			}
 			a.strings[key] = v
 			a.values[key] = v
 			if (strings.HasSuffix(key, "Id") || key == "idBoard" || key == "idValue") && (key != "idValue" || v != "") && !trello.ValidID(v) {
-				return a, fmt.Errorf("invalid %s", key)
+				return a, fmt.Errorf("invalid %s", path)
 			}
 		}
 	}
@@ -190,8 +294,8 @@ func validate(raw json.RawMessage, d definition) (arguments, error) {
 		return a, fmt.Errorf("trailing arguments")
 	}
 	for _, key := range strings.Fields(d.required) {
-		if !seen[key] || (key != "cards" && strings.TrimSpace(a.str(key)) == "") {
-			return a, fmt.Errorf("%s is required", key)
+		if !seen[key] || (key != "cards" && key != "items" && strings.TrimSpace(a.str(key)) == "") {
+			return a, fmt.Errorf("%s is required", argumentPath(location, key))
 		}
 	}
 	if a.limit == 0 {
@@ -227,7 +331,7 @@ func validate(raw json.RawMessage, d definition) (arguments, error) {
 	for _, key := range []string{"due", "start", "date"} {
 		if v := a.str(key); v != "" {
 			if _, e := time.Parse(time.RFC3339, v); e != nil {
-				return a, fmt.Errorf("invalid %s date", key)
+				return a, fmt.Errorf("invalid %s date", argumentPath(location, key))
 			}
 		}
 	}
@@ -242,9 +346,15 @@ func fieldValue(raw json.RawMessage) (any, error) {
 	if bytes.Equal(raw, []byte(`""`)) {
 		return "", nil
 	}
-	a, err := validate(raw, definition{name: "field_value", params: "text number date checked"})
-	if err != nil || len(a.strings) != 1 {
-		return nil, fmt.Errorf("value must contain exactly one of text, number, date or checked, or be an empty string")
+	if len(raw) == 0 || raw[0] != '{' {
+		return nil, fmt.Errorf("value must be a typed scalar object or an empty string")
+	}
+	a, err := validateAt(raw, definition{name: "field_value", params: "text number date checked"}, "value")
+	if err != nil {
+		return nil, err
+	}
+	if len(a.strings) != 1 {
+		return nil, fmt.Errorf("value must contain exactly one of text, number, date or checked")
 	}
 	if v, ok := a.strings["number"]; ok {
 		if !json.Valid([]byte(v)) || strings.TrimSpace(v) != v || (v[0] != '-' && (v[0] < '0' || v[0] > '9')) {
@@ -281,6 +391,10 @@ func schema(d definition) map[string]any {
 			p = map[string]any{"anyOf": []any{map[string]any{"type": "string"}, map[string]any{"type": "number", "exclusiveMinimum": 0}}}
 		case "idMembers", "idLabels":
 			p = map[string]any{"type": "array", "maxItems": 100, "uniqueItems": true, "items": map[string]any{"type": "string"}}
+		case "checklist":
+			p = schema(definition{name: "card_checklist", params: "name items", required: "items"})
+		case "items":
+			p = map[string]any{"type": "array", "minItems": 1, "maxItems": 100, "items": map[string]any{"type": "string", "minLength": 1, "maxLength": 4096}}
 		case "cards":
 			p = map[string]any{"type": "array", "minItems": 1, "maxItems": 100, "items": schema(definition{params: cardCreateParams, required: "name"})}
 		case "value":
@@ -300,8 +414,11 @@ func schema(d definition) map[string]any {
 		case "view":
 			p["enum"] = []string{"json", "markdown"}
 		case "name":
-			if d.name == "checklist_get" {
+			switch d.name {
+			case "checklist_get":
 				p["default"] = "Acceptance Criteria"
+			case "card_checklist":
+				p["default"] = "Checklist"
 			}
 		}
 		properties[key] = p
