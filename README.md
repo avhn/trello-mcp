@@ -53,7 +53,7 @@ Unlike the POSIX installer, it fails if the release is unavailable rather than
 building from source.
 
 It prints placeholder-only setup instructions for Claude Code, Claude Desktop
-(`%APPDATA%\Claude\claude_desktop_config.json`), and Codex
+(`%APPDATA%\Claude\claude_desktop_config.json`), and Codex and ChatGPT desktop
 (`~/.codex/config.toml`), using the full installed executable path. It never
 asks for credentials or registers a server automatically.
 
@@ -125,12 +125,14 @@ saving. Keep real credentials in local configuration only, never committed files
 }
 ```
 
-**Codex (CLI and desktop)**
+**Codex (CLI and desktop) and ChatGPT desktop**
 
-Codex CLI and desktop share `~/.codex/config.toml`. Merge the following into that
-local file and restart your Codex client. Use the full executable path and replace
-placeholders only on your machine. Windows TOML basic strings need doubled
-backslashes, just like the JSON example above.
+The Codex CLI, Codex desktop and the ChatGPT desktop app share
+`~/.codex/config.toml`. Merge the following into that local file and restart the
+client; in ChatGPT desktop, check Settings, MCP servers. You can also add it there
+by hand: Add server, type STDIO, the same command and environment variables. Use
+the full executable path and replace placeholders only on your machine. Windows
+TOML basic strings need doubled backslashes, just like the JSON example above.
 
 ```toml
 [mcp_servers.trello]

@@ -173,7 +173,7 @@ Replace placeholders locally. Full paths are used because desktop apps do not in
   }
 }
 
-Codex CLI and desktop: merge into ~/.codex/config.toml (replace placeholders locally).
+Codex CLI/desktop and ChatGPT desktop: merge into ~/.codex/config.toml (replace placeholders locally).
 [mcp_servers.trello]
 command = $encoded_binary
 

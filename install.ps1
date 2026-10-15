@@ -115,7 +115,7 @@ Replace placeholders locally; this installer never asks for credentials.
   }
 }
 
-Codex CLI and desktop: merge into ~/.codex/config.toml (replace placeholders locally).
+Codex CLI/desktop and ChatGPT desktop: merge into ~/.codex/config.toml (replace placeholders locally).
 [mcp_servers.trello]
 command = $encodedExe
 
