@@ -55,5 +55,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Release notes come from the signed tag message: subject line plus body, without the signature.
+          git fetch --force origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          git for-each-ref --format='%(contents:subject)%0a%0a%(contents:body)' "refs/tags/$RELEASE_TAG" > notes.md
+          if [ "$(grep -c . notes.md)" -lt 3 ]; then
+            echo "tag $RELEASE_TAG needs a release description in its message" >&2
+            exit 1
+          fi
           gh release create "$RELEASE_TAG" dist/*.tar.gz dist/*.zip dist/checksums.txt \
-            --verify-tag --generate-notes --title "$RELEASE_TAG"
+            --verify-tag --notes-file notes.md --title "$RELEASE_TAG"

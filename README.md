@@ -186,6 +186,7 @@ go test ./internal/bench -v -update  # refresh the benchmark table above
 CI runs lint and race checks on Linux and macOS, plus offline installer tests under PowerShell 7 and Windows
 PowerShell 5.1. A signed `v*` tag runs the [release workflow](.github/workflows/release.yml): tests, six
 `CGO_ENABLED=0` builds and `checksums.txt`; binaries report their tag with `--version`.
+The tag message is the release description: `git tag -s --cleanup=verbatim vX.Y.Z -F notes.md`.
 
 ### Distribution
 
