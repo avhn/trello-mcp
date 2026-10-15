@@ -96,33 +96,27 @@
         $encodedExe = ConvertTo-Json -InputObject $exe -Compress
         Write-Output @"
 
-Register with Claude Code (replace placeholders locally, then run in PowerShell):
-claude mcp add trello --transport stdio --env TRELLO_API_KEY=YOUR_API_KEY --env TRELLO_TOKEN=YOUR_TOKEN --env TRELLO_READ_ONLY=1 -- $quotedExe
+Next: run ``& $quotedExe auth`` to connect your Trello account
+Read-only opt-in: TRELLO_READ_ONLY=1 or trello-mcp auth --read-only.
+Alternative: set both TRELLO_API_KEY and TRELLO_TOKEN in the server environment.
+
+Register with Claude Code (run locally in PowerShell):
+claude mcp add trello --transport stdio -- $quotedExe
 
 Claude Desktop: merge into %APPDATA%\Claude\claude_desktop_config.json and restart the app.
 Full paths are used because desktop apps do not inherit shell PATH.
-Replace placeholders locally; this installer never asks for credentials.
+This installer never asks for credentials.
 {
   "mcpServers": {
     "trello": {
-      "command": $encodedExe,
-      "env": {
-        "TRELLO_API_KEY": "YOUR_API_KEY",
-        "TRELLO_TOKEN": "YOUR_TOKEN",
-        "TRELLO_READ_ONLY": "1"
-      }
+      "command": $encodedExe
     }
   }
 }
 
-Codex CLI/desktop and ChatGPT desktop: merge into ~/.codex/config.toml (replace placeholders locally).
+Codex CLI/desktop and ChatGPT desktop: merge into ~/.codex/config.toml.
 [mcp_servers.trello]
 command = $encodedExe
-
-[mcp_servers.trello.env]
-TRELLO_API_KEY = "YOUR_API_KEY"
-TRELLO_TOKEN = "YOUR_TOKEN"
-TRELLO_READ_ONLY = "1"
 "@
     } catch {
         throw "trello-mcp: $($_.Exception.Message)"

@@ -92,17 +92,20 @@ try {
     Assert-True ((Get-Content -LiteralPath $exe -Raw).Trim() -eq $synthetic) 'wrong installed binary'
     Assert-True ($script:pathWrites -eq 1) 'success did not add user PATH once'
     Assert-True ($script:fakeUserPath -eq ('%LOCALAPPDATA%\Existing;C:\Other;' + $env:INSTALL_DIR)) 'existing PATH was not preserved'
-    Assert-True ($output.Contains('YOUR_API_KEY') -and $output.Contains('YOUR_TOKEN')) 'missing placeholders'
+    Assert-True ($output.Contains('Next: run `& ') -and $output.Contains(' auth` to connect your Trello account')) 'missing auth next step'
+    Assert-True ($output.Contains('set both TRELLO_API_KEY and TRELLO_TOKEN')) 'missing environment alternative'
+    Assert-True ($output.Contains('TRELLO_READ_ONLY=1 or trello-mcp auth --read-only')) 'missing read-only opt-in'
+    Assert-True (-not ($output.Contains('YOUR_API_KEY') -or $output.Contains('YOUR_TOKEN') -or $output.Contains('--env') -or $output.Contains('[mcp_servers.trello.env]'))) 'snippets must use saved credentials and writable defaults'
     Assert-True ($output.Contains('claude mcp add') -and $output.Contains("bin with ''quote")) 'missing PowerShell-quoted registration'
     Assert-True ($output.Contains('new terminal') -and $output.Contains('fail closed')) 'missing PATH or Windows guidance'
     $jsonMatch = [regex]::Match($output, '(?s)\{\s*"mcpServers".*?\r?\n\}')
     Assert-True $jsonMatch.Success 'missing Desktop JSON'
     $config = $jsonMatch.Value | ConvertFrom-Json
     Assert-True ($config.mcpServers.trello.command -eq $exe) 'Desktop path did not round trip as JSON'
-    Assert-True ($config.mcpServers.trello.env.TRELLO_READ_ONLY -eq '1') 'missing read-only mode'
+    Assert-True (-not ($config.mcpServers.trello.PSObject.Properties.Name -contains 'env')) 'Desktop snippet must not force read-only mode or contain credentials'
     $tomlCommand = [regex]::Match($output, '(?m)^command = (.+)\r?$').Groups[1].Value.Trim()
     Assert-True ($tomlCommand -eq (ConvertTo-Json -InputObject $exe -Compress)) 'Codex command is not an escaped basic string'
-    Write-Output 'PASS success, normalized tag, configuration escaping and placeholders'
+    Write-Output 'PASS success, normalized tag, configuration escaping and auth guidance'
 
     Run-Installer | Out-Null
     Assert-True ($script:pathWrites -eq 1) 'reinstall duplicated user PATH'

@@ -1,8 +1,9 @@
 # Tool coverage
 
 The MIT-licensed `@delorenj/mcp-server-trello` 1.8.1 is the coverage reference.
-All 48 tools are registered by default. Parameter variants are merged;
-the reference's repair operation is replaced by explicit local selection.
+With credentials configured, all 48 tools are registered by default. Parameter
+variants are merged; the reference's repair operation is replaced by explicit
+local selection.
 
 | This server | Reference names |
 | --- | --- |
@@ -61,9 +62,20 @@ the reference's repair operation is replaced by explicit local selection.
 `board`, `list`, `card`, `comment`, `checklist`, `member`, `label`, `customfield`,
 `attachment`, `server`, or `all`. Selectors form a union, not an intersection.
 For example, `card` includes both card-member tools. Unknown selectors fail
-startup. `TRELLO_READ_ONLY=1` then removes all 29 mutation/transfer tools, even
-explicitly selected ones. The 19 reads and local-selection tools remain eligible.
-Downloads are filtered too because they write local files.
+startup. Write access is the default for `trello-mcp auth` (Enter at
+`Allow write access? [Y/n]` means yes). Read-only is opt-in via
+`trello-mcp auth --read-only` or `TRELLO_READ_ONLY=1`; either then removes all 29
+mutation/transfer tools, even explicitly selected ones. The 19 reads and
+local-selection tools remain eligible. Downloads are filtered too because they
+write local files. A saved token with `scope=read` implies read-only mode even if
+`TRELLO_READ_ONLY=0`.
+
+With no credentials the server still initializes and registers only
+`server_health`, regardless of the selected profile. Initialization instructions
+and every health mode say: "Trello credentials not configured: run
+`trello-mcp auth` in a terminal, or set TRELLO_API_KEY and TRELLO_TOKEN." Run auth
+outside the MCP transport, then restart the client. A complete environment pair
+overrides the saved credentials file; partial pairs are rejected.
 
 - `boardId` defaults to the active board on board-scoped calls. On object-scoped
   calls it is an optional ownership constraint, not a source of authorization.
@@ -74,7 +86,10 @@ Downloads are filtered too because they write local files.
 - `pos` accepts `top`, `bottom`, or a positive number. Dates use RFC 3339;
   empty `due` or `start` clears a date. Optional booleans preserve explicit false.
 - Every result is one compact JSON text block, without structured content or an
-  output schema. Writes return `{id,name?,url?}` or `{ok:true}`, never raw objects.
+  output schema. Writes return `{id,name?,url?}` or `{ok:true}`, never raw objects;
+  card creation can also include checklist progress and an error.
+- Unknown arguments name the key, object location and allowed keys. Duplicate
+  arguments name the key and location; type errors name the field and expected type.
 
 ## Discovering access policy
 
@@ -91,7 +106,8 @@ Call `server_health` with `detail: "policy"` for compact text-only JSON containi
   `/members/me/organizations` with explicit `fields=id,name` resolves selectors;
   lookup failures leave them unresolved and do not fail health. This diagnostic
   cache is never used to grant access.
-- `readOnly`, `toolProfile` (the `TRELLO_TOOLS` selectors), `enabledToolCount`, and
+- `readOnly`, `credentialScope` (when loaded from file), `toolProfile` (the
+  `TRELLO_TOOLS` selectors), `enabledToolCount`, and
   `hiddenWriteTools` (selected tools hidden specifically by read-only mode).
 - `uploads` and `downloads`, each with `enabled` and `dir`. Availability accounts
   for tool selection, read-only mode and platform support; `uploads` describes
@@ -116,6 +132,18 @@ Upstream HTTP failures instead use `trello API: HTTP <status>`; 401/403 explicit
 say `token/permission issue, not server policy`. Error bodies are never returned,
 and credentials remain scrubbed from diagnostics.
 
+## Activity and comments
+
+`board_activity`, `card_history` and `comment_find` share a compact projection:
+`id`, `type`, `date`, `memberCreator: {id,username}`, and curated `data`.
+Card/list/move/checklist/attachment references keep only id/name; checklist items
+also keep state, labels keep color, and member references keep id/username.
+Boards keep id only, omitted when equal to the queried/resolved board. Attachments
+never include URLs or previews. `old` contains only supported changed scalar keys,
+with previous strings capped at 200 Unicode characters (including `...`). Comment
+text is unchanged. Other nested metadata is dropped, even for unknown action types.
+Explicit request fields, limits, filters and since/before paging are retained.
+
 ## Mutation parameters
 
 | Tool(s) | Required input | Optional input beyond `boardId` |
@@ -124,8 +152,8 @@ and credentials remain scrubbed from diagnostics.
 | `list_create` | `name` | `pos` |
 | `list_update` | `listId`, at least one update | `name`, `pos`, `idBoard` (destination), `closed` |
 | `list_archive` / `list_watch` | `listId` | watch: `subscribed` (default true) |
-| `card_create` | `listId`, `name` | `desc`, `due`, `start`, `pos`, `idMembers`, `idLabels` |
-| `card_create_batch` | `listId`, `cards` | each card has `name` and the same optional creation fields |
+| `card_create` | `listId`, `name` | `desc`, `due`, `start`, `pos`, `idMembers`, `idLabels`, `checklist` (`name` optional, `items` required) |
+| `card_create_batch` | `listId`, `cards` | each card has `name` and the same optional creation fields, including `checklist` |
 | `card_update` | `cardId`, at least one update | `name`, `desc`, `due`, `start`, `dueComplete`, `closed`, `pos`, `idMembers`, `idLabels` |
 | `card_archive` / `card_watch` | `cardId` | watch: `subscribed` (default true) |
 | `card_move` / `card_copy` | `cardId`, `listId` (destination) | `idBoard` (destination constraint), `pos`; copy: `name` |
@@ -145,11 +173,37 @@ and credentials remain scrubbed from diagnostics.
 | `attachment_upload` | `cardId`, exactly one of confined `path` or `base64` | `fileName` (required for base64), `mimeType`, display `name` |
 | `attachment_download` | `cardId`, `attachmentId` | none |
 
-Batch create accepts 1-100 cards. All referenced ids are preflighted before the
-first mutation, then checked again per card. Results are `items` with zero-based
-`index` and either `id` or `error`. This is not a transaction; a later runtime
-failure does not roll back earlier successful cards. Do not blindly repeat an
-ambiguous write after a transport failure, as it might already have succeeded.
+Batch create accepts 1-100 cards. All arguments and referenced ids are preflighted
+before the first mutation, then ownership and references are checked again per
+card. Results are `items` with zero-based `index`, `id` when created, optional
+`checklist` progress and `error` on failure. Batch processing continues after a
+per-card failure. This is not a transaction; cards and checklists are never rolled
+back after a later failure.
+
+Both creation tools accept `checklist: {"name":"Checklist","items":["SND01","SND02"]}`
+on each card. The name defaults to `Checklist`; `items` requires 1-100 nonblank
+strings, each at most 4096 bytes (the `checklist_item_create` name bound). Items
+are created in order on the new checklist of the new card, without concurrency.
+Successful single-card output adds `checklist: {id,name,items:N}` to the card
+projection; batch entries include the same checklist summary.
+
+On checklist failure, the result retains the card `id`, checklist `id` if
+confirmed, confirmed `items` count and an `error` identifying the failed step.
+Single-card partial failures set MCP `isError` while preserving that result;
+batches retain their existing per-entry error semantics. Counts exclude an
+ambiguous failed request, which might have succeeded upstream. Inspect the card
+with `checklist_get` and its items with `checklist_item_find` before resuming with
+`checklist_create` or `checklist_item_create`; do not repeat card creation.
+
+```json
+{"listId":"l1","cards":[{"name":"Sound test","checklist":{"items":["SND01","SND02"]}}]}
+```
+
+Example batch result:
+
+```json
+{"items":[{"index":0,"id":"c1","checklist":{"id":"cl1","name":"Checklist","items":2}}]}
+```
 
 `checklist_item_find` is read-only and accepts `checklistId`, optional `boardId`
 and case-insensitive `nameFilter` (matching the item's description/name).

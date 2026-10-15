@@ -52,7 +52,7 @@ Set `$env:TRELLO_MCP_VERSION = 'v0.1.0'` to pin a release or
 Unlike the POSIX installer, it fails if the release is unavailable rather than
 building from source.
 
-It prints placeholder-only setup instructions for Claude Code, Claude Desktop
+It prints setup instructions for Claude Code, Claude Desktop
 (`%APPDATA%\Claude\claude_desktop_config.json`), and Codex and ChatGPT desktop
 (`~/.codex/config.toml`), using the full installed executable path. It never
 asks for credentials or registers a server automatically.
@@ -70,30 +70,46 @@ go install github.com/avhn/trello-mcp/cmd/trello-mcp@latest
 
 Go installs to `GOBIN`, or normally `~/go/bin`, rather than `~/.local/bin`.
 
-### 2. Get a Trello API key and token
+### 2. Connect your Trello account
 
-Follow the [Trello API key and token guide](https://developer.atlassian.com/cloud/trello/guides/rest-api/api-introduction/).
-Replace the placeholders below locally. Supply credentials through the client's
-server environment, not arguments to `trello-mcp`. Never commit real credentials
-in a client configuration or share them in chat.
+Run this in a terminal, using the full installed path if it is not on PATH:
+
+```sh
+trello-mcp auth
+```
+
+Create an API key manually at <https://trello.com/power-ups/admin> when prompted.
+The command prints a Trello authorization link and tries to open your browser.
+Write access is the default (`Allow write access? [Y/n]`, Enter means yes).
+Approve access, then paste the token at the hidden prompt. Non-terminal input
+reads one line per prompt for scripting; the token is never echoed by the command.
+The authorization link necessarily contains the API key, so keep it private too.
+
+Credentials are validated and saved in your user configuration directory, not in
+client snippets. Use `trello-mcp auth --read-only` for a read-only token, or
+`--write` to skip the scope question. `--expiration 1day|30days|never` selects the
+token lifetime (default `never`). `trello-mcp auth status` reports the credential
+source, username and granted scope without secrets. `trello-mcp auth logout`
+removes the saved credentials, but does not revoke the token at Trello or unset
+environment variables. Restart your MCP client after connecting or logging out.
+
+Alternatively, set **both** `TRELLO_API_KEY` and `TRELLO_TOKEN` in the server's
+environment. That pair overrides saved credentials; a partial pair is an error.
+Never commit credentials or share them in chat.
 
 ### 3. Use with your client
+
+The snippets use your saved credentials and leave writes enabled. Read-only is
+opt-in: use `trello-mcp auth --read-only`, or set `TRELLO_READ_ONLY=1` in the
+server's environment to hide write and attachment-transfer tools.
 
 **Claude Code**
 
 ```sh
-claude mcp add trello --transport stdio \
-  --env TRELLO_API_KEY=YOUR_API_KEY \
-  --env TRELLO_TOKEN=YOUR_TOKEN \
-  --env TRELLO_READ_ONLY=1 \
-  -- "$HOME/.local/bin/trello-mcp"
+claude mcp add trello --transport stdio -- "$HOME/.local/bin/trello-mcp"
 ```
 
 Adjust the executable path if you used Go, a custom directory, or Windows.
-The command saves the supplied environment in Claude's local configuration;
-substitute credentials only on your own machine, mindful of shell history.
-The examples enable read-only mode. Remove `TRELLO_READ_ONLY` or set it to `0`
-to expose writes and attachment transfers.
 
 **Claude Desktop**
 
@@ -108,18 +124,13 @@ Desktop apps do not inherit your shell PATH. On Windows, use `trello-mcp.exe`
 and escape backslashes in JSON, for example
 `C:\\Users\\YOUR_USER\\AppData\\Local\\Programs\\trello-mcp\\trello-mcp.exe`.
 The installers print the correct path and escaping. Restart Claude Desktop after
-saving. Keep real credentials in local configuration only, never committed files.
+saving.
 
 ```json
 {
   "mcpServers": {
     "trello": {
-      "command": "/absolute/path/to/trello-mcp",
-      "env": {
-        "TRELLO_API_KEY": "YOUR_API_KEY",
-        "TRELLO_TOKEN": "YOUR_TOKEN",
-        "TRELLO_READ_ONLY": "1"
-      }
+      "command": "/absolute/path/to/trello-mcp"
     }
   }
 }
@@ -130,18 +141,12 @@ saving. Keep real credentials in local configuration only, never committed files
 The Codex CLI, Codex desktop and the ChatGPT desktop app share
 `~/.codex/config.toml`. Merge the following into that local file and restart the
 client; in ChatGPT desktop, check Settings, MCP servers. You can also add it there
-by hand: Add server, type STDIO, the same command and environment variables. Use
-the full executable path and replace placeholders only on your machine. Windows
-TOML basic strings need doubled backslashes, just like the JSON example above.
+by hand: Add server, type STDIO, and the same command. Use the full executable
+path. Windows TOML basic strings need doubled backslashes, just like JSON above.
 
 ```toml
 [mcp_servers.trello]
 command = "/absolute/path/to/trello-mcp"
-
-[mcp_servers.trello.env]
-TRELLO_API_KEY = "YOUR_API_KEY"
-TRELLO_TOKEN = "YOUR_TOKEN"
-TRELLO_READ_ONLY = "1"
 ```
 
 **Other MCP clients (generic MCP JSON)**
@@ -160,11 +165,6 @@ Client-specific formats may differ, as in the OpenCode example below.
     "trello": {
       "type": "local",
       "command": ["/absolute/path/to/trello-mcp"],
-      "environment": {
-        "TRELLO_API_KEY": "YOUR_API_KEY",
-        "TRELLO_TOKEN": "YOUR_TOKEN",
-        "TRELLO_READ_ONLY": "1"
-      },
       "enabled": true
     }
   }
@@ -202,10 +202,10 @@ counts.
 | --- | --- | --- | --- |
 | 20 boards | ~2.17k | ~0.43k | 80.0% |
 | 30 cards in a list | ~9.27k | ~3.21k | 65.4% |
-| 20 comments | ~5.42k | ~2.62k | 51.6% |
-| 50 board actions | ~11.95k | ~4.95k | 58.6% |
-| Card with 20 comments | ~6.21k | ~2.76k | 55.6% |
-| Tool definitions | 57 tools, ~7.3k (static audit) | 48 tools, ~5.08k | not comparable |
+| 20 comments | ~5.42k | ~2.29k | 57.8% |
+| 50 board actions | ~25.73k | ~3.10k | 88.0% |
+| Card with 20 comments | ~6.21k | ~2.42k | 61.0% |
+| Tool definitions | 57 tools, ~7.3k (static audit) | 48 tools, ~5.23k | not comparable |
 
 <!-- bench:end -->
 
@@ -225,15 +225,16 @@ counts.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `TRELLO_API_KEY` | required | Trello API key |
-| `TRELLO_TOKEN` | required | Trello API token |
+| `TRELLO_API_KEY` | saved credentials | Trello API key; must be set together with `TRELLO_TOKEN` |
+| `TRELLO_TOKEN` | saved credentials | Trello API token; an environment pair overrides the file |
 | `TRELLO_BOARD_ID` | saved selection | Initial board; changing it clears the old saved workspace |
 | `TRELLO_ALLOWED_WORKSPACES` | unrestricted | Comma-separated workspace ids or canonical names, not display names; additional server policy, not token permissions |
 | `TRELLO_TOOLS` | `all` | Comma-separated tool names or prefix groups: `workspace`, `board`, `list`, `card`, `comment`, `checklist`, `member`, `label`, `customfield`, `attachment`, `server` |
-| `TRELLO_READ_ONLY` | `0` | `1` hides all 29 mutation/transfer tools, including local-file downloads; 19 tools remain |
+| `TRELLO_READ_ONLY` | `0` (or saved scope `read`) | Opt-in: `1` hides all 29 mutation/transfer tools, including local-file downloads; 19 tools remain. `0` cannot override a saved read-only token |
 | `TRELLO_DOWNLOAD_DIR` | `os.TempDir()/trello-mcp` | Absolute download directory; created as 0700, existing directories must be private and owned by the current user |
 | `TRELLO_UPLOAD_DIR` | unset (path uploads disabled) | Absolute root for local-file uploads; only regular files inside this directory may be uploaded, without following symlinks |
-| `XDG_CONFIG_HOME` | platform configuration directory | Active selection is stored under `trello-mcp/state.json` |
+| Credentials file | `<os.UserConfigDir()>/trello-mcp/credentials.json` | Saved by `auth`; honors `XDG_CONFIG_HOME`, like `state.json` |
+| `XDG_CONFIG_HOME` | platform configuration directory | Absolute root for `trello-mcp/state.json` and `trello-mcp/credentials.json` |
 | `HTTPS_PROXY` | unset | Standard Go HTTP proxy configuration |
 
 ### Discovering access policy
@@ -245,9 +246,16 @@ operation is refused, call `server_health` with `detail: "policy"` before assumi
 that the Trello token is broken. Include `server` or `server_health` in custom
 `TRELLO_TOOLS` profiles to keep this diagnostic available.
 
+Without credentials the server still initializes, registers only `server_health`,
+and includes this message in initialization instructions and every health mode:
+"Trello credentials not configured: run `trello-mcp auth` in a terminal, or set
+TRELLO_API_KEY and TRELLO_TOKEN." Invalid-token HTTP 401 errors include the same
+setup hint.
+
 Policy health returns `restricted`, `allowedWorkspaces` (each configured
 `selector`, plus resolved `id` and canonical `name` when available), `readOnly`,
-`toolProfile`, `enabledToolCount`, `hiddenWriteTools`, and `uploads`/`downloads`
+`credentialScope` (when loaded from file), `toolProfile`, `enabledToolCount`,
+`hiddenWriteTools`, and `uploads`/`downloads`
 with `enabled` and `dir`. Counts follow the selected profile; `hiddenWriteTools`
 counts selected tools removed by read-only mode. Transfer availability also
 accounts for read-only mode, tool selection and platform support; uploads here
@@ -305,8 +313,8 @@ cannot be combined with `boardId` or `listId`.
 | `card_find` | Find board, list or assigned cards with name filtering and local paging. |
 | `card_get` | Get a card with optional full detail, extras or markdown. |
 | `card_history` | Page card actions with an action-type filter. |
-| `card_create` | Create a card in a verified list, with optional labels and members. |
-| `card_create_batch` | Preflight all ids, then create 1-100 cards with per-item results. |
+| `card_create` | Create a card in a verified list, with optional labels, members and checklist. |
+| `card_create_batch` | Preflight ids, then create 1-100 cards with optional checklists and per-card results. |
 | `card_update` | Update details, labels, members, dates, archive state or position. |
 | `card_archive` | Archive a card. |
 | `card_watch` | Subscribe or unsubscribe with `subscribed` (default true). |
@@ -346,11 +354,33 @@ cannot be combined with `boardId` or `listId`.
 
 See [docs/tools.md](docs/tools.md) for parameters and the full reference name mapping.
 
+Both `card_create` and each card in `card_create_batch` accept an optional
+`checklist` object. Its `name` defaults to `Checklist`; required `items` contains
+1-100 nonblank strings, each at most 4096 bytes. For example:
+
+```json
+{"listId":"l1","cards":[{"name":"Sound test","checklist":{"items":["SND01","SND02"]}}]}
+```
+
+The card is created first, then its checklist and items in order. Results include
+`checklist: {id,name,items:N}`. A checklist failure preserves the card id,
+checklist id if confirmed, confirmed item count and an error. Single-card partial
+results set MCP `isError`; batches report errors per card and continue. Inspect
+existing checklist items before resuming; never repeat card creation to repair
+a partially created checklist.
+
 ### Responses and pagination
 
 - Collections return `{"items":[...],"next":"cursor"}`; empty cursors are omitted.
 - `card_find` defaults to 100 results (maximum 1000), comments to 20 (maximum 100),
   and activity/history to 20 (maximum 1000).
+- Activity/history/comments retain only action id, type, date, compact actor
+  (`id,username`) and curated data references. Board references contain only id
+  and are omitted for the queried board. Moves keep before/after list names and
+  ids; checklist items keep name/state; attachments keep id/name, never URLs.
+  Changed previous scalar values are limited to 200 Unicode characters per
+  string, with `...` for truncation. Comment text is preserved. Nested Trello
+  metadata and profile details are dropped.
 - Actions use Trello's last-action-id `before` cursor and accept `since`. History
   also accepts a comma-separated action `filter`. A full action page advertises
   a possible next page, which may be empty.
@@ -361,9 +391,12 @@ See [docs/tools.md](docs/tools.md) for parameters and the full reference name ma
 - A changed or missing card cursor returns an error rather than restarting.
   Snapshots can change between calls; there is no stable snapshot guarantee.
   Every JSON API response is capped at 8 MiB; file transfers are capped at 10 MiB.
-- Writes return only `{id,name?,url?}` or `{ok:true}`. Batch create returns an
-  `items` array with zero-based `index`, `id` or `error`. It is not transactional;
-  failures after preflight can leave successful earlier cards in place.
+- Writes return `{id,name?,url?}` or `{ok:true}`; card creation can also include
+  `checklist` progress and an `error`. Batch create returns an `items` array with
+  zero-based `index`, `id` when created, optional checklist progress and errors.
+  It is not transactional; failures do not roll back created cards or checklists.
+- Argument errors identify unknown/duplicate keys and their object location.
+  Unknown keys list allowed keys; type errors name the field and expected type.
 - Dates use RFC 3339. Empty `due`/`start` strings clear dates, and explicit false
   values are preserved. Positions accept `top`, `bottom`, or a positive number.
 
@@ -411,6 +444,19 @@ See [docs/tools.md](docs/tools.md) for parameters and the full reference name ma
 
 ## Security model
 
+- **Private saved credentials.** `auth` stores `apiKey`, `token`, granted `scope`
+  and `savedAt` in `trello-mcp/credentials.json` under `os.UserConfigDir()` (or
+  the absolute `XDG_CONFIG_HOME` override). On Unix the directory is 0700 and
+  file 0600, owned by the current user. Group/world-accessible or foreign-owned
+  files are refused with corrective guidance. Symlinks and nonregular files are
+  refused; writes use exclusive temporary files and atomic rename in a pinned
+  directory. Windows keeps the type/symlink checks and relies on the user's
+  config-directory ACL rather than Unix permission bits. Keep that ACL private.
+  Environment credentials take precedence only as a complete key/token pair;
+  they bypass the saved file. A saved `scope=read` automatically hides writes,
+  even with `TRELLO_READ_ONLY=0`, and is reported in policy instructions/health.
+  Credentials remain plaintext on disk, so protect backups too. Logout removes
+  the file only; revoke the token through Trello when necessary.
 - **Token permissions are the ceiling.** The workspace allowlist is an additional
   restriction, not a replacement for token permissions. Unset means unrestricted;
   ids and canonical names match, not display names. Initialization instructions

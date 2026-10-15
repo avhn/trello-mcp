@@ -143,14 +143,15 @@ run_case() {
     [ -z "$(ls -A "$run/temp")" ] || { printf 'FAIL %s: temporary files remain\n' "$name"; exit 1; }
     if [ "$expected" = pass ]; then
         [ -x "$destination/$binary" ]
-        grep -q 'YOUR_API_KEY' "$run/out"
+        grep -Fq 'Next: run `' "$run/out"
+        grep -Fq 'auth` to connect your Trello account' "$run/out"
+        grep -Fq 'TRELLO_READ_ONLY=1 or trello-mcp auth --read-only' "$run/out"
+        grep -Fq 'set both TRELLO_API_KEY and TRELLO_TOKEN' "$run/out"
+        assert_not_logged 'YOUR_API_KEY\|YOUR_TOKEN\|--env\|"env"\|TRELLO_READ_ONLY =\|TRELLO_READ_ONLY"' "$run/out"
         grep -q '"mcpServers"' "$run/out"
         grep -q 'Claude Desktop' "$run/out"
         grep -Fq '[mcp_servers.trello]' "$run/out"
-        grep -Fq '[mcp_servers.trello.env]' "$run/out"
-        grep -Fq 'TRELLO_READ_ONLY = "1"' "$run/out"
-        grep -Fq 'TRELLO_API_KEY = "YOUR_API_KEY"' "$run/out"
-        grep -Fq 'TRELLO_TOKEN = "YOUR_TOKEN"' "$run/out"
+        assert_not_logged '\[mcp_servers.trello.env\]' "$run/out"
         if [ "$name" = escaping ]; then
             encoded="\"$run/bin with \\\"quote\\\\slash/$binary\""
         elif [ "$os" = MINGW64_NT ]; then
@@ -158,8 +159,10 @@ run_case() {
         else
             encoded="\"$destination/$binary\""
         fi
-        grep -Fxq "      \"command\": $encoded," "$run/out"
+        grep -Fxq "      \"command\": $encoded" "$run/out"
         grep -Fxq "command = $encoded" "$run/out"
+        # Assert the literal path printed for macOS, without expanding its tilde.
+        # shellcheck disable=SC2088
         case "$os" in
             Darwin) grep -Fq '~/Library/Application Support/Claude/claude_desktop_config.json' "$run/out" ;;
             MINGW*|MSYS*|CYGWIN*) grep -Fq '%APPDATA%\Claude\claude_desktop_config.json' "$run/out" ;;

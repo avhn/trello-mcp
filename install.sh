@@ -126,8 +126,15 @@ client_binary="$install_dir/$binary"
 if [ "$os" = windows ] && command -v cygpath >/dev/null 2>&1; then
     client_binary=$(cygpath -w "$client_binary") || fail 'could not convert the Windows executable path'
 fi
-printf '\nRegister with Claude Code (replace placeholders locally, then run):\n'
-printf 'claude mcp add trello --transport stdio --env TRELLO_API_KEY=YOUR_API_KEY --env TRELLO_TOKEN=YOUR_TOKEN --env TRELLO_READ_ONLY=1 -- '
+printf '\nNext: run `'
+printf "'"
+printf '%s' "$client_binary" | sed "s/'/'\\\\''/g"
+printf "' auth"
+printf '` to connect your Trello account\n'
+printf 'Read-only opt-in: TRELLO_READ_ONLY=1 or trello-mcp auth --read-only.\n'
+printf 'Alternative: set both TRELLO_API_KEY and TRELLO_TOKEN in the server environment.\n'
+printf '\nRegister with Claude Code (run locally):\n'
+printf 'claude mcp add trello --transport stdio -- '
 # Quote the installed path as a single shell argument, including embedded quotes.
 printf "'"
 printf '%s' "$client_binary" | sed "s/'/'\\\\''/g"
@@ -159,26 +166,16 @@ case "$os" in
     *) printf 'Claude Desktop has no official Linux build. Other MCP clients can use this JSON.\n' ;;
 esac
 cat <<EOF
-Replace placeholders locally. Full paths are used because desktop apps do not inherit shell PATH.
+Full paths are used because desktop apps do not inherit shell PATH.
 {
   "mcpServers": {
     "trello": {
-      "command": $encoded_binary,
-      "env": {
-        "TRELLO_API_KEY": "YOUR_API_KEY",
-        "TRELLO_TOKEN": "YOUR_TOKEN",
-        "TRELLO_READ_ONLY": "1"
-      }
+      "command": $encoded_binary
     }
   }
 }
 
-Codex CLI/desktop and ChatGPT desktop: merge into ~/.codex/config.toml (replace placeholders locally).
+Codex CLI/desktop and ChatGPT desktop: merge into ~/.codex/config.toml.
 [mcp_servers.trello]
 command = $encoded_binary
-
-[mcp_servers.trello.env]
-TRELLO_API_KEY = "YOUR_API_KEY"
-TRELLO_TOKEN = "YOUR_TOKEN"
-TRELLO_READ_ONLY = "1"
 EOF
