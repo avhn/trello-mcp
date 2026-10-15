@@ -20,3 +20,5 @@ func createPrivateFile(*os.Root, string) (*os.File, error) {
 }
 
 func checkPrivateFile(*os.File, os.FileInfo, bool) error { return privacyUnsupported() }
+
+func checkDirectory(*os.File, os.FileInfo, directoryRule, bool) error { return privacyUnsupported() }

@@ -76,6 +76,14 @@ func createPrivateFile(root *os.Root, name string) (*os.File, error) {
 	return os.NewFile(uintptr(handle), name), nil
 }
 
+// The home-level shared store does not require an owner-only directory DACL.
+func checkDirectory(file *os.File, info os.FileInfo, rule directoryRule, _ bool) error {
+	if rule == sharedDirectory {
+		return nil
+	}
+	return checkPrivateFile(file, info, true)
+}
+
 func checkPrivateFile(file *os.File, _ os.FileInfo, _ bool) error {
 	sd, err := windows.GetSecurityInfo(windows.Handle(file.Fd()), windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
 	if err != nil {

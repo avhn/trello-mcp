@@ -292,14 +292,24 @@ final LF terminating the file is allowed. Comments beginning with `#`, blank
 lines and unrelated keys are preserved byte-for-byte and in order on save.
 Do not put secrets in committed files, shell history or chat.
 
-`trello-mcp auth` creates a missing parent directory as 0700 and its file as 0600
-on Unix. On Windows both use protected owner-only DACLs. An existing folder's
-permissions are never changed: it must belong to the current user and must not
-be group/world writable on Unix (0755 is acceptable). Files must belong to the
-current user with no group/world access, normally 0600. Windows checks owner and
-protected owner-only DACL on both. Symlinks in the file or parent path,
-nonregular files and unsafe ownership/permissions are refused. Saves use a
-same-directory private temporary file, fsync and atomic rename.
+`trello-mcp auth` creates missing parents as 0700 and files as 0600 on Unix.
+It also sets the default `~/.secrets` to 0700 after refusing symlinks and foreign
+owners, matching `secret stash`. Reads and logout require no group/world bits
+(0077) on that directory. Custom parents and the home parent of read-only
+`~/.secrets.env` may be 0755, but must not be group/world writable (0022).
+Custom parent modes are unchanged. Files must belong to the current user with
+no group/world bits, normally 0600. Windows keeps its ownership and protected
+owner-only DACL checks; the shared file's home parent is exempt from the directory
+DACL check. Symlinked files/parent paths and nonregular files are refused.
+Saves use a same-directory private temporary file, fsync and atomic rename.
+
+Save and logout hold `<parent>/.write-lock` across the entire read-modify-write,
+including deletion. This mkdir protocol matches `secret stash` for the default
+store, with private token/PID files and token-checked release. Reads do not lock.
+Writers retry every 100ms for up to 3s. Timeout errors name the lock: verify its
+PID is stopped before manually removing it. Locks are never auto-stolen.
+Logout rechecks content before deletion and rewrites a changed file instead.
+Writers ignoring the lock protocol cannot be serialized.
 
 All auth commands accept an absolute file override:
 
@@ -344,8 +354,10 @@ the three dotenv lines above, using your own values, without quotes. Use the
 actual token scope (`read` or `read,write`); do not mark a read-only token writable.
 On Unix, create a missing directory with `mkdir -m 700 ~/.secrets`, then create
 the empty file privately after `umask 077`, run
-`chmod 600 ~/.secrets/.trello-mcp.secret`, then edit it. Use LF line endings. Do not chmod an existing
-shared folder automatically. If using the `secret` tool, `secret stash FILE KEY`
+`chmod 600 ~/.secrets/.trello-mcp.secret`, then edit it. Use LF line endings.
+Ensure an existing `~/.secrets` belongs to you and is intended to be private,
+then run `chmod 700 ~/.secrets`; auth and `secret stash` also repair that default.
+If using the `secret` tool, `secret stash FILE KEY`
 prompts privately for each key; never place values in command arguments. On
 Windows use a current-user-owned folder and a protected owner-only DACL in
 Properties > Security for both directory and file. Then run `trello-mcp auth status`.
@@ -355,6 +367,7 @@ Properties > Security for both directory and file. Then run `trello-mcp auth sta
 The CLI prefixes errors with `trello-mcp auth:`; source resolution may also
 prepend `credentials file <path>:`. Exact storage messages include:
 
+- `credentials directory is group/world accessible; chmod 700 ~/.secrets or rerun trello-mcp auth`
 - `credentials directory is group/world writable; remove group/world write permissions (chmod go-w) or choose a private directory with TRELLO_MCP_CREDENTIALS`
 - `credentials file is group/world accessible; chmod 600 the credentials file or rerun trello-mcp auth`
 - `credentials must be owned by the current user; rerun trello-mcp auth as that user`
@@ -369,8 +382,9 @@ paths, and rerun as the owner rather than bypassing ownership checks.
 - **No credentials found / only `server_health`:** run `trello-mcp auth` to save
   the default file, check any override, and restart the client. A client may
   supply its own environment values not visible in your shell.
-- **Permission refused:** use the exact corrective message above; auth will not
-  silently chmod an existing folder or read an unsafe file to preserve its lines.
+- **Permission refused:** use the exact corrective message above. On Unix auth
+  repairs only the default `~/.secrets` to 0700; it does not chmod custom parents
+  or read an unsafe file to preserve its lines.
 - **401 token rejected:** reconnect with `trello-mcp auth`; check token expiry,
   revocation and the matching API key. 403 can indicate insufficient permission.
 - **Wrong workspace denial:** inspect `server_health` with `detail: "policy"`
@@ -591,11 +605,12 @@ a partially created checklist.
 
 - **Private saved credentials.** See [Credential storage](#credential-storage).
   The plaintext dotenv file is `~/.secrets/.trello-mcp.secret`, with an absolute
-  `TRELLO_MCP_CREDENTIALS` override. New directories are 0700, files 0600 on Unix;
-  Windows uses protected owner-only DACLs. Existing folder permissions are never
-  changed. Symlinks, foreign owners, writable directories and accessible files
-  are refused. Saves use a private same-directory temporary file, fsync and
-  atomic rename. The environment pair overrides files. Saved `TRELLO_TOKEN_SCOPE=read`
+  `TRELLO_MCP_CREDENTIALS` override. New directories are 0700, files 0600 on Unix.
+  Auth repairs the default `~/.secrets` to 0700; custom parents may be 0755 but
+  not group/world writable and are not chmodded. Windows uses protected owner-only
+  DACLs. Symlinks, foreign owners and accessible files are refused. Saves use a
+  private same-directory temporary file, fsync and atomic rename. Save and logout
+  use the token-owned `.write-lock` protocol shared with `secret stash`. The environment pair overrides files. Saved `TRELLO_TOKEN_SCOPE=read`
   forces read-only even with `TRELLO_READ_ONLY=0`. Logout removes only the three
   keys, keeping unrelated lines; it does not revoke Trello authorization.
   Protect plaintext files and backups.

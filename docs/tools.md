@@ -104,11 +104,27 @@ CR, embedded newlines, boundary whitespace and surrounding quote pairs. A final
 LF is allowed. Save rewrites only these keys and preserves all other lines and
 comments in order, using a same-directory private temp file, fsync and rename.
 
-Auth creates a missing parent as 0700 and a file as 0600 on Unix, or protected
-owner-only DACLs on Windows. Existing folders are never chmodded. Unix refuses
-foreign owners, group/world-writable directories and group/world-accessible
-files; Windows verifies current-user ownership and protected owner-only DACLs.
-Symlinked files or parent paths and nonregular files are refused. For example:
+Auth creates missing parents as 0700 and files as 0600 on Unix. It also repairs
+the default `~/.secrets` to 0700 after refusing symlinks and foreign owners,
+matching `secret stash`. Reads and logout require no group/world bits (0077)
+on that directory. Custom parents and the home parent of read-only
+`~/.secrets.env` may be 0755, but not group/world writable (0022); custom modes
+are unchanged. Files always require current-user ownership and no group/world
+bits, normally 0600. Windows keeps its ownership and protected owner-only DACL
+checks; the shared file's home parent is exempt from the directory DACL check.
+Symlinked files/parent paths and nonregular files are refused.
+
+Save and logout hold the target parent's `.write-lock` across the complete
+read-modify-write, including deletion. This mkdir protocol matches `secret stash`
+for the default store, with private token/PID files and token-checked release.
+Reads do not lock. Writers retry every 100ms for up to 3s. Timeout errors name
+the lock: verify its PID is stopped before manually removing it. Locks are
+never auto-stolen. Logout rechecks content before deletion and rewrites a
+changed file instead. Writers ignoring the protocol cannot be serialized.
+
+Default directory refusal says
+`credentials directory is group/world accessible; chmod 700 ~/.secrets or rerun trello-mcp auth`.
+Other examples:
 `credentials file is group/world accessible; chmod 600 the credentials file or rerun trello-mcp auth`.
 Directory refusal says
 `credentials directory is group/world writable; remove group/world write permissions (chmod go-w) or choose a private directory with TRELLO_MCP_CREDENTIALS`.
@@ -118,7 +134,9 @@ for exact ownership, symlink and Windows errors and safe fixes.
 To configure without the browser flow, create a missing `~/.secrets` with
 `mkdir -m 700 ~/.secrets`, privately edit the three lines with your existing key,
 token and actual scope, and `chmod 600 ~/.secrets/.trello-mcp.secret` on Unix.
-Do not change an existing shared folder automatically. `secret stash FILE KEY`
+Ensure an existing `~/.secrets` belongs to you and is intended to be private,
+then run `chmod 700 ~/.secrets`; auth and `secret stash` also repair this default.
+`secret stash FILE KEY`
 can prompt privately for each value, without putting it in command arguments.
 Windows manual setup needs protected owner-only DACLs on folder and file.
 

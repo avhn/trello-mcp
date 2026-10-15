@@ -2,6 +2,7 @@
 package credentials
 
 import (
+	"bytes"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
 // Hint is shared by initialize, health and upstream authentication errors.
@@ -55,10 +57,11 @@ func Directory(env func(string) string, configDir func() (string, error)) (strin
 }
 
 // Source identifies a file and whether it is the read-only shared fallback.
-// Only the actual home-level shared store may relax parent-directory privacy.
+// The dedicated default directory requires owner-only access on Unix.
 type Source struct {
-	Path   string
-	Shared bool
+	Path             string
+	Shared           bool
+	privateDirectory bool
 }
 
 // Paths lists the override, dedicated default and shared top-level store, in priority order.
@@ -76,10 +79,10 @@ func Paths(env func(string) string, homeDir func() (string, error)) ([]Source, e
 		return nil, err
 	}
 	shared := filepath.Join(home, ".secrets.env")
-	paths := []Source{{Path: target, Shared: SamePath(target, shared)}}
 	dedicated := filepath.Join(home, ".secrets", ".trello-mcp.secret")
+	paths := []Source{{Path: target, Shared: SamePath(target, shared), privateDirectory: SamePath(filepath.Dir(target), filepath.Dir(dedicated))}}
 	if !SamePath(target, dedicated) {
-		paths = append(paths, Source{Path: dedicated})
+		paths = append(paths, Source{Path: dedicated, privateDirectory: true})
 	}
 	if !SamePath(target, shared) {
 		paths = append(paths, Source{Path: shared, Shared: true})
@@ -117,7 +120,7 @@ func Resolve(env func(string) string, paths ...Source) (File, string, string, er
 	}
 	for _, source := range paths {
 		path := source.Path
-		c, err := load(path, source.Shared)
+		c, err := loadSource(source)
 		if errors.Is(err, os.ErrNotExist) || (err == nil && c == (File{})) {
 			continue
 		}
@@ -131,10 +134,33 @@ func Resolve(env func(string) string, paths ...Source) (File, string, string, er
 
 // openDir pins the credential directory and verifies its ownership and permissions.
 func openDir(path string, create bool) (*os.Root, error) {
-	return openDirectory(path, create, true)
+	return openDirectory(path, create, directoryPolicy(Source{Path: path}))
 }
 
-func openDirectory(path string, create, private bool) (*os.Root, error) {
+type directoryRule int
+
+const (
+	customDirectory directoryRule = iota
+	privateDirectory
+	sharedDirectory
+)
+
+// directoryPolicy keeps the default store private, permits nonwritable custom
+// parents, and preserves the shared home store's Windows DACL exception.
+func directoryPolicy(source Source) directoryRule {
+	if source.Shared {
+		return sharedDirectory
+	}
+	if source.privateDirectory {
+		return privateDirectory
+	}
+	if home, err := os.UserHomeDir(); err == nil && SamePath(filepath.Dir(source.Path), filepath.Join(home, ".secrets")) {
+		return privateDirectory
+	}
+	return customDirectory
+}
+
+func openDirectory(path string, create bool, rule directoryRule) (*os.Root, error) {
 	dir := filepath.Dir(path)
 	if err := noSymlinkParents(dir); err != nil {
 		return nil, err
@@ -163,15 +189,12 @@ func openDirectory(path string, create, private bool) (*os.Root, error) {
 		_ = root.Close()
 		return nil, fmt.Errorf("credentials directory changed while opening")
 	}
-	if !private {
-		return root, nil
-	}
 	directory, err := root.Open(".")
 	if err != nil {
 		_ = root.Close()
 		return nil, fmt.Errorf("open credentials directory for privacy verification")
 	}
-	err = checkPrivateFile(directory, pinned, true)
+	err = checkDirectory(directory, pinned, rule, create)
 	_ = directory.Close()
 	if err != nil {
 		_ = root.Close()
@@ -245,9 +268,12 @@ func readFile(root *os.Root, name string) ([]byte, error) {
 func Load(path string) (File, error) { return load(path, false) }
 
 func load(path string, shared bool) (File, error) {
-	// The shared store lives directly in the home directory. Its file must be
-	// private, but the home directory need not have an owner-only Windows DACL.
-	root, err := openDirectory(path, false, !shared)
+	return loadSource(Source{Path: path, Shared: shared})
+}
+
+func loadSource(source Source) (File, error) {
+	path, shared := source.Path, source.Shared
+	root, err := openDirectory(path, false, directoryPolicy(source))
 	if err != nil {
 		return File{}, err
 	}
@@ -373,8 +399,12 @@ func replace(root *os.Root, name string, data []byte) error {
 	return nil
 }
 
-// Save preserves unrelated dotenv entries and comments, and never changes existing directory modes.
+// Save preserves unrelated dotenv entries and comments under the shared write lock.
 func Save(path string, c File) error {
+	return save(path, c, writeLockTimeout)
+}
+
+func save(path string, c File, timeout time.Duration) error {
 	if !valid(c) {
 		return fmt.Errorf("invalid credentials; nothing saved")
 	}
@@ -383,16 +413,22 @@ func Save(path string, c File) error {
 		return err
 	}
 	defer func() { _ = root.Close() }()
-	name := filepath.Base(path)
-	data, err := readFile(root, name)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	return replace(root, name, rewrite(data, &c))
+	return withWriteLock(root, path, timeout, func() error {
+		name := filepath.Base(path)
+		data, err := readFile(root, name)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		return replace(root, name, rewrite(data, &c))
+	})
 }
 
 // Logout removes only managed keys; comments, blank lines and unrelated entries remain.
 func Logout(path string) error {
+	return logout(path, writeLockTimeout)
+}
+
+func logout(path string, timeout time.Duration) error {
 	root, err := openDir(path, false)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
@@ -401,16 +437,32 @@ func Logout(path string) error {
 		return err
 	}
 	defer func() { _ = root.Close() }()
-	name := filepath.Base(path)
-	data, err := readFile(root, name)
+	return withWriteLock(root, path, timeout, func() error {
+		name := filepath.Base(path)
+		data, err := readFile(root, name)
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		return removeManaged(root, name, data)
+	})
+}
+
+// removeManaged checks again before deleting, so a changed file is rewritten
+// from its latest contents rather than removing unrelated entries. The caller
+// holds the write lock; writers bypassing that protocol cannot be serialized.
+func removeManaged(root *os.Root, name string, original []byte) error {
+	current, err := readFile(root, name)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-	data = rewrite(data, nil)
-	if len(data) != 0 {
+	data := rewrite(current, nil)
+	if len(data) != 0 || !bytes.Equal(current, original) {
 		return replace(root, name, data)
 	}
 	if err = root.Remove(name); err != nil {

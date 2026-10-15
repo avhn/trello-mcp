@@ -115,6 +115,13 @@ func credentialTestDir(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Synthetic home directories must be safe even when the test runner creates
+	// temporary directories with group write permission.
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
 	return dir
 }
 

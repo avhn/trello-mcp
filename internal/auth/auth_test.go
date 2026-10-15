@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -54,6 +55,15 @@ func TestAuthFlow(t *testing.T) {
 			}))
 			defer fake.Close()
 			dir := credentialTestDir(t)
+			if runtime.GOOS != "windows" {
+				t.Setenv("HOME", dir)
+				if err := os.Mkdir(filepath.Join(dir, ".secrets"), 0755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Chmod(filepath.Join(dir, ".secrets"), 0755); err != nil {
+					t.Fatal(err)
+				}
+			}
 			var out bytes.Buffer
 			// A real pipe exercises the non-TTY path, including buffered input and final EOF.
 			in, writer, err := os.Pipe()
@@ -73,6 +83,12 @@ func TestAuthFlow(t *testing.T) {
 				browser: func(address string) error { authorize = address; return errors.New("browser unavailable") }}
 			if err = r.run(context.Background(), tc.args); err != nil {
 				t.Fatal(err)
+			}
+			if runtime.GOOS != "windows" {
+				info, err := os.Stat(filepath.Join(dir, ".secrets"))
+				if err != nil || info.Mode().Perm() != 0700 {
+					t.Fatal("auth did not repair 0755 ~/.secrets to 0700")
+				}
 			}
 			u, err := url.Parse(authorize)
 			if err != nil {
@@ -306,6 +322,13 @@ func credentialTestDir(t *testing.T) string {
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
+	}
+	// Synthetic home directories must be safe even when the test runner creates
+	// temporary directories with group write permission.
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return dir
 }

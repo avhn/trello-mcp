@@ -234,6 +234,12 @@ func credentialTestDir(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Keep synthetic homes safe independently of temporary-directory defaults.
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
 	return dir
 }
 
