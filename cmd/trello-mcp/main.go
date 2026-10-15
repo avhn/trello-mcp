@@ -3,6 +3,8 @@ package main
 
 import (
 	"context"
+	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -16,8 +18,21 @@ import (
 	"github.com/avhn/trello-mcp/internal/trello"
 )
 
-// main keeps stdout exclusively available for MCP protocol messages.
+// version is overridden by release builds using -X main.version.
+var version string
+
+// main keeps stdout available for MCP protocol messages unless --version is requested.
 func main() {
+	if version == "" {
+		version = tools.Version
+	}
+	showVersion := flag.Bool("version", false, "print the version and exit")
+	flag.Parse()
+	if *showVersion {
+		fmt.Printf("trello-mcp %s\n", version)
+		return
+	}
+	tools.Version = version
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	err := run(ctx, logger)

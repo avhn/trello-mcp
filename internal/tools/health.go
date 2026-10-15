@@ -39,5 +39,5 @@ func (s *Service) serverHealth(_ context.Context, a arguments) (any, error) {
 	}
 }
 
-// Version is the server implementation version advertised during MCP initialization.
-const Version = "0.1.0"
+// Version is the server implementation version, set by the command at startup.
+var Version = "0.1.0"
