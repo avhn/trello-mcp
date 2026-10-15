@@ -25,7 +25,7 @@ const boardJSON = `{"id":"b1","name":"Release","url":"https://trello.com/b/b1","
 const workspaceJSON = `{"id":"w1","name":"allowed","displayName":"Allowed Workspace"}`
 const cardJSON = `{"id":"c1","name":"Fix login","url":"https://trello.com/c/c1","idBoard":"b1","idList":"l1","desc":"Synthetic card description","due":"2026-10-20T09:00:00Z","labels":[{"id":"label1","name":"Ready","color":"green"}],"idMembers":["m1"]}`
 const itemJSON = `{"id":"i1","name":"Works","state":"complete","pos":1}`
-const actionJSON = `{"id":"a1","type":"commentCard","date":"2026-10-15T12:00:00Z","data":{"text":"Looks good","card":{"id":"c1","name":"Fix login"},"board":{"id":"b1","name":"Release"}},"memberCreator":{"id":"m1","username":"synthetic","fullName":"Synthetic Member"}}`
+const actionJSON = `{"id":"a1","type":"commentCard","date":"2026-10-15T12:00:00Z","data":{"text":"Looks good","card":{"id":"c1","name":"Fix login"}},"memberCreator":{"id":"m1","username":"synthetic"}}`
 
 // requestSpec describes every expected HTTP request, including authentication and field selection.
 type requestSpec struct {
@@ -60,7 +60,7 @@ func objectRequests(kind, id, fixture string) []requestSpec {
 // TestTools checks exact compact output and all upstream query parameters for every phase 1 tool.
 func TestTools(t *testing.T) {
 	actionQuery := func(filter string) url.Values {
-		return query("fields", "id,type,date,data,idMemberCreator", "memberCreator", "true", "memberCreator_fields", "id,username,fullName", "filter", filter, "limit", "20")
+		return query("fields", "id,type,date,data,idMemberCreator", "memberCreator", "true", "memberCreator_fields", "id,username", "filter", filter, "limit", "20")
 	}
 	cardActionRequests := func(filter string) []requestSpec {
 		requests := append(objectRequests("cards", "c1", "card"), requestSpec{"/cards/c1/actions", actionQuery(filter), "actions"})
@@ -169,7 +169,7 @@ func testService(t *testing.T, fake *httptest.Server, allowed []string) *Service
 	if err = store.Update(ctx, state.Selection{BoardID: "b1", WorkspaceID: "w1"}); err != nil {
 		t.Fatal(err)
 	}
-	return New(config.Config{AllowedWorkspaces: allowed, Tools: []string{"all"}}, trello.NewClient(fake.URL, "test-key", "test-token", fake.Client()), store)
+	return New(config.Config{APIKey: "test-key", Token: "test-token", AllowedWorkspaces: allowed, Tools: []string{"all"}}, trello.NewClient(fake.URL, "test-key", "test-token", fake.Client()), store)
 }
 
 // TestValidation ensures untrusted raw handlers reject malformed input without any HTTP calls.

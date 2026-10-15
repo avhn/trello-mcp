@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -127,10 +128,49 @@ func TestActionDeniesBoardBeforeCardConstraint(t *testing.T) {
 	}
 }
 
-func TestScopeErrorPreservesUpstreamFailures(t *testing.T) {
+func TestScopeErrorDoesNotMisclassifyUpstreamFailures(t *testing.T) {
 	a := &Access{Allowed: []string{"team"}}
-	upstream := httpError(http.StatusForbidden)
-	if got := a.ScopeError(upstream, "cards c1"); got != upstream {
-		t.Fatalf("upstream failure replaced by policy denial: %v", got)
+	got := a.ScopeError(httpError(http.StatusForbidden), "card c1")
+	if errors.Is(got, ErrDenied) || strings.Contains(got.Error(), "policy") || got.Error() != "card c1 ownership could not be verified (temporary error); retry" {
+		t.Fatalf("upstream failure misclassified or exposed: %v", got)
+	}
+}
+
+func TestNestedTransportFailuresHideResolvedScopes(t *testing.T) {
+	for _, failure := range []error{io.EOF, context.DeadlineExceeded} {
+		for _, board := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%v/board=%t", failure, board), func(t *testing.T) {
+				client := NewClient("https://example.invalid", "synthetic-key", "synthetic-token", &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+					var body string
+					switch req.URL.Path {
+					case "/cards/supplied-id":
+						body = `{"idBoard":"hidden-board"}`
+					case "/boards/hidden-board", "/boards/supplied-id":
+						body = fmt.Sprintf(`{"id":%q,"idOrganization":"hidden-workspace"}`, strings.TrimPrefix(req.URL.Path, "/boards/"))
+					case "/organizations/hidden-workspace":
+						return nil, failure
+					default:
+						t.Errorf("unexpected request: %s", req.URL.Path)
+						return nil, io.ErrUnexpectedEOF
+					}
+					return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body))}, nil
+				})})
+				a := &Access{Client: client, Allowed: []string{"team"}}
+				var err error
+				if board {
+					_, err = a.Board(context.Background(), "supplied-id", false)
+				} else {
+					_, err = a.ObjectBoard(context.Background(), "cards", "supplied-id", "")
+				}
+				if err == nil || errors.Is(err, ErrDenied) || !strings.Contains(err.Error(), "supplied-id ownership could not be verified (temporary error); retry") {
+					t.Fatalf("unexpected resolution failure: %v", err)
+				}
+				for _, hidden := range []string{"hidden-board", "hidden-workspace", "http", "/organizations", "policy", "synthetic-key", "synthetic-token"} {
+					if strings.Contains(err.Error(), hidden) {
+						t.Errorf("resolution failure exposed %q: %v", hidden, err)
+					}
+				}
+			})
+		}
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/avhn/trello-mcp/internal/credentials"
 	"github.com/avhn/trello-mcp/internal/view"
 )
 
@@ -19,6 +20,9 @@ func (s *Service) selected(d definition) bool {
 }
 
 func (s *Service) enabled(name string) bool {
+	if !s.config.HasCredentials() {
+		return name == "server_health"
+	}
 	for _, d := range s.definitions() {
 		if d.name == name {
 			return s.selected(d) && (!s.config.ReadOnly || !d.write)
@@ -36,6 +40,9 @@ func (s *Service) downloadDir() string {
 
 // Instructions describes startup policy without fetching or exposing saved selections.
 func (s *Service) Instructions() string {
+	if !s.config.HasCredentials() {
+		return credentials.Hint
+	}
 	brief := func(value string, limit int) string {
 		runes := []rune(strings.Join(strings.Fields(s.access.Client.Scrub(value)), " "))
 		if len(runes) > limit {
@@ -50,6 +57,9 @@ func (s *Service) Instructions() string {
 	readOnly := "no"
 	if s.config.ReadOnly {
 		readOnly = "yes (write tools hidden)"
+		if s.config.CredentialScope == "read" {
+			readOnly = "yes (saved token scope=read; write tools hidden)"
+		}
 	}
 	uploads := "disabled"
 	if fileTransfersSupported && s.config.UploadDir != "" && s.enabled("attachment_upload") {
@@ -122,12 +132,13 @@ func (s *Service) policy(ctx context.Context) any {
 		Restricted        bool               `json:"restricted"`
 		AllowedWorkspaces []allowedWorkspace `json:"allowedWorkspaces"`
 		ReadOnly          bool               `json:"readOnly"`
+		CredentialScope   string             `json:"credentialScope,omitempty"`
 		ToolProfile       []string           `json:"toolProfile"`
 		EnabledToolCount  int                `json:"enabledToolCount"`
 		HiddenWriteTools  int                `json:"hiddenWriteTools"`
 		Uploads           transferPolicy     `json:"uploads"`
 		Downloads         transferPolicy     `json:"downloads"`
-	}{len(allowed) > 0, allowed, s.config.ReadOnly, profile, enabled, hidden,
+	}{len(allowed) > 0, allowed, s.config.ReadOnly, s.config.CredentialScope, profile, enabled, hidden,
 		transferPolicy{fileTransfersSupported && s.config.UploadDir != "" && s.enabled("attachment_upload"), s.access.Client.Scrub(s.config.UploadDir)},
 		transferPolicy{fileTransfersSupported && s.enabled("attachment_download"), s.access.Client.Scrub(s.downloadDir())}}
 }

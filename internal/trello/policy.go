@@ -1,6 +1,10 @@
 package trello
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/avhn/trello-mcp/internal/credentials"
+)
 
 // PolicyDenied distinguishes local safety refusals from upstream authentication errors.
 // Reasons may identify caller-supplied objects or configured selectors, never resolved denied scopes.
@@ -18,7 +22,11 @@ type ownershipDenial struct{ error }
 // httpError never includes upstream bodies, URLs or credentials.
 func httpError(status int) error {
 	if status == 401 || status == 403 {
-		return fmt.Errorf("trello API: HTTP %d; token/permission issue, not server policy; check the Trello token and object permissions", status)
+		message := fmt.Sprintf("trello API: HTTP %d; token/permission issue, not server policy; check the Trello token and object permissions", status)
+		if status == 401 {
+			message += ". " + credentials.Hint
+		}
+		return fmt.Errorf("%s", message)
 	}
 	return fmt.Errorf("trello API: HTTP %d", status)
 }

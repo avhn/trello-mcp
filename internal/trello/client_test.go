@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -11,6 +13,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/avhn/trello-mcp/internal/credentials"
 )
 
 // TestHTTP covers compact decoding, status handling and the exact bounded retry budget.
@@ -20,7 +24,7 @@ func TestHTTP(t *testing.T) {
 		status, failures, wantRequests int
 		wantErr                        string
 	}{
-		{"success", 200, 0, 1, ""}, {"unauthorized", 401, 99, 1, "trello API: HTTP 401; token/permission issue, not server policy; check the Trello token and object permissions"}, {"forbidden", 403, 99, 1, "trello API: HTTP 403; token/permission issue, not server policy; check the Trello token and object permissions"}, {"429 then success", 429, 2, 3, ""}, {"retry exhausted", 429, 99, 4, "trello API: HTTP 429"}, {"invalid json", 200, 99, 1, "invalid Trello JSON response"},
+		{"success", 200, 0, 1, ""}, {"unauthorized", 401, 99, 1, "trello API: HTTP 401; token/permission issue, not server policy; check the Trello token and object permissions. " + credentials.Hint}, {"forbidden", 403, 99, 1, "trello API: HTTP 403; token/permission issue, not server policy; check the Trello token and object permissions"}, {"429 then success", 429, 2, 3, ""}, {"retry exhausted", 429, 99, 4, "trello API: HTTP 429"}, {"invalid json", 200, 99, 1, "invalid Trello JSON response"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var requests atomic.Int32
@@ -114,6 +118,29 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 // RoundTrip implements http.RoundTripper for synthetic failures.
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestTransportErrorsHideRequestDetails(t *testing.T) {
+	for _, tc := range []struct {
+		failure error
+		kind    string
+	}{
+		{io.EOF, "EOF"},
+		{context.DeadlineExceeded, "timeout"},
+		{context.Canceled, "context canceled"},
+		{&net.DNSError{Name: "hidden-workspace.example.invalid", IsTimeout: true}, "timeout"},
+		{errors.New("failed https://example.invalid/organizations/hidden-workspace"), "network error"},
+	} {
+		t.Run(tc.failure.Error(), func(t *testing.T) {
+			c := NewClient("https://example.invalid", "synthetic-key", "synthetic-token", &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				return nil, &url.Error{Op: "Get", URL: req.URL.String(), Err: tc.failure}
+			})})
+			err := c.Get(context.Background(), "/organizations/hidden-workspace", nil, nil)
+			if err == nil || err.Error() != "trello API: request failed: "+tc.kind {
+				t.Fatalf("unsafe or incorrect transport error: %v", err)
+			}
+		})
+	}
+}
 
 // TestScrubbing covers literal and URL-escaped credentials in transport errors.
 func TestScrubbing(t *testing.T) {

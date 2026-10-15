@@ -1,6 +1,6 @@
 package tools
 
-const cardCreateParams = "name desc due start pos idMembers idLabels"
+const cardCreateParams = "name desc due start pos idMembers idLabels checklist"
 
 // deliveryDefinitions extends the existing reads with writes and checklist item search.
 func (s *Service) deliveryDefinitions() []definition {
@@ -10,8 +10,8 @@ func (s *Service) deliveryDefinitions() []definition {
 		{name: "list_update", description: "Rename, reorder, move or reopen a list; both boards checked.", params: "boardId listId name pos idBoard closed", required: "listId", write: true, call: s.listUpdate},
 		{name: "list_archive", description: "Archive a list.", params: "boardId listId", required: "listId", write: true, call: s.listArchive},
 		{name: "list_watch", description: "Set list subscription.", params: "boardId listId subscribed", required: "listId", write: true, call: s.listWatch},
-		{name: "card_create", description: "Create a card in an authorized list.", params: "boardId listId " + cardCreateParams, required: "listId name", write: true, call: s.cardCreate},
-		{name: "card_create_batch", description: "Create 1-100 cards; preflight all ids, return per-item results.", params: "boardId listId cards", required: "listId cards", write: true, call: s.cardCreateBatch},
+		{name: "card_create", description: "Create a card; optional checklist with ordered items. Partial failures retain created ids/count.", params: "boardId listId " + cardCreateParams, required: "listId name", write: true, call: s.cardCreate},
+		{name: "card_create_batch", description: "Create 1-100 cards with optional checklists; preflight ids, return per-card ids/counts/errors.", params: "boardId listId cards", required: "listId cards", write: true, call: s.cardCreateBatch},
 		{name: "card_update", description: "Update card details; move with card_move.", params: "boardId cardId name desc due start dueComplete closed pos idMembers idLabels", required: "cardId", write: true, call: s.cardUpdate},
 		{name: "card_archive", description: "Archive a card.", params: "boardId cardId", required: "cardId", write: true, call: s.cardArchive},
 		{name: "card_watch", description: "Set card subscription.", params: "boardId cardId subscribed", required: "cardId", write: true, call: s.cardWatch},

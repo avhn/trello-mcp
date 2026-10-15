@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"slices"
@@ -64,7 +66,7 @@ func (c *Client) Stats() Stats { c.mu.Lock(); defer c.mu.Unlock(); return Stats{
 
 // Scrub removes both literal and query-escaped credentials from diagnostic text.
 func (c *Client) Scrub(message string) string {
-	secrets := []string{c.key, c.token, url.QueryEscape(c.key), url.QueryEscape(c.token)}
+	secrets := []string{c.key, c.token, url.QueryEscape(c.key), url.QueryEscape(c.token), url.PathEscape(c.key), url.PathEscape(c.token)}
 	// Replace longest matches first, in one pass, so overlapping credentials
 	// cannot leave a suffix or modify an already-inserted redaction marker.
 	slices.SortFunc(secrets, func(a, b string) int { return len(b) - len(a) })
@@ -226,6 +228,32 @@ func (c *Client) Write(ctx context.Context, method, path string, value, out any)
 	return c.request(ctx, method, path, nil, data, "application/json", out)
 }
 
+// transportError exposes only a known error kind, never transport-supplied URLs or paths.
+func transportError(err error) error {
+	for {
+		var requestError *url.Error
+		if !errors.As(err, &requestError) {
+			break
+		}
+		err = requestError.Err
+	}
+	kind := "network error"
+	var networkError net.Error
+	switch {
+	case errors.Is(err, context.Canceled):
+		kind = "context canceled"
+	case errors.Is(err, context.DeadlineExceeded):
+		kind = "timeout"
+	case errors.As(err, &networkError) && networkError.Timeout():
+		kind = "timeout"
+	case errors.Is(err, io.EOF):
+		kind = "EOF"
+	case errors.Is(err, io.ErrUnexpectedEOF):
+		kind = "unexpected EOF"
+	}
+	return fmt.Errorf("trello API: request failed: %s", kind)
+}
+
 func (c *Client) request(ctx context.Context, method, path string, q url.Values, body []byte, contentType string, out any) error {
 	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
@@ -249,7 +277,7 @@ func (c *Client) request(ctx context.Context, method, path string, q url.Values,
 		}
 		resp, err := c.http.Do(req)
 		if err != nil {
-			return fmt.Errorf("trello request: %s", c.Scrub(err.Error()))
+			return transportError(err)
 		}
 		c.observe(resp.Header, members)
 		data, readErr := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))

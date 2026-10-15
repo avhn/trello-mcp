@@ -6,12 +6,16 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/avhn/trello-mcp/internal/credentials"
 )
 
-// Config contains startup settings. Credentials are never persisted or logged.
+// Config contains startup settings. Credentials must never be logged.
 type Config struct {
 	APIKey            string
 	Token             string
+	CredentialSource  string
+	CredentialScope   string
 	BoardID           string
 	AllowedWorkspaces []string
 	Tools             []string
@@ -21,16 +25,26 @@ type Config struct {
 	UploadDir         string
 }
 
-// Load reads the environment once and rejects missing credentials or malformed settings.
+// HasCredentials reports whether the full credential pair is available.
+func (c Config) HasCredentials() bool { return c.APIKey != "" && c.Token != "" }
+
+// Load reads environment and optional saved credentials, rejecting malformed settings.
 func Load() (Config, error) { return Parse(os.Getenv, os.UserConfigDir) }
 
 // Parse permits isolated environment tests without modifying the process environment.
 func Parse(env func(string) string, configDir func() (string, error)) (Config, error) {
-	c := Config{APIKey: env("TRELLO_API_KEY"), Token: env("TRELLO_TOKEN"), BoardID: env("TRELLO_BOARD_ID")}
-	if strings.TrimSpace(c.APIKey) == "" || strings.TrimSpace(c.Token) == "" {
-		return c, fmt.Errorf("TRELLO_API_KEY and TRELLO_TOKEN are required")
+	c := Config{BoardID: env("TRELLO_BOARD_ID")}
+	dir, err := credentials.Directory(env, configDir)
+	if err != nil {
+		return c, err
 	}
-	var err error
+	saved, source, err := credentials.Resolve(env, filepath.Join(dir, "credentials.json"))
+	if err != nil {
+		return c, err
+	}
+	c.APIKey, c.Token = saved.APIKey, saved.Token
+	c.CredentialSource, c.CredentialScope = source, saved.Scope
+	c.ReadOnly = saved.Scope == "read"
 	c.AllowedWorkspaces, err = split(env("TRELLO_ALLOWED_WORKSPACES"))
 	if err != nil {
 		return c, fmt.Errorf("TRELLO_ALLOWED_WORKSPACES: %w", err)
@@ -49,18 +63,7 @@ func Parse(env func(string) string, configDir func() (string, error)) (Config, e
 	default:
 		return c, fmt.Errorf("TRELLO_READ_ONLY must be 0 or 1")
 	}
-	dir := env("XDG_CONFIG_HOME")
-	if dir != "" {
-		if !filepath.IsAbs(dir) {
-			return c, fmt.Errorf("XDG_CONFIG_HOME must be an absolute path")
-		}
-	} else {
-		dir, err = configDir()
-		if err != nil {
-			return c, fmt.Errorf("resolve configuration directory: %w", err)
-		}
-	}
-	c.StatePath = filepath.Join(dir, "trello-mcp", "state.json")
+	c.StatePath = filepath.Join(dir, "state.json")
 	c.DownloadDir = env("TRELLO_DOWNLOAD_DIR")
 	if c.DownloadDir == "" {
 		c.DownloadDir = filepath.Join(os.TempDir(), "trello-mcp")

@@ -182,5 +182,5 @@ func (a *Access) ScopeError(err error, object string) error {
 	if errors.As(err, &ownership) {
 		return OwnershipDenied(object)
 	}
-	return err
+	return fmt.Errorf("%s ownership could not be verified (temporary error); retry", object)
 }

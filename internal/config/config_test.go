@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/avhn/trello-mcp/internal/credentials"
 )
 
 // TestParse isolates environment parsing, including fail-closed comma lists and boolean values.
@@ -135,5 +137,65 @@ func TestUploadDirectory(t *testing.T) {
 		if c.UploadDir != dir {
 			t.Errorf("upload directory got %s; want %s", c.UploadDir, dir)
 		}
+	}
+}
+
+// TestCredentialSources keeps environment pairs authoritative and saved read scope fail-closed.
+func TestCredentialSources(t *testing.T) {
+	for _, tc := range []struct {
+		name, scope, key, token, readOnly, source string
+		missingFile, fail, wantReadOnly           bool
+	}{
+		{name: "missing", missingFile: true, source: "none"},
+		{name: "saved read", scope: "read", source: "file", wantReadOnly: true},
+		{name: "saved read cannot opt out", scope: "read", readOnly: "0", source: "file", wantReadOnly: true},
+		{name: "saved write", scope: "read,write", source: "file"},
+		{name: "env overrides read file", scope: "read", key: "env-key", token: "env-token", source: "env"},
+		{name: "partial env never falls back", scope: "read", key: "env-key", fail: true},
+		{name: "whitespace env", scope: "read", key: " ", token: "env-token", fail: true},
+		{name: "env read only", key: "env-key", token: "env-token", readOnly: "1", missingFile: true, source: "env", wantReadOnly: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "trello-mcp", "credentials.json")
+			if !tc.missingFile {
+				if err := credentials.Save(path, credentials.File{APIKey: "file-key", Token: "file-token", Scope: tc.scope}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			env := func(k string) string {
+				return map[string]string{"TRELLO_API_KEY": tc.key, "TRELLO_TOKEN": tc.token, "TRELLO_READ_ONLY": tc.readOnly}[k]
+			}
+			c, err := Parse(env, func() (string, error) { return dir, nil })
+			if (err != nil) != tc.fail {
+				t.Fatalf("unexpected parse error: %v", err)
+			}
+			if tc.fail {
+				return
+			}
+			if c.CredentialSource != tc.source || c.ReadOnly != tc.wantReadOnly || c.HasCredentials() != (tc.source != "none") {
+				t.Error("incorrect source, read-only mode or availability")
+			}
+			if tc.source == "env" && (c.APIKey != tc.key || c.Token != tc.token || c.CredentialScope != "") {
+				t.Error("environment precedence failed")
+			}
+		})
+	}
+}
+
+func TestEnvironmentSkipsUnsafeFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "trello-mcp", "credentials.json")
+	if err := os.MkdirAll(path, 0700); err != nil {
+		t.Fatal(err)
+	}
+	env := func(k string) string {
+		if k == "TRELLO_API_KEY" || k == "TRELLO_TOKEN" {
+			return "synthetic"
+		}
+		return ""
+	}
+	if _, err := Parse(env, func() (string, error) { return dir, nil }); err != nil {
+		t.Fatalf("environment pair should bypass the file: %v", err)
 	}
 }

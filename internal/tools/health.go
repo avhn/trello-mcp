@@ -4,10 +4,20 @@ import (
 	"context"
 	"runtime"
 	"time"
+
+	"github.com/avhn/trello-mcp/internal/credentials"
 )
 
 // serverHealth reports diagnostics; persisted identifiers and credentials are never exposed.
 func (s *Service) serverHealth(ctx context.Context, a arguments) (any, error) {
+	if !s.config.HasCredentials() {
+		return struct {
+			OK               bool   `json:"ok"`
+			Message          string `json:"message"`
+			CredentialSource string `json:"credentialSource"`
+			EnabledToolCount int    `json:"enabledToolCount"`
+		}{false, credentials.Hint, "none", 1}, nil
+	}
 	switch a.str("detail") {
 	case "policy":
 		return s.policy(ctx), nil

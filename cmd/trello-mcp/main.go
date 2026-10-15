@@ -12,6 +12,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/avhn/trello-mcp/internal/auth"
 	"github.com/avhn/trello-mcp/internal/config"
 	"github.com/avhn/trello-mcp/internal/state"
 	"github.com/avhn/trello-mcp/internal/tools"
@@ -25,6 +26,16 @@ var version string
 func main() {
 	if version == "" {
 		version = tools.Version
+	}
+	if len(os.Args) > 1 && os.Args[1] == "auth" {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		err := auth.Run(ctx, os.Args[2:], os.Stdin, os.Stdout)
+		stop()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "trello-mcp auth:", err)
+			os.Exit(1)
+		}
+		return
 	}
 	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()

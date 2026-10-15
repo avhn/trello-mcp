@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/avhn/trello-mcp/internal/credentials"
 )
 
 func TestReleaseVersion(t *testing.T) {
@@ -27,6 +29,7 @@ func TestReleaseVersion(t *testing.T) {
 	}
 
 	checkInstructions(t, ctx, binary)
+	checkCredentialStartup(t, ctx, binary)
 
 	version := exec.CommandContext(ctx, binary, "--version")
 	version.Env = []string{}
@@ -103,6 +106,57 @@ func checkInstructions(t *testing.T, ctx context.Context, binary string) {
 				if strings.Contains(instructions, hidden) {
 					t.Errorf("instructions exposed %q: %s", hidden, instructions)
 				}
+			}
+		})
+	}
+}
+
+// checkCredentialStartup verifies the real stdio entry point with no environment credentials.
+func checkCredentialStartup(t *testing.T, ctx context.Context, binary string) {
+	t.Helper()
+	for _, tc := range []struct {
+		scope string
+		count int
+	}{{"", 1}, {"read", 19}, {"read,write", 48}} {
+		t.Run("credentials-"+tc.scope, func(t *testing.T) {
+			dir := t.TempDir()
+			if tc.scope != "" {
+				if err := credentials.Save(filepath.Join(dir, "trello-mcp", "credentials.json"), credentials.File{APIKey: "synthetic-key", Token: "synthetic-token", Scope: tc.scope}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			command := exec.CommandContext(ctx, binary)
+			command.Env = []string{"XDG_CONFIG_HOME=" + dir}
+			client := mcp.NewClient(&mcp.Implementation{Name: "credentials-test", Version: "1"}, nil)
+			session, err := client.Connect(ctx, &mcp.CommandTransport{Command: command}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = session.Close() }()
+			listed, err := session.ListTools(ctx, nil)
+			if err != nil || len(listed.Tools) != tc.count {
+				t.Fatalf("tools/list count, want %d: %v", tc.count, err)
+			}
+			if tc.scope == "" {
+				if session.InitializeResult().Instructions != credentials.Hint {
+					t.Error("initialize missing setup hint")
+				}
+				health, callErr := session.CallTool(ctx, &mcp.CallToolParams{Name: "server_health", Arguments: map[string]any{}})
+				if callErr != nil || health.IsError || !strings.Contains(health.Content[0].(*mcp.TextContent).Text, credentials.Hint) {
+					t.Errorf("health missing setup hint: %v", callErr)
+				}
+			} else if tc.scope == "read" && !strings.Contains(session.InitializeResult().Instructions, "saved token scope=read") {
+				t.Error("saved read scope missing from initialize instructions")
+			}
+			logout := exec.CommandContext(ctx, binary, "auth", "logout")
+			logout.Env = []string{"XDG_CONFIG_HOME=" + dir}
+			if output, logoutErr := logout.CombinedOutput(); logoutErr != nil {
+				t.Fatalf("auth logout: %v\n%s", logoutErr, output)
+			}
+			status := exec.CommandContext(ctx, binary, "auth", "status")
+			status.Env = []string{"XDG_CONFIG_HOME=" + dir}
+			if output, statusErr := status.CombinedOutput(); statusErr != nil || !strings.Contains(string(output), "Credential source: none") {
+				t.Fatalf("auth status after logout: %v\n%s", statusErr, output)
 			}
 		})
 	}
