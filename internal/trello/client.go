@@ -230,6 +230,12 @@ func (c *Client) Write(ctx context.Context, method, path string, value, out any)
 	return c.request(ctx, method, path, nil, data, "application/json", out)
 }
 
+// WriteQuery sends documented query parameters through the same bounded mutation path.
+// It does not retry with another transport when a mutation response is ambiguous.
+func (c *Client) WriteQuery(ctx context.Context, method, path string, q url.Values, out any) error {
+	return c.request(ctx, method, path, q, nil, "", out)
+}
+
 // safeError preserves diagnostic causes without rendering their private details.
 // MCP responses must use Error(), not concatenate the unwrapped cause chain.
 type safeError struct {

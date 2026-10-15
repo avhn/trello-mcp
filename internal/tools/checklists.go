@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"fmt"
 	"net/url"
 
 	"github.com/avhn/trello-mcp/internal/trello"
@@ -30,6 +29,21 @@ func (s *Service) checklistItems(ctx context.Context, a arguments) (any, error) 
 	return view.Collection(list.Items, ""), nil
 }
 
+type checklistChoice struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type checklistMiss struct {
+	Error     string            `json:"error"`
+	Name      string            `json:"name"`
+	Available []checklistChoice `json:"available"`
+	Total     int               `json:"total"`
+	Truncated bool              `json:"truncated"`
+}
+
+func (checklistMiss) toolFailed() bool { return true }
+
 // checklistGet finds an exact name, defaulting to Acceptance Criteria, on an authorized card.
 func (s *Service) checklistGet(ctx context.Context, a arguments) (any, error) {
 	id := a.str("cardId")
@@ -46,10 +60,15 @@ func (s *Service) checklistGet(ctx context.Context, a arguments) (any, error) {
 	if name == "" {
 		name = "Acceptance Criteria"
 	}
+	// Validate every sibling before selecting a match or disclosing alternatives.
+	seen := map[string]bool{}
 	for _, list := range lists {
-		if list.BoardID != board || list.CardID != id {
+		if !trello.ValidID(list.ID) || seen[list.ID] || list.BoardID != board || list.CardID != id {
 			return nil, trello.OwnershipDenied("checklist")
 		}
+		seen[list.ID] = true
+	}
+	for _, list := range lists {
 		if list.Name == name {
 			if list.Items == nil {
 				list.Items = []view.Item{}
@@ -57,5 +76,9 @@ func (s *Service) checklistGet(ctx context.Context, a arguments) (any, error) {
 			return list, nil
 		}
 	}
-	return nil, fmt.Errorf("checklist not found")
+	choices := make([]checklistChoice, 0, min(len(lists), 20))
+	for _, list := range lists[:min(len(lists), 20)] {
+		choices = append(choices, checklistChoice{ID: list.ID, Name: list.Name})
+	}
+	return checklistMiss{Error: "checklist not found; choose an available exact name", Name: name, Available: choices, Total: len(lists), Truncated: len(lists) > len(choices)}, nil
 }

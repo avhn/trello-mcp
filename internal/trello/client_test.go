@@ -2,6 +2,7 @@ package trello
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -299,5 +300,57 @@ func TestTruncatedHTTPErrorBody(t *testing.T) {
 				t.Errorf("requests %d, want %d", requests.Load(), wantRequests)
 			}
 		})
+	}
+}
+
+func TestWriteQuery(t *testing.T) {
+	for _, tc := range []struct {
+		name, response string
+		status         int
+		failed         bool
+	}{
+		{"success", `{"id":"c1","due":null}`, http.StatusOK, false},
+		{"upstream error", `private synthetic-key synthetic-token`, http.StatusInternalServerError, true},
+		{"invalid JSON", `synthetic-key synthetic-token`, http.StatusOK, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var requests atomic.Int32
+			fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests.Add(1)
+				if r.Method != http.MethodPut || r.URL.Path != "/cards/c1" || r.URL.Query().Get("due") != "null" || r.URL.Query().Get("key") != "synthetic-key" || r.URL.Query().Get("token") != "synthetic-token" {
+					t.Error("incorrect query mutation")
+				}
+				body, err := io.ReadAll(r.Body)
+				if err != nil || len(body) != 0 || r.Header.Get("Content-Type") != "" {
+					t.Error("query write unexpectedly has a JSON body")
+				}
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(tc.response))
+			}))
+			defer fake.Close()
+			c := NewClient(fake.URL, "synthetic-key", "synthetic-token", fake.Client())
+			q := url.Values{"due": {"null"}, "key": {"caller value"}}
+			var out map[string]json.RawMessage
+			err := c.WriteQuery(context.Background(), http.MethodPut, "/cards/c1", q, &out)
+			if (err != nil) != tc.failed {
+				t.Fatalf("got %v, want failed=%v", err, tc.failed)
+			}
+			if err != nil && (strings.Contains(err.Error(), "synthetic-key") || strings.Contains(err.Error(), "synthetic-token") || strings.Contains(err.Error(), "private")) {
+				t.Fatal("query/error credentials leaked")
+			}
+			if requests.Load() != 1 || q.Get("key") != "caller value" || q.Has("token") {
+				t.Fatal("write retried or caller query modified")
+			}
+		})
+	}
+}
+
+func TestWriteQueryTransportRedaction(t *testing.T) {
+	c := NewClient("https://example.invalid", "key+/?", "token+/?", &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return nil, fmt.Errorf("failed %s", r.URL)
+	})})
+	err := c.WriteQuery(context.Background(), http.MethodPut, "/cards/c1", url.Values{"due": {"null"}}, nil)
+	if err == nil || err.Error() != "trello API: request failed: network error" || c.Stats().Requests != 1 {
+		t.Fatalf("unsafe error or repeated write: %v", err)
 	}
 }

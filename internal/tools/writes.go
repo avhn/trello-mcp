@@ -2,9 +2,14 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/avhn/trello-mcp/internal/trello"
 	"github.com/avhn/trello-mcp/internal/view"
@@ -20,8 +25,160 @@ type writeResult struct {
 // cardCreateResult retains confirmed progress when a later checklist write fails.
 type cardCreateResult struct {
 	writeResult
-	Checklist *createdChecklist `json:"checklist,omitempty"`
-	Error     string            `json:"error,omitempty"`
+	Checklist   *createdChecklist `json:"checklist,omitempty"`
+	Error       string            `json:"error,omitempty"`
+	Unconfirmed []string          `json:"unconfirmed,omitempty"`
+}
+
+func (r cardCreateResult) toolFailed() bool { return r.Error != "" }
+
+// mutationPartialResult preserves confirmed identity without acknowledging ignored fields.
+type mutationPartialResult struct {
+	writeResult
+	Error       string   `json:"error"`
+	Unconfirmed []string `json:"unconfirmed"`
+}
+
+func (r mutationPartialResult) toolFailed() bool { return r.Error != "" }
+
+// mutationField separates public argument names from Trello's wire names.
+type mutationField struct {
+	input, wire, want string
+	date              bool
+}
+
+// mutationTarget holds only already authorized ownership references.
+type mutationTarget struct {
+	id, board, card, checklist string
+}
+
+func (target mutationTarget) validate(response map[string]json.RawMessage) (writeResult, error) {
+	var out writeResult
+	data, err := json.Marshal(response)
+	if err != nil || json.Unmarshal(data, &out) != nil || !trello.ValidID(out.ID) || (target.id != "" && out.ID != target.id) {
+		return out, fmt.Errorf("mutation result id unverifiable; mutation may have applied; inspect before retrying")
+	}
+	for key, expected := range map[string]string{"idBoard": target.board, "idCard": target.card, "idChecklist": target.checklist} {
+		if raw, present := response[key]; present {
+			var id string
+			if json.Unmarshal(raw, &id) != nil || !trello.ValidID(id) || expected == "" || id != expected {
+				return out, fmt.Errorf("mutation result ownership unverifiable; mutation may have applied; inspect before retrying")
+			}
+		}
+	}
+	return out, nil
+}
+
+func (field mutationField) matches(raw json.RawMessage) bool {
+	var value string
+	if string(raw) != "null" && json.Unmarshal(raw, &value) != nil {
+		return false
+	}
+	if !field.date || value == "" || field.want == "" {
+		return value == field.want
+	}
+	got, err := time.Parse(time.RFC3339, value)
+	want, wantErr := time.Parse(time.RFC3339, field.want)
+	return err == nil && wantErr == nil && got.Equal(want)
+}
+
+func clearFields(a arguments, keys ...string) []mutationField {
+	var fields []mutationField
+	for _, key := range keys {
+		if a.has(key) && a.str(key) == "" {
+			fields = append(fields, mutationField{input: key, wire: key})
+		}
+	}
+	return fields
+}
+
+// mutationQuery preserves empty strings, false and empty ID arrays. Only nullable
+// values already selected by payload become the documented query string null.
+func mutationQuery(body map[string]any) (url.Values, error) {
+	q := url.Values{}
+	for key, value := range body {
+		switch v := value.(type) {
+		case nil:
+			q.Set(key, "null")
+		case string:
+			q.Set(key, v)
+		case bool:
+			q.Set(key, strconv.FormatBool(v))
+		case []string:
+			q.Set(key, strings.Join(v, ","))
+		case json.Number:
+			q.Set(key, v.String())
+		case float64:
+			q.Set(key, strconv.FormatFloat(v, 'f', -1, 64))
+		default:
+			return nil, fmt.Errorf("unsupported mutation query field %s", key)
+		}
+	}
+	return q, nil
+}
+
+// mutateVerified compares populated responses immediately. Only missing requested
+// fields justify a single bounded data read after reauthorizing actual ownership.
+func (s *Service) mutateVerified(ctx context.Context, method, path string, body map[string]any, target mutationTarget, fields []mutationField, fallback func(string, []mutationField) (map[string]json.RawMessage, error)) (any, error) {
+	q, err := mutationQuery(body)
+	if err != nil {
+		return nil, err
+	}
+	var response map[string]json.RawMessage
+	if err = s.access.Client.WriteQuery(ctx, method, path, q, &response); err != nil {
+		return nil, fmt.Errorf("mutation may have applied; inspect before retrying: %w", err)
+	}
+	out, err := target.validate(response)
+	if err != nil {
+		return nil, err
+	}
+	unconfirmed := map[string]bool{}
+	var missing []mutationField
+	for _, field := range fields {
+		if raw, present := response[field.wire]; !present {
+			missing = append(missing, field)
+		} else if !field.matches(raw) {
+			unconfirmed[field.input] = true
+		}
+	}
+	if len(missing) > 0 {
+		readback, readErr := fallback(out.ID, missing)
+		if readErr == nil {
+			check := target
+			check.id = out.ID
+			_, readErr = check.validate(readback)
+		}
+		for _, field := range missing {
+			raw, present := readback[field.wire]
+			if readErr != nil || !present || !field.matches(raw) {
+				unconfirmed[field.input] = true
+			}
+		}
+	}
+	if len(unconfirmed) == 0 {
+		return out, nil
+	}
+	names := make([]string, 0, len(unconfirmed))
+	for name := range unconfirmed {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return mutationPartialResult{writeResult: out, Error: "mutation may have applied; requested fields unconfirmed; inspect before retrying", Unconfirmed: names}, nil
+}
+
+func (s *Service) mutationReadback(ctx context.Context, kind string, target mutationTarget) func(string, []mutationField) (map[string]json.RawMessage, error) {
+	return func(id string, fields []mutationField) (map[string]json.RawMessage, error) {
+		if _, err := s.access.ObjectBoard(ctx, kind, id, target.board); err != nil {
+			return nil, err
+		}
+		selection := []string{"id", "idBoard"}
+		for _, field := range fields {
+			selection = append(selection, field.wire)
+		}
+		var response map[string]json.RawMessage
+		err := s.access.Client.Get(ctx, "/"+kind+"/"+id, url.Values{"fields": {strings.Join(selection, ",")}}, &response)
+		return response, err
+	}
 }
 
 type createdChecklist struct {
@@ -201,14 +358,25 @@ func (s *Service) cardCreate(ctx context.Context, a arguments) (any, error) {
 	if err = s.cardReferences(ctx, board, a); err != nil {
 		return nil, err
 	}
-	return s.createCard(ctx, a, a.str("listId"))
+	return s.createCard(ctx, a, a.str("listId"), board)
 }
 
 // createCard uses only the authorized list and ids returned by these writes.
-func (s *Service) createCard(ctx context.Context, a arguments, list string) (cardCreateResult, error) {
-	result, err := s.mutate(ctx, http.MethodPost, "/cards", cardBody(a, list))
+func (s *Service) createCard(ctx context.Context, a arguments, list, board string) (cardCreateResult, error) {
+	body := cardBody(a, list)
+	var result any
+	var err error
+	if fields := clearFields(a, "due", "start"); len(fields) > 0 {
+		target := mutationTarget{board: board}
+		result, err = s.mutateVerified(ctx, http.MethodPost, "/cards", body, target, fields, s.mutationReadback(ctx, "cards", target))
+	} else {
+		result, err = s.mutate(ctx, http.MethodPost, "/cards", body)
+	}
 	if err != nil {
 		return cardCreateResult{}, err
+	}
+	if partial, ok := result.(mutationPartialResult); ok {
+		return cardCreateResult{writeResult: partial.writeResult, Error: partial.Error, Unconfirmed: partial.Unconfirmed}, nil
 	}
 	out := cardCreateResult{writeResult: result.(writeResult)}
 	if a.checklist != nil {
@@ -232,10 +400,11 @@ func (s *Service) cardCreateBatch(ctx context.Context, a arguments) (any, error)
 		}
 	}
 	type item struct {
-		Index     int               `json:"index"`
-		ID        string            `json:"id,omitempty"`
-		Checklist *createdChecklist `json:"checklist,omitempty"`
-		Error     string            `json:"error,omitempty"`
+		Index       int               `json:"index"`
+		ID          string            `json:"id,omitempty"`
+		Checklist   *createdChecklist `json:"checklist,omitempty"`
+		Error       string            `json:"error,omitempty"`
+		Unconfirmed []string          `json:"unconfirmed,omitempty"`
 	}
 	items := make([]item, 0, len(a.cards))
 	for i, card := range a.cards {
@@ -246,13 +415,14 @@ func (s *Service) cardCreateBatch(ctx context.Context, a arguments) (any, error)
 		}
 		var result cardCreateResult
 		if err == nil {
-			result, err = s.createCard(ctx, card, a.str("listId"))
+			result, err = s.createCard(ctx, card, a.str("listId"), board)
 		}
 		entry := item{Index: i}
 		if err != nil {
 			entry.Error = s.access.Client.Scrub(err.Error())
 		} else {
 			entry.ID, entry.Checklist, entry.Error = result.ID, result.Checklist, result.Error
+			entry.Unconfirmed = result.Unconfirmed
 		}
 		items = append(items, entry)
 	}
@@ -270,6 +440,10 @@ func (s *Service) cardUpdate(ctx context.Context, a arguments) (any, error) {
 	body := a.payload("name", "desc", "due", "start", "dueComplete", "closed", "pos", "idMembers", "idLabels")
 	if err = nonemptyUpdate(body); err != nil {
 		return nil, err
+	}
+	if fields := clearFields(a, "due", "start"); len(fields) > 0 {
+		target := mutationTarget{id: a.str("cardId"), board: board}
+		return s.mutateVerified(ctx, http.MethodPut, "/cards/"+target.id, body, target, fields, s.mutationReadback(ctx, "cards", target))
 	}
 	return s.mutate(ctx, http.MethodPut, "/cards/"+a.str("cardId"), body)
 }

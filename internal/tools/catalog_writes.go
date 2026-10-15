@@ -42,16 +42,25 @@ func (s *Service) labelCreate(ctx context.Context, a arguments) (any, error) {
 		body["color"] = nil
 	}
 	body["idBoard"] = board
+	if fields := clearFields(a, "color"); len(fields) > 0 {
+		target := mutationTarget{board: board}
+		return s.mutateVerified(ctx, http.MethodPost, "/labels", body, target, fields, s.mutationReadback(ctx, "labels", target))
+	}
 	return s.mutate(ctx, http.MethodPost, "/labels", body)
 }
 
 func (s *Service) labelUpdate(ctx context.Context, a arguments) (any, error) {
-	if _, err := s.access.ObjectBoard(ctx, "labels", a.str("labelId"), a.str("boardId")); err != nil {
+	board, err := s.access.ObjectBoard(ctx, "labels", a.str("labelId"), a.str("boardId"))
+	if err != nil {
 		return nil, err
 	}
 	body := a.payload("name", "color")
 	if len(body) == 0 {
 		return nil, fmt.Errorf("at least one update field is required")
+	}
+	if fields := clearFields(a, "color"); len(fields) > 0 {
+		target := mutationTarget{id: a.str("labelId"), board: board}
+		return s.mutateVerified(ctx, http.MethodPut, "/labels/"+target.id, body, target, fields, s.mutationReadback(ctx, "labels", target))
 	}
 	return s.mutate(ctx, http.MethodPut, "/labels/"+a.str("labelId"), body)
 }
