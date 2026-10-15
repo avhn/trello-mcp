@@ -1,0 +1,12 @@
+[
+  {
+    "id": "w1",
+    "name": "allowed",
+    "displayName": "Allowed Workspace"
+  },
+  {
+    "id": "w2",
+    "name": "other",
+    "displayName": "Other Workspace"
+  }
+]

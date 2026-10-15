@@ -1,0 +1,10 @@
+[
+  {
+    "id": "l1",
+    "name": "Doing",
+    "idBoard": "b1",
+    "closed": false,
+    "pos": 1,
+    "limits": {}
+  }
+]

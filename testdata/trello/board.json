@@ -1,0 +1,22 @@
+{
+  "id": "b1",
+  "name": "Release",
+  "url": "https://trello.com/b/b1",
+  "idOrganization": "w1",
+  "closed": false,
+  "desc": "Synthetic board description",
+  "prefs": {
+    "permissionLevel": "private",
+    "background": "blue"
+  },
+  "labelNames": {
+    "green": "Ready"
+  },
+  "limits": {},
+  "memberships": [
+    {
+      "idMember": "m1",
+      "memberType": "admin"
+    }
+  ]
+}

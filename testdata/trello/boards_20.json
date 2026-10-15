@@ -1,0 +1,442 @@
+[
+  {
+    "id": "b1",
+    "name": "Project 1",
+    "url": "https://trello.com/b/b1",
+    "idOrganization": "w1",
+    "closed": false,
+    "desc": "Synthetic board description",
+    "prefs": {
+      "permissionLevel": "private",
+      "background": "blue"
+    },
+    "labelNames": {
+      "green": "Ready"
+    },
+    "limits": {},
+    "memberships": [
+      {
+        "idMember": "m1",
+        "memberType": "admin"
+      }
+    ]
+  },
+  {
+    "id": "b2",
+    "name": "Project 2",
+    "url": "https://trello.com/b/b1",
+    "idOrganization": "w1",
+    "closed": false,
+    "desc": "Synthetic board description",
+    "prefs": {
+      "permissionLevel": "private",
+      "background": "blue"
+    },
+    "labelNames": {
+      "green": "Ready"
+    },
+    "limits": {},
+    "memberships": [
+      {
+        "idMember": "m1",
+        "memberType": "admin"
+      }
+    ]
+  },
+  {
+    "id": "b3",
+    "name": "Project 3",
+    "url": "https://trello.com/b/b1",
+    "idOrganization": "w1",
+    "closed": false,
+    "desc": "Synthetic board description",
+    "prefs": {
+      "permissionLevel": "private",
+      "background": "blue"
+    },
+    "labelNames": {
+      "green": "Ready"
+    },
+    "limits": {},
+    "memberships": [
+      {
+        "idMember": "m1",
+        "memberType": "admin"
+      }
+    ]
+  },
+  {
+    "id": "b4",
+    "name": "Project 4",
+    "url": "https://trello.com/b/b1",
+    "idOrganization": "w1",
+    "closed": false,
+    "desc": "Synthetic board description",
+    "prefs": {
+      "permissionLevel": "private",
+      "background": "blue"
+    },
+    "labelNames": {
+      "green": "Ready"
+    },
+    "limits": {},
+    "memberships": [
+      {
+        "idMember": "m1",
+        "memberType": "admin"
+      }
+    ]
+  },
+  {
+    "id": "b5",
+    "name": "Project 5",
+    "url": "https://trello.com/b/b1",
+    "idOrganization": "w1",
+    "closed": false,
+    "desc": "Synthetic board description",
+    "prefs": {
+      "permissionLevel": "private",
+      "background": "blue"
+    },
+    "labelNames": {
+      "green": "Ready"
+    },
+    "limits": {},
+    "memberships": [
+      {
+        "idMember": "m1",
+        "memberType": "admin"
+      }
+    ]
+  },
+  {
+    "id": "b6",
+    "name": "Project 6",
+    "url": "https://trello.com/b/b1",
+    "idOrganization": "w1",
+    "closed": false,
+    "desc": "Synthetic board description",
+    "prefs": {
+      "permissionLevel": "private",
+      "background": "blue"
+    },
+    "labelNames": {
+      "green": "Ready"
+    },
+    "limits": {},
+    "memberships": [
+      {
+        "idMember": "m1",
+        "memberType": "admin"
+      }
+    ]
+  },
+  {
+    "id": "b7",
+    "name": "Project 7",
+    "url": "https://trello.com/b/b1",
+    "idOrganization": "w1",
+    "closed": false,
+    "desc": "Synthetic board description",
+    "prefs": {
+      "permissionLevel": "private",
+      "background": "blue"
+    },
+    "labelNames": {
+      "green": "Ready"
+    },
+    "limits": {},
+    "memberships": [
+      {
+        "idMember": "m1",
+        "memberType": "admin"
+      }
+    ]
+  },
+  {
+    "id": "b8",
+    "name": "Project 8",
+    "url": "https://trello.com/b/b1",
+    "idOrganization": "w1",
+    "closed": false,
+    "desc": "Synthetic board description",
+    "prefs": {
+      "permissionLevel": "private",
+      "background": "blue"
+    },
+    "labelNames": {
+      "green": "Ready"
+    },
+    "limits": {},
+    "memberships": [
+      {
+        "idMember": "m1",
+        "memberType": "admin"
+      }
+    ]
+  },
+  {
+    "id": "b9",
+    "name": "Project 9",
+    "url": "https://trello.com/b/b1",
+    "idOrganization": "w1",
+    "closed": false,
+    "desc": "Synthetic board description",
+    "prefs": {
+      "permissionLevel": "private",
+      "background": "blue"
+    },
+    "labelNames": {
+      "green": "Ready"
+    },
+    "limits": {},
+    "memberships": [
+      {
+        "idMember": "m1",
+        "memberType": "admin"
+      }
+    ]
+  },
+  {
+    "id": "b10",
+    "name": "Project 10",
+    "url": "https://trello.com/b/b1",
+    "idOrganization": "w1",
+    "closed": false,
+    "desc": "Synthetic board description",
+    "prefs": {
+      "permissionLevel": "private",
+      "background": "blue"
+    },
+    "labelNames": {
+      "green": "Ready"
+    },
+    "limits": {},
+    "memberships": [
+      {
+        "idMember": "m1",
+        "memberType": "admin"
+      }
+    ]
+  },
+  {
+    "id": "b11",
+    "name": "Project 11",
+    "url": "https://trello.com/b/b1",
+    "idOrganization": "w1",
+    "closed": false,
+    "desc": "Synthetic board description",
+    "prefs": {
+      "permissionLevel": "private",
+      "background": "blue"
+    },
+    "labelNames": {
+      "green": "Ready"
+    },
+    "limits": {},
+    "memberships": [
+      {
+        "idMember": "m1",
+        "memberType": "admin"
+      }
+    ]
+  },
+  {
+    "id": "b12",
+    "name": "Project 12",
+    "url": "https://trello.com/b/b1",
+    "idOrganization": "w1",
+    "closed": false,
+    "desc": "Synthetic board description",
+    "prefs": {
+      "permissionLevel": "private",
+      "background": "blue"
+    },
+    "labelNames": {
+      "green": "Ready"
+    },
+    "limits": {},
+    "memberships": [
+      {
+        "idMember": "m1",
+        "memberType": "admin"
+      }
+    ]
+  },
+  {
+    "id": "b13",
+    "name": "Project 13",
+    "url": "https://trello.com/b/b1",
+    "idOrganization": "w1",
+    "closed": false,
+    "desc": "Synthetic board description",
+    "prefs": {
+      "permissionLevel": "private",
+      "background": "blue"
+    },
+    "labelNames": {
+      "green": "Ready"
+    },
+    "limits": {},
+    "memberships": [
+      {
+        "idMember": "m1",
+        "memberType": "admin"
+      }
+    ]
+  },
+  {
+    "id": "b14",
+    "name": "Project 14",
+    "url": "https://trello.com/b/b1",
+    "idOrganization": "w1",
+    "closed": false,
+    "desc": "Synthetic board description",
+    "prefs": {
+      "permissionLevel": "private",
+      "background": "blue"
+    },
+    "labelNames": {
+      "green": "Ready"
+    },
+    "limits": {},
+    "memberships": [
+      {
+        "idMember": "m1",
+        "memberType": "admin"
+      }
+    ]
+  },
+  {
+    "id": "b15",
+    "name": "Project 15",
+    "url": "https://trello.com/b/b1",
+    "idOrganization": "w1",
+    "closed": false,
+    "desc": "Synthetic board description",
+    "prefs": {
+      "permissionLevel": "private",
+      "background": "blue"
+    },
+    "labelNames": {
+      "green": "Ready"
+    },
+    "limits": {},
+    "memberships": [
+      {
+        "idMember": "m1",
+        "memberType": "admin"
+      }
+    ]
+  },
+  {
+    "id": "b16",
+    "name": "Project 16",
+    "url": "https://trello.com/b/b1",
+    "idOrganization": "w1",
+    "closed": false,
+    "desc": "Synthetic board description",
+    "prefs": {
+      "permissionLevel": "private",
+      "background": "blue"
+    },
+    "labelNames": {
+      "green": "Ready"
+    },
+    "limits": {},
+    "memberships": [
+      {
+        "idMember": "m1",
+        "memberType": "admin"
+      }
+    ]
+  },
+  {
+    "id": "b17",
+    "name": "Project 17",
+    "url": "https://trello.com/b/b1",
+    "idOrganization": "w1",
+    "closed": false,
+    "desc": "Synthetic board description",
+    "prefs": {
+      "permissionLevel": "private",
+      "background": "blue"
+    },
+    "labelNames": {
+      "green": "Ready"
+    },
+    "limits": {},
+    "memberships": [
+      {
+        "idMember": "m1",
+        "memberType": "admin"
+      }
+    ]
+  },
+  {
+    "id": "b18",
+    "name": "Project 18",
+    "url": "https://trello.com/b/b1",
+    "idOrganization": "w1",
+    "closed": false,
+    "desc": "Synthetic board description",
+    "prefs": {
+      "permissionLevel": "private",
+      "background": "blue"
+    },
+    "labelNames": {
+      "green": "Ready"
+    },
+    "limits": {},
+    "memberships": [
+      {
+        "idMember": "m1",
+        "memberType": "admin"
+      }
+    ]
+  },
+  {
+    "id": "b19",
+    "name": "Project 19",
+    "url": "https://trello.com/b/b1",
+    "idOrganization": "w1",
+    "closed": false,
+    "desc": "Synthetic board description",
+    "prefs": {
+      "permissionLevel": "private",
+      "background": "blue"
+    },
+    "labelNames": {
+      "green": "Ready"
+    },
+    "limits": {},
+    "memberships": [
+      {
+        "idMember": "m1",
+        "memberType": "admin"
+      }
+    ]
+  },
+  {
+    "id": "b20",
+    "name": "Project 20",
+    "url": "https://trello.com/b/b1",
+    "idOrganization": "w1",
+    "closed": false,
+    "desc": "Synthetic board description",
+    "prefs": {
+      "permissionLevel": "private",
+      "background": "blue"
+    },
+    "labelNames": {
+      "green": "Ready"
+    },
+    "limits": {},
+    "memberships": [
+      {
+        "idMember": "m1",
+        "memberType": "admin"
+      }
+    ]
+  }
+]

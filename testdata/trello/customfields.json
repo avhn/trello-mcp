@@ -1,0 +1,38 @@
+[
+  {
+    "id": "f1",
+    "name": "Stage",
+    "type": "list",
+    "options": [
+      {
+        "id": "o1",
+        "value": {
+          "text": "Ready"
+        },
+        "color": "green",
+        "pos": 1,
+        "idCustomField": "f1"
+      }
+    ]
+  },
+  {
+    "id": "f2",
+    "name": "Text",
+    "type": "text"
+  },
+  {
+    "id": "f3",
+    "name": "Number",
+    "type": "number"
+  },
+  {
+    "id": "f4",
+    "name": "Date",
+    "type": "date"
+  },
+  {
+    "id": "f5",
+    "name": "Checkbox",
+    "type": "checkbox"
+  }
+]

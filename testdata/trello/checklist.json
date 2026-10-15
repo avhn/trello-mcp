@@ -1,0 +1,18 @@
+{
+  "id": "cl1",
+  "name": "Acceptance Criteria",
+  "idBoard": "b1",
+  "idCard": "c1",
+  "pos": 100,
+  "checkItems": [
+    {
+      "id": "i1",
+      "name": "Works",
+      "state": "complete",
+      "pos": 1,
+      "nameData": {
+        "emoji": {}
+      }
+    }
+  ]
+}
