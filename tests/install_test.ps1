@@ -192,10 +192,13 @@ Write-Output 'CALLER_ALIVE'
     $registration = "claude mcp add --scope user --transport stdio trello -- '" + $exe.Replace("'", "''") + "'"
     Assert-True ($output.Contains($registration)) 'missing scoped PowerShell-quoted registration'
     # Parse the printed command using a synthetic function, never a real client.
+    # PowerShell consumes the end-of-parameters token before a function sees it, and only
+    # some versions forward it to native commands, so compare the arguments without it.
     function claude {
-        Assert-True ($args.Count -eq 9) 'wrong registration argument count'
-        Assert-True (($args[0..7] -join ' ') -eq 'mcp add --scope user --transport stdio trello --') 'wrong registration scope or transport'
-        Assert-True ($args[8] -eq $exe) 'registration executable did not round trip'
+        $received = @($args | Where-Object { $_ -ne '--' })
+        Assert-True ($received.Count -eq 8) 'wrong registration argument count'
+        Assert-True (($received[0..6] -join ' ') -eq 'mcp add --scope user --transport stdio trello') 'wrong registration scope or transport'
+        Assert-True ($received[7] -eq $exe) 'registration executable did not round trip'
     }
     Invoke-Expression $registration
     Assert-True ($output.Contains('new terminal') -and $output.Contains('fail closed')) 'missing PATH or Windows guidance'
