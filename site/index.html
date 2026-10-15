@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trello MCP Server for Claude, Codex &amp; ChatGPT</title>
+<meta name="description" content="A token-efficient Trello MCP server in Go. Connect Claude, Codex and ChatGPT over local stdio, with workspace restrictions and read-only opt-in.">
+<link rel="canonical" href="https://avhn.github.io/trello-mcp/">
+<meta name="theme-color" content="#176249">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="trello-mcp">
+<meta property="og:locale" content="en_US">
+<meta property="og:title" content="Trello MCP Server for Claude, Codex &amp; ChatGPT">
+<meta property="og:description" content="A token-efficient Trello MCP server in Go. Connect Claude, Codex and ChatGPT over local stdio, with workspace restrictions and read-only opt-in.">
+<meta property="og:url" content="https://avhn.github.io/trello-mcp/">
+<meta property="og:image" content="https://avhn.github.io/trello-mcp/assets/social.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="trello-mcp: a token-efficient Trello MCP server in Go. Local stdio. Workspace allowlist. Read-only opt-in.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Trello MCP Server for Claude, Codex &amp; ChatGPT">
+<meta name="twitter:description" content="A token-efficient Trello MCP server in Go. Connect Claude, Codex and ChatGPT over local stdio, with workspace restrictions and read-only opt-in.">
+<meta name="twitter:image" content="https://avhn.github.io/trello-mcp/assets/social.png">
+<meta name="twitter:image:alt" content="trello-mcp: a token-efficient Trello MCP server in Go. Local stdio. Workspace allowlist. Read-only opt-in.">
+<link rel="icon" href="/trello-mcp/assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/trello-mcp/assets/style.css">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","@id":"https://avhn.github.io/trello-mcp/#software","name":"trello-mcp","url":"https://avhn.github.io/trello-mcp/","description":"A token-efficient Trello MCP server in Go, using local stdio with workspace restrictions and read-only opt-in.","operatingSystem":"Linux, macOS, Windows","applicationCategory":"DeveloperApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://github.com/avhn/trello-mcp/blob/main/LICENSE","softwareVersion":"0.4.0","downloadUrl":"https://github.com/avhn/trello-mcp/releases","codeRepository":"https://github.com/avhn/trello-mcp","programmingLanguage":"Go","image":"https://avhn.github.io/trello-mcp/assets/social.png"}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<header class="site-header"><div class="wrap header-inner"><a class="brand" href="/trello-mcp/"><svg width="30" height="30" viewBox="0 0 32 32" fill="none" aria-hidden="true" focusable="false"><rect width="32" height="32" rx="8" fill="currentColor"/><rect x="7" y="7" width="7" height="18" rx="2" fill="var(--bg)"/><rect x="18" y="7" width="7" height="12" rx="2" fill="var(--bg)"/></svg><span>trello-mcp</span></a><nav class="site-nav" aria-label="Main navigation"><a href="/trello-mcp/install/">Install</a><a href="/trello-mcp/clients/">Clients</a><a href="/trello-mcp/tools/">Tools</a><a href="/trello-mcp/security/">Security</a><a href="/trello-mcp/faq/">FAQ</a></nav></div></header>
+<main id="main" class="wrap">
+
+<div class="hero">
+<div>
+<p class="eyebrow">Go + Model Context Protocol</p>
+<h1>A token-efficient Trello MCP server.</h1>
+<p class="lead">Give Claude, Codex, ChatGPT and other MCP clients access to Trello boards, cards, checklists and attachments. Run locally over stdio, with compact responses and a workspace allowlist.</p>
+<div class="actions"><a class="button" href="/trello-mcp/install/">Install trello-mcp</a><a class="button secondary" href="https://github.com/avhn/trello-mcp">View source on GitHub</a></div>
+<div class="badges"><span class="badge">MIT licensed</span><span class="badge">Linux, macOS, Windows</span><span class="badge">Read-only opt-in</span></div>
+</div>
+<div class="hero-panel" aria-label="Local connection overview">
+<div class="panel-label">Your assistant. Your local process. Trello's API.</div>
+<div class="terminal"><code>$ trello-mcp auth</code><p>Connect in a terminal, then restart your MCP client.</p></div>
+<div class="flow"><strong>Less response overhead.</strong><p>Curated fields and compact text-only JSON, without duplicate structured content or inline attachment bodies.</p></div>
+</div>
+</div>
+<section aria-labelledby="why"><h2 id="why">Trello context, without the clutter</h2>
+<div class="grid">
+<article class="card"><h3>Token-efficient by design</h3><p>Curated projections keep tool responses focused. Choose tools or prefix groups to reduce the tool surface further.</p><p><a href="#token-cost">Read the synthetic token estimates</a></p></article>
+<article class="card"><h3>A local stdio connection</h3><p>A Go process connects your MCP client to Trello's API using your API key and token. No hosted intermediary.</p><p><a href="/trello-mcp/clients/">Configure your MCP client</a></p></article>
+<article class="card"><h3>Explicit access boundaries</h3><p>Limit access by workspace. Object ownership checks enforce the allowlist, rather than trusting a supplied board id.</p><p><a href="/trello-mcp/security/">Understand the security model</a></p></article>
+</div></section>
+<section aria-labelledby="quick-start"><h2 id="quick-start">Quick start: install, connect, configure</h2>
+<aside class="note" aria-label="Documentation version"><p>These guides follow the current source tree, including <code>trello-mcp auth</code>. Release availability can differ. If your binary does not recognize <code>auth</code>, <a href="/trello-mcp/install/#source">build the current source</a> or use a complete environment credential pair as described in the <a href="/trello-mcp/security/#credentials">credentials guide</a>.</p></aside>
+<h3>1. Install on macOS or Linux</h3>
+<pre aria-label="Install trello-mcp on macOS or Linux"><code>curl -fsSL https://raw.githubusercontent.com/avhn/trello-mcp/main/install.sh | sh</code></pre>
+<p>Installs to <code>~/.local/bin</code>. Add it to your shell and MCP client's PATH, or use the full executable path.</p>
+<h3>Or install on Windows</h3><p>In Windows PowerShell 5.1 or PowerShell 7:</p>
+<pre aria-label="Install trello-mcp with PowerShell"><code>irm https://raw.githubusercontent.com/avhn/trello-mcp/main/install.ps1 | iex</code></pre>
+<p>From cmd:</p>
+<pre aria-label="Install trello-mcp from Windows cmd"><code>powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/avhn/trello-mcp/main/install.ps1 | iex"</code></pre>
+<p>Installs to <code>%LOCALAPPDATA%\Programs\trello-mcp</code> and adds the directory to your user PATH. Open a new terminal afterward. The installers verify SHA-256 checksums and do not ask for credentials.</p>
+<h3>2. Connect your Trello account</h3>
+<pre aria-label="Connect your Trello account"><code>trello-mcp auth</code></pre>
+<p>Create an API key at <a href="https://trello.com/power-ups/admin">Trello's Power-Ups administration page</a> when prompted. Approve the authorization link, then paste the token at the hidden terminal prompt. Keep the link private because it contains your API key.</p>
+<p>Write access is the default: Enter at <code>Allow write access? [Y/n]</code> means yes. Use <code>trello-mcp auth --read-only</code> for a read-only token. Credentials are validated and saved in your user configuration directory, not client snippets.</p>
+<h3>3. Add it to an MCP client</h3><p>For Claude Code on a default macOS or Linux install:</p>
+<pre aria-label="Add trello-mcp to Claude Code"><code>claude mcp add trello --transport stdio -- "$HOME/.local/bin/trello-mcp"</code></pre>
+<p>For clients using generic MCP JSON, replace the path and merge this into your configuration:</p>
+<pre aria-label="Generic MCP client configuration"><code>{
+  "mcpServers": {
+    "trello": {
+      "command": "/absolute/path/to/trello-mcp"
+    }
+  }
+}</code></pre>
+<p>Restart your MCP client after connecting your account. See the <a href="/trello-mcp/clients/">client setup guide for Claude Desktop, Codex, ChatGPT desktop and OpenCode</a> for paths and exact formats, or the <a href="/trello-mcp/install/">installation guide</a> for platform requirements.</p>
+</section>
+<section aria-labelledby="token-cost"><h2 id="token-cost">Token cost: reproducible size estimates</h2>
+<p>Estimated tokens, using characters / 4 on synthetic fixtures, compared with the raw pretty-printed response style of <code>@delorenj/mcp-server-trello</code> 1.8.1. These are reproducible offline size estimates, not live account measurements or tokenizer counts.</p>
+<div class="table-wrap"><table class="bench"><caption>Estimated tokens on synthetic fixtures</caption><thead><tr><th scope="col">Scenario</th><th scope="col">delorenj 1.8.1 style</th><th scope="col">This server</th><th scope="col">Reduction</th></tr></thead><tbody>
+<tr><td>20 boards</td><td>~2.17k</td><td>~0.43k</td><td>80.0%</td></tr>
+<tr><td>30 cards in a list</td><td>~9.27k</td><td>~3.21k</td><td>65.4%</td></tr>
+<tr><td>20 comments</td><td>~6.74k</td><td>~4.31k</td><td>36.0%</td></tr>
+<tr><td>50 board actions</td><td>~11.91k</td><td>~4.25k</td><td>64.3%</td></tr>
+<tr><td>22 card actions</td><td>~4.89k</td><td>~1.37k</td><td>72.0%</td></tr>
+<tr><td>Card with 20 comments</td><td>~7.40k</td><td>~4.46k</td><td>39.7%</td></tr>
+<tr><td>Tool definitions</td><td>57 tools, ~7.3k (static audit)</td><td>48 tools, ~5.23k</td><td>not comparable</td></tr>
+</tbody></table></div>
+<ul>
+<li>Response rows use the same synthetic fixtures on both sides: pretty-printed raw Trello-shaped JSON versus actual compact MCP text responses. This server's registered <code>tools/list</code> result is also measured.</li>
+<li>The reference tool-definition estimate (57 tools, ~7.3k tokens) comes from the plan's static 1.8.1 audit, not the offline benchmark. The 48 tools merge parameter variants; repair is intentionally replaced by local selection. The definition row is not a like-for-like measured comparison.</li>
+<li>The card-with-comments scenario sums <code>card_get(detail: "full")</code> and <code>comment_find(limit: 20)</code>. Comments are not fetched implicitly.</li>
+<li>Tool-call request sizes, protocol framing and model-specific tokenization are excluded.</li>
+</ul>
+<p>Reproduce with <code>go test ./internal/bench -v</code> in a checkout. See the <a href="https://github.com/avhn/trello-mcp#token-cost">README benchmark methodology and table</a>.</p>
+</section>
+<section aria-labelledby="discovery"><h2 id="discovery">Discover workspaces and guest boards</h2>
+<p>Account-wide discovery works across workspaces and guest boards visible to your API token, subject to the optional workspace allowlist. <code>board_find</code> searches account boards unless an explicit <code>workspaceId</code> narrows the search.</p>
+<p>The <a href="https://support.atlassian.com/trello/docs/connect-trello-to-ai-assistants-with-trello-mcp/">official Atlassian connector documentation</a> says its connector can access only workspaces explicitly authorized on its consent screen. It does not establish whether guest-only boards are accessible, so no guest-board exclusion is claimed here.</p>
+<p>All 48 tools are available by default with credentials configured. Read-only mode exposes 19 reads and local-selection tools. Without credentials, only <code>server_health</code> is registered with an account-setup hint.</p>
+<p>Explore the <a href="/trello-mcp/tools/">complete Trello MCP tool reference</a> or the <a href="/trello-mcp/faq/">frequently asked questions</a>.</p>
+</section>
+
+</main>
+<footer class="site-footer"><div class="wrap footer-inner"><div><p><strong>trello-mcp</strong> / Independent Go implementation. MIT licensed.</p><p>Documentation follows current source behavior; check release notes for availability. Not the official Atlassian connector.</p></div><nav class="footer-links" aria-label="Project links"><a href="https://github.com/avhn/trello-mcp">Source repository</a><a href="https://github.com/avhn/trello-mcp/releases">Download releases</a><a href="https://github.com/avhn/trello-mcp/blob/main/LICENSE">MIT license</a><a href="/trello-mcp/sitemap.xml">Sitemap</a></nav></div></footer>
+</body>
+</html>

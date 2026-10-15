@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Install trello-mcp on macOS, Linux &amp; Windows</title>
+<meta name="description" content="Install the Trello MCP server on macOS, Linux or Windows, connect your account with trello-mcp auth, and prepare your local stdio client configuration.">
+<link rel="canonical" href="https://avhn.github.io/trello-mcp/install/">
+<meta name="theme-color" content="#176249">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="trello-mcp">
+<meta property="og:locale" content="en_US">
+<meta property="og:title" content="Install trello-mcp on macOS, Linux &amp; Windows">
+<meta property="og:description" content="Install the Trello MCP server on macOS, Linux or Windows, connect your account with trello-mcp auth, and prepare your local stdio client configuration.">
+<meta property="og:url" content="https://avhn.github.io/trello-mcp/install/">
+<meta property="og:image" content="https://avhn.github.io/trello-mcp/assets/social.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="trello-mcp: a token-efficient Trello MCP server in Go. Local stdio. Workspace allowlist. Read-only opt-in.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Install trello-mcp on macOS, Linux &amp; Windows">
+<meta name="twitter:description" content="Install the Trello MCP server on macOS, Linux or Windows, connect your account with trello-mcp auth, and prepare your local stdio client configuration.">
+<meta name="twitter:image" content="https://avhn.github.io/trello-mcp/assets/social.png">
+<meta name="twitter:image:alt" content="trello-mcp: a token-efficient Trello MCP server in Go. Local stdio. Workspace allowlist. Read-only opt-in.">
+<link rel="icon" href="/trello-mcp/assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/trello-mcp/assets/style.css">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","@id":"https://avhn.github.io/trello-mcp/#software","name":"trello-mcp","url":"https://avhn.github.io/trello-mcp/","description":"A token-efficient Trello MCP server in Go, using local stdio with workspace restrictions and read-only opt-in.","operatingSystem":"Linux, macOS, Windows","applicationCategory":"DeveloperApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://github.com/avhn/trello-mcp/blob/main/LICENSE","softwareVersion":"0.4.0","downloadUrl":"https://github.com/avhn/trello-mcp/releases","codeRepository":"https://github.com/avhn/trello-mcp","programmingLanguage":"Go","image":"https://avhn.github.io/trello-mcp/assets/social.png"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://avhn.github.io/trello-mcp/"},{"@type":"ListItem","position":2,"name":"Install","item":"https://avhn.github.io/trello-mcp/install/"}]}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<header class="site-header"><div class="wrap header-inner"><a class="brand" href="/trello-mcp/"><svg width="30" height="30" viewBox="0 0 32 32" fill="none" aria-hidden="true" focusable="false"><rect width="32" height="32" rx="8" fill="currentColor"/><rect x="7" y="7" width="7" height="18" rx="2" fill="var(--bg)"/><rect x="18" y="7" width="7" height="12" rx="2" fill="var(--bg)"/></svg><span>trello-mcp</span></a><nav class="site-nav" aria-label="Main navigation"><a href="/trello-mcp/install/" aria-current="page">Install</a><a href="/trello-mcp/clients/">Clients</a><a href="/trello-mcp/tools/">Tools</a><a href="/trello-mcp/security/">Security</a><a href="/trello-mcp/faq/">FAQ</a></nav></div></header>
+<main id="main" class="wrap prose">
+<nav class="breadcrumb" aria-label="Breadcrumb"><ol><li><a href="/trello-mcp/">Home</a></li><li aria-current="page">Install</li></ol></nav>
+<p class="eyebrow">Installation and account setup</p><h1>Install trello-mcp</h1>
+<p class="lead">Install a verified binary, connect your Trello account and let your MCP client launch the local stdio server.</p>
+<aside class="note" aria-label="Documentation version"><p>These guides follow the current source tree, including <code>trello-mcp auth</code>. Release availability can differ. If your binary does not recognize <code>auth</code>, <a href="#source">build the current source</a> or use a complete environment credential pair as described in the <a href="/trello-mcp/security/#credentials">credentials guide</a>.</p></aside>
+<nav class="toc" aria-label="On this page"><ul><li><a href="#macos-linux">macOS and Linux</a></li><li><a href="#windows">Windows</a></li><li><a href="#source">From source</a></li><li><a href="#auth">Connect Trello</a></li><li><a href="#next">Client setup</a></li></ul></nav>
+<section aria-labelledby="macos-linux"><h2 id="macos-linux">macOS and Linux</h2>
+<pre aria-label="Install on macOS or Linux"><code>curl -fsSL https://raw.githubusercontent.com/avhn/trello-mcp/main/install.sh | sh</code></pre>
+<p>The POSIX installer downloads the latest release, verifies its SHA-256 checksum and installs to <code>~/.local/bin</code>. Add that directory to your shell and MCP client's PATH, or use the full installed path.</p>
+<ul><li>Release binaries support Linux amd64/arm64 and macOS amd64/arm64.</li><li>Requires <code>curl</code>, <code>tar</code> and <code>sha256sum</code> or <code>shasum</code>.</li><li>Choose a version with <code>TRELLO_MCP_VERSION</code> or a destination with <code>INSTALL_DIR</code>. For a piped install, set them on <code>sh</code>, not <code>curl</code>.</li><li>If a release or platform asset is unavailable, it falls back to <code>go install</code> at <code>@latest</code> when Go is available, even if a release version was requested.</li></ul>
+<p>Example custom destination:</p>
+<pre aria-label="Install to a custom directory"><code>curl -fsSL https://raw.githubusercontent.com/avhn/trello-mcp/main/install.sh | INSTALL_DIR="$HOME/bin" sh</code></pre>
+<p>The POSIX installer also supports Windows amd64 through a shell such as Git Bash, using <code>unzip</code> rather than <code>tar</code>. For Windows ARM64, use the native PowerShell installer.</p>
+</section>
+<section aria-labelledby="windows"><h2 id="windows">Windows PowerShell and cmd</h2><p>In Windows PowerShell 5.1 or PowerShell 7:</p>
+<pre aria-label="Install from PowerShell"><code>irm https://raw.githubusercontent.com/avhn/trello-mcp/main/install.ps1 | iex</code></pre>
+<p>From cmd:</p>
+<pre aria-label="Install from cmd"><code>powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/avhn/trello-mcp/main/install.ps1 | iex"</code></pre>
+<p>The native installer downloads the latest Windows amd64 or ARM64 release and verifies SHA-256. No administrator privileges or Go installation are needed.</p>
+<ul><li>Default executable: <code>%LOCALAPPDATA%\Programs\trello-mcp\trello-mcp.exe</code>.</li><li>Adds the install directory to your user PATH, without duplicating an existing entry. It does not change the machine PATH. Open a new terminal afterward.</li><li>Set <code>$env:TRELLO_MCP_VERSION</code> to a release tag or <code>$env:INSTALL_DIR</code> to a destination before running the installer.</li><li>Unlike the POSIX installer, it fails if the release is unavailable rather than building from source.</li></ul>
+<aside class="note"><p>Windows refuses local path uploads and attachment downloads because their ownership and path checks require Unix. Base64 uploads and URL attachments remain available when read-only mode is off.</p></aside>
+</section>
+<section aria-labelledby="source"><h2 id="source">Release archives and building from source</h2>
+<p>Prefer to inspect the installer first? Read the <a href="https://github.com/avhn/trello-mcp/blob/main/install.sh">POSIX installer source</a> or <a href="https://github.com/avhn/trello-mcp/blob/main/install.ps1">PowerShell installer source</a>. You can also download platform archives and <code>checksums.txt</code> directly from <a href="https://github.com/avhn/trello-mcp/releases">GitHub releases</a>.</p>
+<p>Installing from source requires Go 1.26 or newer; the module selects the Go 1.27.1 toolchain:</p>
+<pre aria-label="Install the latest released module with Go"><code>go install github.com/avhn/trello-mcp/cmd/trello-mcp@latest</code></pre>
+<p>Go installs to <code>GOBIN</code>, or normally <code>~/go/bin</code>, rather than <code>~/.local/bin</code>.</p>
+<p>To use current source behavior not yet included in your release, obtain a checkout from the <a href="https://github.com/avhn/trello-mcp">source repository</a>, then run these commands in its root:</p>
+<pre aria-label="Build and connect from a source checkout on macOS or Linux"><code>go build -o trello-mcp ./cmd/trello-mcp
+./trello-mcp --version
+./trello-mcp auth</code></pre>
+<p>On Windows, build with <code>go build -o trello-mcp.exe ./cmd/trello-mcp</code>, then run <code>.\trello-mcp.exe auth</code>. Configure clients with the full path to the binary you built. A source build's default version string is not a release-feature guarantee.</p>
+</section>
+<section aria-labelledby="auth"><h2 id="auth">Connect your Trello account</h2>
+<pre aria-label="Start interactive Trello account setup"><code>trello-mcp auth</code></pre>
+<ol><li>Run auth in a terminal, outside the MCP transport. Use the full executable path if needed.</li><li>Create an API key manually at <a href="https://trello.com/power-ups/admin">Trello Power-Ups administration</a> when prompted.</li><li>Choose the requested scope. Write access is the default: Enter at <code>Allow write access? [Y/n]</code> means yes.</li><li>Open the printed authorization link if your browser does not open automatically, then approve access.</li><li>Paste the token at the hidden terminal prompt. The authorization URL includes your API key, so keep that link private too.</li></ol>
+<p>The command validates your credentials and saves them in your user configuration directory. Restart your MCP client afterward.</p>
+<h3>Read-only access and token lifetime</h3>
+<pre aria-label="Alternative auth scopes and expiration"><code>trello-mcp auth --read-only
+trello-mcp auth --write --expiration 30days</code></pre>
+<p>These are alternatives, not sequential setup steps. <code>--read-only</code> requests a read-only token. <code>--write</code> skips the scope question. <code>--expiration</code> accepts <code>1day</code>, <code>30days</code> or <code>never</code> (the default).</p>
+<h3>Check status or remove saved credentials</h3>
+<pre aria-label="Account status and logout commands"><code>trello-mcp auth status
+trello-mcp auth logout</code></pre>
+<p>Status reports the source, username and granted scope without secrets. Logout removes the saved file; it does not revoke the token at Trello or unset environment credentials. Restart the MCP client after connecting or logging out.</p>
+<p>As an alternative, set both <code>TRELLO_API_KEY</code> and <code>TRELLO_TOKEN</code> in the server's environment. A complete pair overrides the saved file; a partial pair is an error. Never commit credentials or share them in chat. See the <a href="/trello-mcp/security/#credentials">credential storage and permission rules</a>.</p>
+</section>
+<section aria-labelledby="next"><h2 id="next">Configure your MCP client</h2>
+<p>The installers only print setup instructions. They never ask for credentials or register an MCP server automatically. Your client launches the executable as a local stdio process; this is not a hosted HTTP endpoint.</p>
+<p>Continue to the <a href="/trello-mcp/clients/">Claude, Codex, ChatGPT and OpenCode client setup guide</a>. If the server initializes but only exposes <code>server_health</code>, connect your account in a terminal and restart the client.</p>
+</section>
+
+</main>
+<footer class="site-footer"><div class="wrap footer-inner"><div><p><strong>trello-mcp</strong> / Independent Go implementation. MIT licensed.</p><p>Documentation follows current source behavior; check release notes for availability. Not the official Atlassian connector.</p></div><nav class="footer-links" aria-label="Project links"><a href="https://github.com/avhn/trello-mcp">Source repository</a><a href="https://github.com/avhn/trello-mcp/releases">Download releases</a><a href="https://github.com/avhn/trello-mcp/blob/main/LICENSE">MIT license</a><a href="/trello-mcp/sitemap.xml">Sitemap</a></nav></div></footer>
+</body>
+</html>

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /trello-mcp/
+
+Sitemap: https://avhn.github.io/trello-mcp/sitemap.xml
