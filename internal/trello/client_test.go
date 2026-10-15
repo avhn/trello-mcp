@@ -24,7 +24,7 @@ func TestHTTP(t *testing.T) {
 		status, failures, wantRequests int
 		wantErr                        string
 	}{
-		{"success", 200, 0, 1, ""}, {"unauthorized", 401, 99, 1, "trello API: HTTP 401; token/permission issue, not server policy; check the Trello token and object permissions. " + credentials.Hint}, {"forbidden", 403, 99, 1, "trello API: HTTP 403; token/permission issue, not server policy; check the Trello token and object permissions"}, {"429 then success", 429, 2, 3, ""}, {"retry exhausted", 429, 99, 4, "trello API: HTTP 429"}, {"invalid json", 200, 99, 1, "invalid Trello JSON response"},
+		{"success", 200, 0, 1, ""}, {"unauthorized", 401, 99, 1, "trello API: HTTP 401; token/permission issue, not server policy; check the Trello token and object permissions. " + credentials.Hint}, {"forbidden", 403, 99, 1, "trello API: HTTP 403; token/permission issue, not server policy; check the Trello token and object permissions. " + credentials.Hint}, {"429 then success", 429, 2, 3, ""}, {"retry exhausted", 429, 99, 4, "trello API: HTTP 429; rate limit exceeded; retry later"}, {"invalid json", 200, 99, 1, "invalid Trello JSON response"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var requests atomic.Int32
@@ -137,6 +137,17 @@ func TestTransportErrorsHideRequestDetails(t *testing.T) {
 			err := c.Get(context.Background(), "/organizations/hidden-workspace", nil, nil)
 			if err == nil || err.Error() != "trello API: request failed: "+tc.kind {
 				t.Fatalf("unsafe or incorrect transport error: %v", err)
+			}
+			if !errors.Is(err, tc.failure) {
+				t.Fatalf("transport cause lost: %v", err)
+			}
+			var requestError *url.Error
+			if errors.As(err, &requestError) {
+				t.Fatal("URL-bearing wrapper retained instead of its inner cause")
+			}
+			var networkError *net.DNSError
+			if _, ok := tc.failure.(*net.DNSError); ok && !errors.As(err, &networkError) {
+				t.Fatal("network error type lost")
 			}
 		})
 	}

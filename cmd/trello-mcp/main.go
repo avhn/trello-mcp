@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -33,6 +34,9 @@ func main() {
 		stop()
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "trello-mcp auth:", err)
+			if errors.Is(err, context.Canceled) {
+				os.Exit(130)
+			}
 			os.Exit(1)
 		}
 		return

@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -30,6 +33,7 @@ func TestReleaseVersion(t *testing.T) {
 
 	checkInstructions(t, ctx, binary)
 	checkCredentialStartup(t, ctx, binary)
+	checkAuthCancellation(t, ctx, binary)
 
 	version := exec.CommandContext(ctx, binary, "--version")
 	version.Env = []string{}
@@ -159,5 +163,64 @@ func checkCredentialStartup(t *testing.T, ctx context.Context, binary string) {
 				t.Fatalf("auth status after logout: %v\n%s", statusErr, output)
 			}
 		})
+	}
+}
+
+// checkAuthCancellation verifies the CLI exits instead of retaining a blocked stdin reader.
+func checkAuthCancellation(t *testing.T, ctx context.Context, binary string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		return // os.Process.Signal does not support Interrupt on Windows.
+	}
+	command := exec.CommandContext(ctx, binary, "auth")
+	command.Env = []string{"XDG_CONFIG_HOME=" + t.TempDir()}
+	stdin, err := command.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = stdin.Close() }()
+	stdout, err := command.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = command.Process.Kill() }()
+	ready := make(chan error, 1)
+	go func() {
+		reader := bufio.NewReader(stdout)
+		var output strings.Builder
+		for !strings.HasSuffix(output.String(), "API key: ") {
+			b, err := reader.ReadByte()
+			if err != nil {
+				ready <- err
+				return
+			}
+			output.WriteByte(b)
+		}
+		ready <- nil
+	}()
+	select {
+	case err := <-ready:
+		if err != nil {
+			t.Fatalf("auth prompt: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("auth prompt did not appear")
+	}
+	if err := command.Process.Signal(os.Interrupt); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- command.Wait() }()
+	select {
+	case err := <-done:
+		var exit *exec.ExitError
+		if !errors.As(err, &exit) || exit.ExitCode() != 130 {
+			t.Fatalf("auth interrupt = %v, want exit 130", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("auth did not exit with blocked stdin")
 	}
 }

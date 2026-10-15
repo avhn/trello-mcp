@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
@@ -182,5 +183,18 @@ func (a *Access) ScopeError(err error, object string) error {
 	if errors.As(err, &ownership) {
 		return OwnershipDenied(object)
 	}
-	return fmt.Errorf("%s ownership could not be verified (temporary error); retry", object)
+	message := "ownership could not be verified (temporary error); retry"
+	var status *HTTPError
+	switch {
+	case errors.Is(err, context.Canceled):
+		message = "ownership verification canceled"
+	case errors.Is(err, context.DeadlineExceeded):
+		message = "ownership verification deadline exceeded"
+	case errors.As(err, &status):
+		switch status.StatusCode {
+		case http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests:
+			message = "ownership could not be verified: " + status.Error()
+		}
+	}
+	return safeError{message: object + " " + message, cause: err}
 }

@@ -35,22 +35,15 @@ type runner struct {
 }
 
 // Run handles auth, auth status and auth logout without starting an MCP server.
+// It is CLI-only: the caller must exit on cancellation because a piped stdin
+// reader can remain blocked until the process exits.
 func Run(ctx context.Context, args []string, in *os.File, out io.Writer) error {
 	r := runner{in: in, out: out, env: os.Getenv, configDir: os.UserConfigDir, client: trello.New, browser: openBrowser}
 	if term.IsTerminal(int(in.Fd())) {
 		r.hiddenToken = func(ctx context.Context) (string, error) {
-			fd := int(in.Fd())
-			state, err := term.GetState(fd)
-			if err != nil {
-				return "", fmt.Errorf("read terminal state failed; nothing saved")
-			}
-			// Restore on cancellation as well as normal completion. The read goroutine
-			// also restores the original state if it finishes after cancellation.
-			defer func() { _ = term.Restore(fd, state) }()
-			return readInput(ctx, func() (string, error) {
-				defer func() { _ = term.Restore(fd, state) }()
-				data, err := term.ReadPassword(fd)
-				return string(data), err
+			return readHidden(ctx, fileTerminal{fd: int(in.Fd())}, func() (string, error) {
+				line, err := bufio.NewReaderSize(in, 8192).ReadSlice('\n')
+				return string(line), err
 			})
 		}
 	}
@@ -168,9 +161,39 @@ func (r runner) connect(ctx context.Context, args []string, path string) error {
 	return err
 }
 
+// terminal isolates state changes so tests can verify cancellation ordering.
+type terminal interface {
+	getState() (*term.State, error)
+	disableEcho() error
+	restore(*term.State) error
+}
+
+type fileTerminal struct{ fd int }
+
+func (t fileTerminal) getState() (*term.State, error)  { return term.GetState(t.fd) }
+func (t fileTerminal) restore(state *term.State) error { return term.Restore(t.fd, state) }
+
+// readHidden changes echo only in the calling goroutine, before starting a reader.
+// The reader never changes terminal state, so restoration cannot race a late read.
+func readHidden(ctx context.Context, terminal terminal, read func() (string, error)) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", fmt.Errorf("auth cancelled: %w", err)
+	}
+	state, err := terminal.getState()
+	if err != nil {
+		return "", fmt.Errorf("read terminal state failed; nothing saved")
+	}
+	defer func() { _ = terminal.restore(state) }()
+	if err := terminal.disableEcho(); err != nil {
+		return "", fmt.Errorf("disable terminal echo failed; nothing saved")
+	}
+	return readInput(ctx, read)
+}
+
 // readInput lets cancellation interrupt a blocked pipe or terminal read. A buffered
-// result allows the goroutine to finish even if cancellation wins; Run's caller
-// owns the input and the auth command exits after restoring terminal state.
+// result allows the goroutine to finish even if cancellation wins. It never changes
+// terminal state. Run is CLI-only and its caller exits on cancellation, terminating
+// any stdin reader that remains blocked.
 func readInput(ctx context.Context, read func() (string, error)) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", fmt.Errorf("auth cancelled: %w", err)

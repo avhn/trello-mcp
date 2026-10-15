@@ -9,6 +9,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/avhn/trello-mcp/internal/credentials"
 )
 
 func TestOwnershipDenialsHideResolvedScopes(t *testing.T) {
@@ -130,8 +133,8 @@ func TestActionDeniesBoardBeforeCardConstraint(t *testing.T) {
 
 func TestScopeErrorDoesNotMisclassifyUpstreamFailures(t *testing.T) {
 	a := &Access{Allowed: []string{"team"}}
-	got := a.ScopeError(httpError(http.StatusForbidden), "card c1")
-	if errors.Is(got, ErrDenied) || strings.Contains(got.Error(), "policy") || got.Error() != "card c1 ownership could not be verified (temporary error); retry" {
+	got := a.ScopeError(&HTTPError{StatusCode: http.StatusForbidden}, "card c1")
+	if errors.Is(got, ErrDenied) || !strings.Contains(got.Error(), "token/permission issue, not server policy") || !strings.Contains(got.Error(), credentials.Hint) {
 		t.Fatalf("upstream failure misclassified or exposed: %v", got)
 	}
 }
@@ -162,7 +165,11 @@ func TestNestedTransportFailuresHideResolvedScopes(t *testing.T) {
 				} else {
 					_, err = a.ObjectBoard(context.Background(), "cards", "supplied-id", "")
 				}
-				if err == nil || errors.Is(err, ErrDenied) || !strings.Contains(err.Error(), "supplied-id ownership could not be verified (temporary error); retry") {
+				want := "supplied-id ownership could not be verified (temporary error); retry"
+				if errors.Is(failure, context.DeadlineExceeded) {
+					want = "supplied-id ownership verification deadline exceeded"
+				}
+				if err == nil || errors.Is(err, ErrDenied) || !strings.Contains(err.Error(), want) || !errors.Is(err, failure) {
 					t.Fatalf("unexpected resolution failure: %v", err)
 				}
 				for _, hidden := range []string{"hidden-board", "hidden-workspace", "http", "/organizations", "policy", "synthetic-key", "synthetic-token"} {
@@ -171,6 +178,115 @@ func TestNestedTransportFailuresHideResolvedScopes(t *testing.T) {
 					}
 				}
 			})
+		}
+	}
+}
+
+func TestNestedHTTPFailuresPreserveSafeDiagnosis(t *testing.T) {
+	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests} {
+		t.Run(fmt.Sprint(status), func(t *testing.T) {
+			requests := 0
+			fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/cards/supplied-id":
+					_, _ = io.WriteString(w, `{"idBoard":"hidden-board"}`)
+				case "/boards/hidden-board":
+					_, _ = io.WriteString(w, `{"id":"hidden-board","idOrganization":"hidden-workspace"}`)
+				case "/organizations/hidden-workspace":
+					requests++
+					w.Header().Set("Retry-After", "0")
+					w.WriteHeader(status)
+					_, _ = io.WriteString(w, "hidden-board hidden-workspace https://private.invalid synthetic-token")
+				default:
+					t.Errorf("unexpected path: %s", r.URL.Path)
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+			}))
+			defer fake.Close()
+			a := &Access{Client: NewClient(fake.URL, "synthetic-key", "synthetic-token", fake.Client()), Allowed: []string{"team"}}
+			_, err := a.ObjectBoard(context.Background(), "cards", "supplied-id", "")
+			var upstream *HTTPError
+			if !errors.As(err, &upstream) || upstream.StatusCode != status {
+				t.Fatalf("HTTP status lost: %v", err)
+			}
+			if !strings.HasPrefix(err.Error(), "card supplied-id ownership could not be verified: ") {
+				t.Fatalf("caller object lost: %v", err)
+			}
+			if status == http.StatusTooManyRequests {
+				if requests != 4 || !strings.Contains(err.Error(), "rate limit") {
+					t.Fatalf("retry exhaustion lost: requests=%d, %v", requests, err)
+				}
+			} else if !strings.Contains(err.Error(), "token/permission issue") || !strings.Contains(err.Error(), credentials.Hint) {
+				t.Fatalf("authentication diagnosis lost: %v", err)
+			}
+			assertSafeScopeMessage(t, err)
+		})
+	}
+}
+
+func TestNested429CancellationPreservesCause(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	recovering := make(chan struct{})
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/cards/supplied-id":
+			_, _ = io.WriteString(w, `{"idBoard":"hidden-board"}`)
+		case "/boards/hidden-board":
+			_, _ = io.WriteString(w, `{"id":"hidden-board","idOrganization":"hidden-workspace"}`)
+		case "/organizations/hidden-workspace":
+			w.Header().Set("Retry-After", "30")
+			w.WriteHeader(http.StatusTooManyRequests)
+			close(recovering)
+		default:
+			t.Errorf("unexpected path: %s", r.URL.Path)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer fake.Close()
+	a := &Access{Client: NewClient(fake.URL, "synthetic-key", "synthetic-token", fake.Client()), Allowed: []string{"team"}}
+	done := make(chan error, 1)
+	go func() {
+		_, err := a.ObjectBoard(ctx, "cards", "supplied-id", "")
+		done <- err
+	}()
+	select {
+	case <-recovering:
+	case <-time.After(time.Second):
+		t.Fatal("nested lookup did not reach rate limiting")
+	}
+	// Retries is incremented after the 429 response is consumed, before acquire
+	// waits for the shared cooldown. Cancel recovery, not the initial HTTP read.
+	deadline := time.After(time.Second)
+	tick := time.NewTicker(time.Millisecond)
+	defer tick.Stop()
+	for a.Client.Stats().Retries == 0 {
+		select {
+		case <-tick.C:
+		case <-deadline:
+			t.Fatal("429 recovery did not start")
+		}
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) || !strings.Contains(err.Error(), "verification canceled") {
+			t.Fatalf("cancellation diagnosis lost: %v", err)
+		}
+		assertSafeScopeMessage(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("nested recovery ignored cancellation")
+	}
+}
+
+func assertSafeScopeMessage(t *testing.T, err error) {
+	t.Helper()
+	// The MCP registry serializes Client.Scrub(err.Error()), never the cause chain.
+	for _, message := range []string{err.Error(), fmt.Sprint(err), fmt.Sprintf("%+v", err)} {
+		for _, hidden := range []string{"hidden-board", "hidden-workspace", "https://", "http://", "/organizations", "synthetic-key", "synthetic-token"} {
+			if strings.Contains(message, hidden) {
+				t.Errorf("scope error exposed %q: %s", hidden, message)
+			}
 		}
 	}
 }

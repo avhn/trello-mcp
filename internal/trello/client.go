@@ -16,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/avhn/trello-mcp/internal/credentials"
 )
 
 const maxResponseBytes = 8 << 20
@@ -228,6 +230,30 @@ func (c *Client) Write(ctx context.Context, method, path string, value, out any)
 	return c.request(ctx, method, path, nil, data, "application/json", out)
 }
 
+// safeError preserves diagnostic causes without rendering their private details.
+// MCP responses must use Error(), not concatenate the unwrapped cause chain.
+type safeError struct {
+	message string
+	cause   error
+}
+
+func (e safeError) Error() string { return e.message }
+func (e safeError) Unwrap() error { return e.cause }
+
+// HTTPError preserves the status for errors.As without including response data.
+type HTTPError struct{ StatusCode int }
+
+func (e *HTTPError) Error() string {
+	message := httpError(e.StatusCode).Error()
+	switch e.StatusCode {
+	case http.StatusForbidden:
+		message += ". " + credentials.Hint
+	case http.StatusTooManyRequests:
+		message += "; rate limit exceeded; retry later"
+	}
+	return message
+}
+
 // transportError exposes only a known error kind, never transport-supplied URLs or paths.
 func transportError(err error) error {
 	for {
@@ -251,7 +277,7 @@ func transportError(err error) error {
 	case errors.Is(err, io.ErrUnexpectedEOF):
 		kind = "unexpected EOF"
 	}
-	return fmt.Errorf("trello API: request failed: %s", kind)
+	return safeError{message: "trello API: request failed: " + kind, cause: err}
 }
 
 func (c *Client) request(ctx context.Context, method, path string, q url.Values, body []byte, contentType string, out any) error {
@@ -295,7 +321,7 @@ func (c *Client) request(ctx context.Context, method, path string, q url.Values,
 			delay, err := retryDelay(resp.Header, attempt)
 			c.cooldown(delay, members)
 			if err != nil {
-				return err
+				return safeError{message: err.Error(), cause: &HTTPError{StatusCode: resp.StatusCode}}
 			}
 			if attempt < 3 {
 				c.mu.Lock()
@@ -306,7 +332,7 @@ func (c *Client) request(ctx context.Context, method, path string, q url.Values,
 		}
 		// Error bodies can contain credentials or private data, so never surface them.
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			return httpError(resp.StatusCode)
+			return &HTTPError{StatusCode: resp.StatusCode}
 		}
 		if out == nil {
 			return nil
