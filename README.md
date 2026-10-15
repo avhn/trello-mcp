@@ -1,8 +1,8 @@
 # trello-mcp
 
-A token-efficient Trello MCP server in Go. Let your AI assistant browse boards,
-read cards and checklists, and follow activity through a local stdio connection.
-No hosted intermediary, no Trello write tools.
+A token-efficient Trello MCP server in Go. Let your AI assistant manage boards,
+cards, checklists and attachments through a local stdio connection.
+No hosted intermediary. Read-only access is one configuration switch away.
 
 ## Quick start
 
@@ -58,6 +58,8 @@ claude mcp add trello --transport stdio \
 Adjust the executable path if you used Go, a custom directory, or Windows.
 The command saves the supplied environment in Claude's local configuration;
 substitute credentials only on your own machine, mindful of shell history.
+The examples enable read-only mode. Remove `TRELLO_READ_ONLY` or set it to `0`
+to expose writes and attachment transfers.
 
 **Other MCP clients**
 
@@ -115,7 +117,8 @@ must be on the client's PATH, or `command` must be its full installed path.
 - **Small responses.** Curated fields, compact text-only JSON, no duplicate
   structured content or output schemas, and no inline attachment bodies.
 - **Focused tool surface.** Select tools or groups, restrict workspaces, and enable
-  read-only mode. The current phase has 17 read and local-selection tools.
+  read-only mode. All 47 planned tools are available by default; read-only mode
+  exposes 18 reads and local-selection tools.
 
 ## Token cost
 
@@ -133,7 +136,7 @@ counts.
 | 20 comments | ~5.42k | ~2.62k | 51.6% |
 | 50 board actions | ~11.95k | ~4.95k | 58.6% |
 | Card with 20 comments | ~6.21k | ~2.76k | 55.6% |
-| Tool definitions | 57 tools, ~7.3k (static audit) | 17 tools, ~1.56k | not comparable |
+| Tool definitions | 57 tools, ~7.3k (static audit) | 47 tools, ~4.99k | not comparable |
 
 <!-- bench:end -->
 
@@ -141,8 +144,9 @@ counts.
   Trello-shaped JSON, as the Node server returns it, versus actual compact MCP
   text responses. This server's registered `tools/list` result is also measured.
 - The reference tool-definition estimate (57 tools, ~7.3k tokens) comes from the
-  plan's static 1.8.1 audit, not the offline benchmark. Phase 1 has fewer tools,
-  so this row is not a coverage-equivalent comparison.
+  plan's static 1.8.1 audit, not the offline benchmark. The 47 tools merge the
+  reference's parameter variants; repair is intentionally replaced by local
+  selection. The definition row is not a like-for-like measured comparison.
 - The card-with-comments scenario sums `card_get(detail: "full")` and
   `comment_find(limit: 20)`. Comments are not fetched implicitly.
 - Tool-call request sizes, protocol framing, and model-specific tokenization are
@@ -156,8 +160,9 @@ counts.
 | `TRELLO_TOKEN` | required | Trello API token |
 | `TRELLO_BOARD_ID` | saved selection | Initial board; changing it clears the old saved workspace |
 | `TRELLO_ALLOWED_WORKSPACES` | unrestricted | Comma-separated workspace ids or canonical names, not display names |
-| `TRELLO_TOOLS` | `all` | Comma-separated tool names or groups: `workspace`, `board`, `list`, `card`, `comment`, `checklist`, `member`, `label`, `customfield`, `server` |
-| `TRELLO_READ_ONLY` | `0` | `1` hides Trello write tools; all phase 1 tools remain available |
+| `TRELLO_TOOLS` | `all` | Comma-separated tool names or prefix groups: `workspace`, `board`, `list`, `card`, `comment`, `checklist`, `member`, `label`, `customfield`, `attachment`, `server` |
+| `TRELLO_READ_ONLY` | `0` | `1` hides all 29 mutation/transfer tools, including local-file downloads; 18 tools remain |
+| `TRELLO_DOWNLOAD_DIR` | `os.TempDir()/trello-mcp` | Absolute download directory; created as 0700, existing directories must be private and owned by the current user |
 | `XDG_CONFIG_HOME` | platform configuration directory | Active selection is stored under `trello-mcp/state.json` |
 | `HTTPS_PROXY` | unset | Standard Go HTTP proxy configuration |
 
@@ -169,6 +174,11 @@ counts.
 - `board_find` enumerates all account boards, including guest boards, unless an
   explicit `workspaceId` narrows the search.
 - Explicit `boardId` values work independently of the active selection.
+- `board_create` requires an explicit or active `workspaceId` and verifies it.
+- Tool selectors form a union; unknown selectors fail startup. Groups use the
+  prefix before the first underscore, so `card` includes `card_member_add` and
+  `card_member_remove`. For example, `TRELLO_TOOLS=card,comment,server_health`.
+  Read-only filtering applies even when write tools are selected explicitly.
 
 ## Tools
 
@@ -187,7 +197,12 @@ cannot be combined with `boardId` or `listId`.
 | `board_use` | Set an authorized board as the local default. |
 | `board_get` | Get curated summary or full board details. |
 | `board_activity` | Page board actions with since/before cursors. |
+| `board_create` | Create a board in an authorized workspace. |
 | `list_find` | Find open lists on a board. |
+| `list_create` | Create a list with optional position. |
+| `list_update` | Rename, reorder, move with `idBoard`, or reopen with `closed: false`. |
+| `list_archive` | Archive a list. |
+| `list_watch` | Subscribe or unsubscribe with `subscribed` (default true). |
 
 ### Cards, comments and checklists
 
@@ -196,21 +211,45 @@ cannot be combined with `boardId` or `listId`.
 | `card_find` | Find board, list or assigned cards with name filtering and local paging. |
 | `card_get` | Get a card with optional full detail, extras or markdown. |
 | `card_history` | Page card actions with an action-type filter. |
+| `card_create` | Create a card in a verified list, with optional labels and members. |
+| `card_create_batch` | Preflight all ids, then create 1-100 cards with per-item results. |
+| `card_update` | Update details, labels, members, dates, archive state or position. |
+| `card_archive` | Archive a card. |
+| `card_watch` | Subscribe or unsubscribe with `subscribed` (default true). |
+| `card_move` | Move to `listId`, resolving and checking both boards. |
+| `card_copy` | Copy to `listId`, resolving and checking both boards. |
 | `comment_find` | Page comments on a card. |
+| `comment_create` | Add a comment. |
+| `comment_update` | Edit a verified card comment by `commentId`. |
+| `comment_delete` | Delete a verified card comment. |
 | `checklist_items` | Get items from an authorized checklist. |
 | `checklist_get` | Find a card checklist by exact name, default Acceptance Criteria. |
+| `checklist_create` | Create a card checklist. |
+| `checklist_copy` | Copy `checklistId` to `cardId`, checking both boards. |
+| `checklist_item_create` | Add an item, with optional position, assignee and due date. |
+| `checklist_item_find` | Filter a checklist's items by `nameFilter`. |
+| `checklist_item_update` | Update a verified item's name, state, position, assignee or due. |
+| `checklist_item_delete` | Delete `itemId` after checking membership in `checklistId`. |
 
 ### Board metadata and diagnostics
 
 | Tool | Description |
 | --- | --- |
 | `member_find` | Find board members by username or full name. |
+| `card_member_add` | Assign a verified board member to a card. |
+| `card_member_remove` | Remove a verified board member from a card. |
 | `label_find` | Find board labels by name. |
+| `label_create` | Create a board label. |
+| `label_update` | Update a label's name or color. |
+| `label_delete` | Delete an authorized label. |
 | `customfield_find` | Get field definitions, types and dropdown option ids. |
+| `customfield_set` | Set a typed value or dropdown option, or clear a value. |
+| `attachment_add` | Attach an HTTP(S) URL; the server does not fetch it locally. |
+| `attachment_upload` | Upload a local `path` or `base64` with `fileName`. |
+| `attachment_download` | Save an uploaded attachment under the private download directory. |
 | `server_health` | Get local basic, detailed, metadata or performance diagnostics. |
 
-See [docs/tools.md](docs/tools.md) for the name mapping to the reference server.
-Trello writes and attachment transfers are planned for phase 2, not available now.
+See [docs/tools.md](docs/tools.md) for parameters and the full reference name mapping.
 
 ### Responses and pagination
 
@@ -226,7 +265,33 @@ Trello writes and attachment transfers are planned for phase 2, not available no
   `before` or `limit` parameters to those endpoints.
 - A changed or missing card cursor returns an error rather than restarting.
   Snapshots can change between calls; there is no stable snapshot guarantee.
-  Every HTTP response is capped at 8 MiB.
+  Every JSON API response is capped at 8 MiB; file transfers are capped at 10 MiB.
+- Writes return only `{id,name?,url?}` or `{ok:true}`. Batch create returns an
+  `items` array with zero-based `index`, `id` or `error`. It is not transactional;
+  failures after preflight can leave successful earlier cards in place.
+- Dates use RFC 3339. Empty `due`/`start` strings clear dates, and explicit false
+  values are preserved. Positions accept `top`, `bottom`, or a positive number.
+
+### Custom fields and attachments
+
+- Discover `customFieldId`, type and dropdown option ids with `customfield_find`.
+  `customfield_set` takes `cardId`, `customFieldId`, and exactly one of `value`
+  or `idValue`. Scalars use `value: {"text":"..."}`, `{"number":"12.5"}`,
+  `{"date":"2026-10-20T09:00:00Z"}`, or `{"checked":"false"}`. Dropdowns use
+  `idValue: "option-id"`, not the display text. Clear a scalar with `value: ""`
+  or a dropdown with `idValue: ""`.
+- Upload accepts exactly one absolute local `path` or standard `base64` string.
+  Base64 requires `fileName`; `mimeType` and display `name` are optional. Local
+  sources must be regular files, not symlinks. Uploads are bounded at 10 MiB.
+- Downloads use the attachment's `fileName`, not display name or supplied URLs,
+  and OAuth headers without query credentials. Redirects are refused.
+- Download directories must be private, owned by the current user and not
+  symlinks. Files are created as 0600 with exclusive create inside a pinned
+  directory root, using `attachmentId-sanitized_fileName`. Existing files and
+  symlinks are never overwritten; failed/oversized downloads are removed.
+  Responses contain only `path`, `size`, `mimeType`, never inline file bodies.
+  Ownership verification currently requires a Unix platform (including Linux
+  and macOS); other platforms refuse downloads rather than weaken this check.
 
 ### Detail levels
 
@@ -243,16 +308,19 @@ Trello writes and attachment transfers are planned for phase 2, not available no
 
 - **Token permissions are the ceiling.** The workspace allowlist is an additional
   restriction, not a replacement for token permissions.
-- **Ownership checks, not caller claims.** The allowlist applies to every scoped
-  read, including card, list, and checklist ids. Ownership is resolved before
-  contents are fetched; supplied board ids are constraints, never authorization.
-  Unverifiable ownership fails closed.
+- **Ownership checks, not caller claims.** Every scoped read and write resolves
+  the actual owning board. Moves and copies check source and destination;
+  comments, checklist items, attachments, labels, custom fields and member
+  references are checked against their actual parents before mutation. Supplied
+  board ids are constraints, never authorization. Unverifiable ownership fails
+  closed. Trello has no atomic authorization-and-mutation API, so concurrent
+  upstream moves cannot be prevented by a local check.
 - **Fresh authorization.** Ownership grants are not cached across calls, so a
   moved board is rechecked. Workspace listings are filtered, and health responses
   never expose saved ids.
-- **Read-only Trello access.** All current tools are reads or local-selection
-  changes. `TRELLO_READ_ONLY=1` filters Trello write tools; local defaults can
-  still change. It does not replace a suitably scoped Trello token.
+- **Read-only profile.** `TRELLO_READ_ONLY=1` hides every Trello mutation and
+  attachment transfer, including local-file downloads. Local defaults can still
+  change. This does not replace a suitably scoped Trello token.
 - **Defensive HTTP handling.** Requests have deadlines, redirects are refused,
   credentials are scrubbed from errors, and upstream error bodies are never
   returned.
