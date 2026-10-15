@@ -53,7 +53,7 @@ func TestAuthFlow(t *testing.T) {
 				}
 			}))
 			defer fake.Close()
-			dir := t.TempDir()
+			dir := credentialTestDir(t)
 			var out bytes.Buffer
 			// A real pipe exercises the non-TTY path, including buffered input and final EOF.
 			in, writer, err := os.Pipe()
@@ -68,7 +68,7 @@ func TestAuthFlow(t *testing.T) {
 				t.Fatal(err)
 			}
 			var authorize string
-			r := runner{in: in, out: &out, env: func(string) string { return "" }, configDir: func() (string, error) { return dir, nil },
+			r := runner{in: in, out: &out, env: func(string) string { return "" }, homeDir: func() (string, error) { return dir, nil },
 				client:  func(key, token string) *trello.Client { return trello.NewClient(fake.URL, key, token, fake.Client()) },
 				browser: func(address string) error { authorize = address; return errors.New("browser unavailable") }}
 			if err = r.run(context.Background(), tc.args); err != nil {
@@ -94,9 +94,9 @@ func TestAuthFlow(t *testing.T) {
 			if strings.Contains(out.String(), "synthetic-token") || strings.Count(out.String(), "synthetic-key") != 1 {
 				t.Error("credentials echoed outside required authorization URL")
 			}
-			path := filepath.Join(dir, "trello-mcp", "credentials.json")
+			path := filepath.Join(dir, ".secrets", ".trello-mcp.secret")
 			saved, err := credentials.Load(path)
-			if err != nil || saved.Scope != tc.scope || saved.SavedAt.IsZero() {
+			if err != nil || saved.Scope != tc.scope {
 				t.Fatal("credentials were not saved correctly")
 			}
 			if requests != 2 {
@@ -131,7 +131,7 @@ func TestAuthFlow(t *testing.T) {
 			}
 			r.env = func(string) string { return "" }
 			out.Reset()
-			if err = r.run(context.Background(), []string{"status"}); err != nil || !strings.Contains(out.String(), "Credential source: none") || !strings.Contains(out.String(), credentials.Hint) {
+			if err = r.run(context.Background(), []string{"status"}); err != nil || !strings.Contains(out.String(), "No credentials in this shell or "+path) {
 				t.Errorf("missing status failed: %v", err)
 			}
 		})
@@ -146,9 +146,9 @@ func TestAuthFailureDoesNotSave(t *testing.T) {
 				_, _ = io.WriteString(w, `{"username":"synthetic-user","permissions":[]}`)
 			}))
 			defer fake.Close()
-			dir := t.TempDir()
+			dir := credentialTestDir(t)
 			var out bytes.Buffer
-			r := runner{in: strings.NewReader("synthetic-key\nsynthetic-token\n"), out: &out, env: func(string) string { return "" }, configDir: func() (string, error) { return dir, nil }, client: func(key, token string) *trello.Client { return trello.NewClient(fake.URL, key, token, fake.Client()) }}
+			r := runner{in: strings.NewReader("synthetic-key\nsynthetic-token\n"), out: &out, env: func(string) string { return "" }, homeDir: func() (string, error) { return dir, nil }, client: func(key, token string) *trello.Client { return trello.NewClient(fake.URL, key, token, fake.Client()) }}
 			err := r.run(context.Background(), []string{"--read-only"})
 			if err == nil || strings.Contains(err.Error(), "synthetic-key") || strings.Contains(err.Error(), "synthetic-token") {
 				t.Errorf("unsafe or missing validation error: %v", err)
@@ -156,7 +156,7 @@ func TestAuthFailureDoesNotSave(t *testing.T) {
 			if status == 401 && !strings.Contains(err.Error(), credentials.Hint) {
 				t.Error("missing setup hint")
 			}
-			if _, err = os.Stat(filepath.Join(dir, "trello-mcp", "credentials.json")); !errors.Is(err, os.ErrNotExist) {
+			if _, err = os.Stat(filepath.Join(dir, ".secrets", ".trello-mcp.secret")); !errors.Is(err, os.ErrNotExist) {
 				t.Error("failed validation saved credentials")
 			}
 		})
@@ -165,7 +165,7 @@ func TestAuthFailureDoesNotSave(t *testing.T) {
 
 func TestAuthFlagsAndEmptyInput(t *testing.T) {
 	for _, args := range [][]string{{"--write", "--read-only"}, {"--expiration", "bad"}, {"status", "extra"}, {"unexpected"}, {"--read-only"}} {
-		r := runner{in: strings.NewReader(""), out: io.Discard, env: func(string) string { return "" }, configDir: func() (string, error) { return t.TempDir(), nil }}
+		r := runner{in: strings.NewReader(""), out: io.Discard, env: func(string) string { return "" }, homeDir: func() (string, error) { return credentialTestDir(t), nil }}
 		if err := r.run(context.Background(), args); err == nil {
 			t.Errorf("invalid input accepted: %v", args)
 		}
@@ -191,9 +191,9 @@ func TestHiddenTokenAndGrantedScope(t *testing.T) {
 				}
 			}))
 			defer fake.Close()
-			dir := t.TempDir()
+			dir := credentialTestDir(t)
 			var out bytes.Buffer
-			r := runner{in: strings.NewReader("synthetic-key\n"), out: &out, env: func(string) string { return "" }, configDir: func() (string, error) { return dir, nil }, client: func(key, token string) *trello.Client { return trello.NewClient(fake.URL, key, token, fake.Client()) },
+			r := runner{in: strings.NewReader("synthetic-key\n"), out: &out, env: func(string) string { return "" }, homeDir: func() (string, error) { return dir, nil }, client: func(key, token string) *trello.Client { return trello.NewClient(fake.URL, key, token, fake.Client()) },
 				hiddenToken: func(context.Context) (string, error) {
 					if tc.hiddenFail {
 						return "", errors.New("synthetic-token")
@@ -204,7 +204,7 @@ func TestHiddenTokenAndGrantedScope(t *testing.T) {
 			if (err != nil) != tc.fail || (err != nil && strings.Contains(err.Error(), "synthetic-token")) || strings.Contains(out.String(), "synthetic-token") || !strings.Contains(out.String(), "Token (hidden):") {
 				t.Errorf("hidden input failed or leaked a token: %v", err)
 			}
-			path := filepath.Join(dir, "trello-mcp", "credentials.json")
+			path := filepath.Join(dir, ".secrets", ".trello-mcp.secret")
 			if tc.fail {
 				if _, err = os.Stat(path); !errors.Is(err, os.ErrNotExist) {
 					t.Error("failed auth saved credentials")
@@ -220,7 +220,7 @@ func TestHiddenTokenAndGrantedScope(t *testing.T) {
 }
 
 func TestBoundedPrompt(t *testing.T) {
-	r := runner{in: strings.NewReader(strings.Repeat("synthetic", 2000)), out: io.Discard, env: func(string) string { return "" }, configDir: func() (string, error) { return t.TempDir(), nil }}
+	r := runner{in: strings.NewReader(strings.Repeat("synthetic", 2000)), out: io.Discard, env: func(string) string { return "" }, homeDir: func() (string, error) { return credentialTestDir(t), nil }}
 	if err := r.run(context.Background(), []string{"--write"}); err == nil || !strings.Contains(err.Error(), "exceeded 8192 bytes") {
 		t.Errorf("oversized piped input accepted: %v", err)
 	}
@@ -260,10 +260,10 @@ func TestAuthInputCancellation(t *testing.T) {
 			defer func() { _ = writer.Close() }()
 			started := make(chan struct{}, 1)
 			blocked := inputObserver{Reader: in, started: started}
-			dir := t.TempDir()
+			dir := credentialTestDir(t)
 			r := runner{
 				in: io.MultiReader(strings.NewReader(tc.prefix), blocked), out: io.Discard,
-				env: func(string) string { return "" }, configDir: func() (string, error) { return dir, nil },
+				env: func(string) string { return "" }, homeDir: func() (string, error) { return dir, nil },
 			}
 			if tc.hidden {
 				r.in = strings.NewReader(tc.prefix)
@@ -292,9 +292,20 @@ func TestAuthInputCancellation(t *testing.T) {
 			case <-time.After(time.Second):
 				t.Fatal("auth did not cancel within one second")
 			}
-			if _, err = os.Stat(filepath.Join(dir, "trello-mcp", "credentials.json")); !errors.Is(err, os.ErrNotExist) {
+			if _, err = os.Stat(filepath.Join(dir, ".secrets", ".trello-mcp.secret")); !errors.Is(err, os.ErrNotExist) {
 				t.Error("cancelled auth saved credentials")
 			}
 		})
 	}
+}
+
+// credentialTestDir resolves system temporary-directory aliases (such as /var on macOS).
+// The credential boundary deliberately refuses symlinks in parent directories.
+func credentialTestDir(t *testing.T) string {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir
 }

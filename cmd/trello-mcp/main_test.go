@@ -21,7 +21,7 @@ import (
 func TestReleaseVersion(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	binary := filepath.Join(t.TempDir(), "trello-mcp")
+	binary := filepath.Join(credentialTestDir(t), "trello-mcp")
 	if runtime.GOOS == "windows" {
 		binary += ".exe"
 	}
@@ -33,6 +33,7 @@ func TestReleaseVersion(t *testing.T) {
 
 	checkInstructions(t, ctx, binary)
 	checkCredentialStartup(t, ctx, binary)
+	checkEnvironmentOnlyStartup(t, ctx, binary)
 	checkAuthCancellation(t, ctx, binary)
 
 	version := exec.CommandContext(ctx, binary, "--version")
@@ -49,7 +50,7 @@ func TestReleaseVersion(t *testing.T) {
 	command.Env = []string{
 		"TRELLO_API_KEY=synthetic-key",
 		"TRELLO_TOKEN=synthetic-token",
-		"XDG_CONFIG_HOME=" + t.TempDir(),
+		"HOME=" + credentialTestDir(t), "USERPROFILE=" + credentialTestDir(t), "XDG_CONFIG_HOME=" + credentialTestDir(t),
 	}
 	client := mcp.NewClient(&mcp.Implementation{Name: "version-test", Version: "1"}, nil)
 	session, err := client.Connect(ctx, &mcp.CommandTransport{Command: command}, nil)
@@ -93,7 +94,7 @@ func checkInstructions(t *testing.T, ctx context.Context, binary string) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			command := exec.CommandContext(ctx, binary)
-			command.Env = append([]string{"TRELLO_API_KEY=synthetic-key", "TRELLO_TOKEN=synthetic-token", "TRELLO_BOARD_ID=saved-board", "XDG_CONFIG_HOME=" + t.TempDir()}, tc.settings...)
+			command.Env = append([]string{"TRELLO_API_KEY=synthetic-key", "TRELLO_TOKEN=synthetic-token", "TRELLO_BOARD_ID=saved-board", "HOME=" + credentialTestDir(t), "USERPROFILE=" + credentialTestDir(t), "XDG_CONFIG_HOME=" + credentialTestDir(t)}, tc.settings...)
 			client := mcp.NewClient(&mcp.Implementation{Name: "policy-test", Version: "1"}, nil)
 			session, err := client.Connect(ctx, &mcp.CommandTransport{Command: command}, nil)
 			if err != nil {
@@ -123,14 +124,14 @@ func checkCredentialStartup(t *testing.T, ctx context.Context, binary string) {
 		count int
 	}{{"", 1}, {"read", 19}, {"read,write", 48}} {
 		t.Run("credentials-"+tc.scope, func(t *testing.T) {
-			dir := t.TempDir()
+			dir := credentialTestDir(t)
 			if tc.scope != "" {
-				if err := credentials.Save(filepath.Join(dir, "trello-mcp", "credentials.json"), credentials.File{APIKey: "synthetic-key", Token: "synthetic-token", Scope: tc.scope}); err != nil {
+				if err := credentials.Save(filepath.Join(dir, ".secrets", ".trello-mcp.secret"), credentials.File{APIKey: "synthetic-key", Token: "synthetic-token", Scope: tc.scope}); err != nil {
 					t.Fatal(err)
 				}
 			}
 			command := exec.CommandContext(ctx, binary)
-			command.Env = []string{"XDG_CONFIG_HOME=" + dir}
+			command.Env = []string{"XDG_CONFIG_HOME=" + dir, "HOME=" + dir, "USERPROFILE=" + dir}
 			client := mcp.NewClient(&mcp.Implementation{Name: "credentials-test", Version: "1"}, nil)
 			session, err := client.Connect(ctx, &mcp.CommandTransport{Command: command}, nil)
 			if err != nil {
@@ -153,13 +154,13 @@ func checkCredentialStartup(t *testing.T, ctx context.Context, binary string) {
 				t.Error("saved read scope missing from initialize instructions")
 			}
 			logout := exec.CommandContext(ctx, binary, "auth", "logout")
-			logout.Env = []string{"XDG_CONFIG_HOME=" + dir}
+			logout.Env = command.Env
 			if output, logoutErr := logout.CombinedOutput(); logoutErr != nil {
 				t.Fatalf("auth logout: %v\n%s", logoutErr, output)
 			}
 			status := exec.CommandContext(ctx, binary, "auth", "status")
-			status.Env = []string{"XDG_CONFIG_HOME=" + dir}
-			if output, statusErr := status.CombinedOutput(); statusErr != nil || !strings.Contains(string(output), "Credential source: none") {
+			status.Env = command.Env
+			if output, statusErr := status.CombinedOutput(); statusErr != nil || !strings.Contains(string(output), "No credentials in this shell or ") {
 				t.Fatalf("auth status after logout: %v\n%s", statusErr, output)
 			}
 		})
@@ -173,7 +174,7 @@ func checkAuthCancellation(t *testing.T, ctx context.Context, binary string) {
 		return // os.Process.Signal does not support Interrupt on Windows.
 	}
 	command := exec.CommandContext(ctx, binary, "auth")
-	command.Env = []string{"XDG_CONFIG_HOME=" + t.TempDir()}
+	command.Env = []string{"HOME=" + credentialTestDir(t), "USERPROFILE=" + credentialTestDir(t), "XDG_CONFIG_HOME=" + credentialTestDir(t)}
 	stdin, err := command.StdinPipe()
 	if err != nil {
 		t.Fatal(err)
@@ -222,5 +223,34 @@ func checkAuthCancellation(t *testing.T, ctx context.Context, binary string) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("auth did not exit with blocked stdin")
+	}
+}
+
+// credentialTestDir resolves system temporary-directory aliases (such as /var on macOS).
+// The credential boundary deliberately refuses symlinks in parent directories.
+func credentialTestDir(t *testing.T) string {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func checkEnvironmentOnlyStartup(t *testing.T, ctx context.Context, binary string) {
+	t.Helper()
+	for _, xdg := range []string{"", "relative/config"} {
+		t.Run("env-only-"+xdg, func(t *testing.T) {
+			command := exec.CommandContext(ctx, binary)
+			command.Env = []string{"TRELLO_API_KEY=synthetic-key", "TRELLO_TOKEN=synthetic-token", "TRELLO_MCP_CREDENTIALS=relative/credentials", "XDG_CONFIG_HOME=" + xdg}
+			client := mcp.NewClient(&mcp.Implementation{Name: "env-only-test", Version: "1"}, nil)
+			session, err := client.Connect(ctx, &mcp.CommandTransport{Command: command}, nil)
+			if err != nil {
+				t.Fatalf("startup without home and with invalid credential path: %v", err)
+			}
+			if err := session.Close(); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }

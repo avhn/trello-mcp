@@ -27,7 +27,7 @@ func TestMissingCredentialsMCP(t *testing.T) {
 			return "card" // Health must be available even in a custom profile.
 		}
 		return ""
-	}, func() (string, error) { return t.TempDir(), nil })
+	}, func() (string, error) { return credentialTestDir(t), nil }, func() (string, error) { return credentialTestDir(t), nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,13 +80,13 @@ func TestSavedReadScopePolicy(t *testing.T) {
 		w.WriteHeader(500)
 	}))
 	defer fake.Close()
-	dir := t.TempDir()
-	if err := credentials.Save(filepath.Join(dir, "trello-mcp", "credentials.json"), credentials.File{APIKey: "test-key", Token: "test-token", Scope: "read"}); err != nil {
+	dir := credentialTestDir(t)
+	if err := credentials.Save(filepath.Join(dir, ".secrets", ".trello-mcp.secret"), credentials.File{APIKey: "test-key", Token: "test-token", Scope: "read"}); err != nil {
 		t.Fatal(err)
 	}
 	s := testService(t, fake, nil)
 	var err error
-	s.config, err = config.Parse(func(string) string { return "" }, func() (string, error) { return dir, nil })
+	s.config, err = config.Parse(func(string) string { return "" }, func() (string, error) { return dir, nil }, func() (string, error) { return dir, nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,4 +99,15 @@ func TestSavedReadScopePolicy(t *testing.T) {
 			t.Errorf("policy missing %s: %s", want, text)
 		}
 	}
+}
+
+// credentialTestDir resolves system temporary-directory aliases (such as /var on macOS).
+// The credential boundary deliberately refuses symlinks in parent directories.
+func credentialTestDir(t *testing.T) string {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir
 }

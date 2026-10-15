@@ -27,11 +27,16 @@ type Store struct {
 }
 
 // Open loads an existing selection, failing closed on corrupt or unsafe state.
+// An empty path keeps the selection in memory only.
 func Open(ctx context.Context, path, boardOverride string) (*Store, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	s := &Store{path: path}
+	if path == "" {
+		s.selection = Selection{BoardID: boardOverride}
+		return s, nil
+	}
 	info, err := os.Lstat(path)
 	if err == nil {
 		if !info.Mode().IsRegular() {
@@ -75,6 +80,10 @@ func (s *Store) Update(ctx context.Context, next Selection) error {
 	defer s.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if s.path == "" {
+		s.selection = next
+		return nil
 	}
 	dir := filepath.Dir(s.path)
 	if err := os.MkdirAll(dir, 0700); err != nil {

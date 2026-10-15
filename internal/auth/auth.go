@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 	"unicode"
 
 	"golang.org/x/term"
@@ -28,7 +27,7 @@ type runner struct {
 	in          io.Reader
 	out         io.Writer
 	env         func(string) string
-	configDir   func() (string, error)
+	homeDir     func() (string, error)
 	client      func(string, string) *trello.Client
 	browser     func(string) error
 	hiddenToken func(context.Context) (string, error)
@@ -38,7 +37,7 @@ type runner struct {
 // It is CLI-only: the caller must exit on cancellation because a piped stdin
 // reader can remain blocked until the process exits.
 func Run(ctx context.Context, args []string, in *os.File, out io.Writer) error {
-	r := runner{in: in, out: out, env: os.Getenv, configDir: os.UserConfigDir, client: trello.New, browser: openBrowser}
+	r := runner{in: in, out: out, env: os.Getenv, homeDir: os.UserHomeDir, client: trello.New, browser: openBrowser}
 	if term.IsTerminal(int(in.Fd())) {
 		r.hiddenToken = func(ctx context.Context) (string, error) {
 			return readHidden(ctx, fileTerminal{fd: int(in.Fd())}, func() (string, error) {
@@ -51,37 +50,77 @@ func Run(ctx context.Context, args []string, in *os.File, out io.Writer) error {
 }
 
 func (r runner) run(ctx context.Context, args []string) error {
-	dir, err := credentials.Directory(r.env, r.configDir)
+	command := "auth"
+	if len(args) > 0 && (args[0] == "status" || args[0] == "logout") {
+		command, args = args[0], args[1:]
+	}
+	flags := flag.NewFlagSet("auth "+command, flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	file := flags.String("file", "", "absolute credential file path")
+	readOnly := flags.Bool("read-only", false, "request read-only access")
+	write := flags.Bool("write", false, "request read and write access")
+	expiration := flags.String("expiration", "never", "1day, 30days or never")
+	if err := flags.Parse(args); err != nil || flags.NArg() != 0 || (*readOnly && *write) {
+		return fmt.Errorf("usage: trello-mcp auth [status|logout] [--file PATH] [--read-only|--write] [--expiration 1day|30days|never]")
+	}
+	if command != "auth" {
+		invalid := false
+		flags.Visit(func(f *flag.Flag) {
+			if f.Name != "file" {
+				invalid = true
+			}
+		})
+		if invalid {
+			return fmt.Errorf("usage: trello-mcp auth %s [--file PATH]", command)
+		}
+	}
+	fileSet := false
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "file" {
+			fileSet = true
+		}
+	})
+	if fileSet && !filepath.IsAbs(*file) {
+		return fmt.Errorf("--file must be an absolute path")
+	}
+	env := r.env
+	if fileSet {
+		env = func(key string) string {
+			if key == "TRELLO_MCP_CREDENTIALS" {
+				return *file
+			}
+			return r.env(key)
+		}
+	}
+	if command == "status" {
+		paths, err := credentials.Paths(env, r.homeDir)
+		if err != nil {
+			return err
+		}
+		return r.status(ctx, paths)
+	}
+	path, err := credentials.Path(env, r.homeDir)
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(dir, "credentials.json")
-	if len(args) > 0 && (args[0] == "status" || args[0] == "logout") {
-		if len(args) != 1 {
-			return fmt.Errorf("usage: trello-mcp auth [status|logout]")
-		}
-		if args[0] == "status" {
-			return r.status(ctx, path)
-		}
+	home, homeErr := r.homeDir()
+	if homeErr == nil && credentials.SamePath(path, filepath.Join(home, ".secrets.env")) {
+		return fmt.Errorf("auth never modifies the shared ~/.secrets.env store; choose a dedicated file")
+	}
+	switch command {
+	case "logout":
 		if err = credentials.Logout(path); err != nil {
 			return err
 		}
 		_, err = fmt.Fprintln(r.out, "Saved Trello credentials removed. Environment credentials, if set, still take precedence.")
 		return err
+	default:
+		return r.connect(ctx, path, *readOnly, *write, *expiration)
 	}
-	return r.connect(ctx, args, path)
 }
 
-func (r runner) connect(ctx context.Context, args []string, path string) error {
-	flags := flag.NewFlagSet("auth", flag.ContinueOnError)
-	flags.SetOutput(io.Discard)
-	readOnly := flags.Bool("read-only", false, "request read-only access")
-	write := flags.Bool("write", false, "request read and write access")
-	expiration := flags.String("expiration", "never", "1day, 30days or never")
-	if err := flags.Parse(args); err != nil || flags.NArg() != 0 || (*readOnly && *write) {
-		return fmt.Errorf("usage: trello-mcp auth [--read-only|--write] [--expiration 1day|30days|never]")
-	}
-	if *expiration != "1day" && *expiration != "30days" && *expiration != "never" {
+func (r runner) connect(ctx context.Context, path string, readOnly, write bool, expiration string) error {
+	if expiration != "1day" && expiration != "30days" && expiration != "never" {
 		return fmt.Errorf("expiration must be 1day, 30days or never")
 	}
 	if _, err := fmt.Fprintln(r.out, "Create a Trello API key manually at https://trello.com/power-ups/admin, then enter it here."); err != nil {
@@ -92,27 +131,27 @@ func (r runner) connect(ctx context.Context, args []string, path string) error {
 	if err != nil {
 		return err
 	}
-	if key == "" || len(key) > 4096 {
-		return fmt.Errorf("API key must be nonempty and at most 4096 bytes; nothing saved")
+	if !credentials.ValidValue(key) || len(key) > 4096 {
+		return fmt.Errorf("API key must be a valid unquoted value and at most 4096 bytes; nothing saved")
 	}
-	if !*readOnly && !*write {
+	if !readOnly && !write {
 		answer, promptErr := r.prompt(ctx, reader, "Allow write access? [Y/n] ")
 		if promptErr != nil {
 			return promptErr
 		}
-		switch strings.ToLower(answer) {
+		switch strings.ToLower(strings.TrimSpace(answer)) {
 		case "", "y", "yes":
-			*write = true
+			write = true
 		case "n", "no":
 		default:
 			return fmt.Errorf("answer y or n; nothing saved")
 		}
 	}
 	scope := "read"
-	if *write {
+	if write {
 		scope = "read,write"
 	}
-	q := url.Values{"expiration": {*expiration}, "name": {"trello-mcp"}, "scope": {scope}, "response_type": {"token"}, "key": {key}}
+	q := url.Values{"expiration": {expiration}, "name": {"trello-mcp"}, "scope": {scope}, "response_type": {"token"}, "key": {key}}
 	authorize := "https://trello.com/1/authorize?" + q.Encode()
 	// The required authorization link contains the key. Neither credential is printed separately.
 	if _, err = fmt.Fprintln(r.out, "Open this authorization URL and approve access:\n"+authorize); err != nil {
@@ -136,15 +175,15 @@ func (r runner) connect(ctx context.Context, args []string, path string) error {
 			}
 			return fmt.Errorf("read token failed; nothing saved")
 		}
-		token = strings.TrimSpace(token)
+		token = inputLine(token)
 	} else {
 		token, err = r.prompt(ctx, reader, "Token: ")
 		if err != nil {
 			return err
 		}
 	}
-	if key == "" || token == "" || len(key) > 4096 || len(token) > 4096 {
-		return fmt.Errorf("API key and token must be nonempty and at most 4096 bytes; nothing saved")
+	if !credentials.ValidValue(key) || !credentials.ValidValue(token) || len(key) > 4096 || len(token) > 4096 {
+		return fmt.Errorf("API key and token must be valid unquoted values and at most 4096 bytes; nothing saved")
 	}
 	client := r.client(key, token)
 	username, granted, err := validate(ctx, client, token)
@@ -154,7 +193,7 @@ func (r runner) connect(ctx context.Context, args []string, path string) error {
 	if scope == "read" && granted != "read" {
 		return fmt.Errorf("token permits writes despite the read-only request; use the token from this authorization link; nothing saved")
 	}
-	if err = credentials.Save(path, credentials.File{APIKey: key, Token: token, Scope: granted, SavedAt: time.Now().UTC()}); err != nil {
+	if err = credentials.Save(path, credentials.File{APIKey: key, Token: token, Scope: granted}); err != nil {
 		return err
 	}
 	_, err = fmt.Fprintf(r.out, "Connected as %s. Granted scope: %s. Credentials saved. Restart your MCP client to load them.\n", username, granted)
@@ -218,6 +257,14 @@ func readInput(ctx context.Context, read func() (string, error)) (string, error)
 	}
 }
 
+// inputLine removes one input terminator, not whitespace belonging to credentials.
+func inputLine(value string) string {
+	if runtime.GOOS == "windows" && strings.HasSuffix(value, "\r\n") {
+		return strings.TrimSuffix(value, "\r\n")
+	}
+	return strings.TrimSuffix(value, "\n")
+}
+
 func (r runner) prompt(ctx context.Context, reader *bufio.Reader, label string) (string, error) {
 	if _, err := fmt.Fprint(r.out, label); err != nil {
 		return "", err
@@ -227,31 +274,33 @@ func (r runner) prompt(ctx context.Context, reader *bufio.Reader, label string) 
 		if err != nil && (!errors.Is(err, io.EOF) || len(line) == 0) {
 			return "", fmt.Errorf("read auth input failed or exceeded 8192 bytes; nothing saved")
 		}
-		return strings.TrimSpace(string(line)), nil
+		return inputLine(string(line)), nil
 	})
 }
 
-func (r runner) status(ctx context.Context, path string) error {
-	c, source, err := credentials.Resolve(r.env, path)
+func (r runner) status(ctx context.Context, paths []credentials.Source) error {
+	c, source, path, err := credentials.Resolve(r.env, paths...)
 	if err != nil {
 		return err
 	}
-	scope := c.Scope
-	if scope == "" {
-		scope = "unknown"
-	}
-	if _, err = fmt.Fprintf(r.out, "Credential source: %s. Scope: %s.\n", source, scope); err != nil {
+	if source == "none" {
+		_, err = fmt.Fprintf(r.out, "No credentials in this shell or %s. MCP clients may pass them through their own config; run `trello-mcp auth` to save them for all clients.\n", paths[0].Path)
 		return err
 	}
-	if source == "none" {
-		_, err = fmt.Fprintln(r.out, credentials.Hint)
+	label := "file " + path
+	if source == "env" {
+		label = "env (TRELLO_API_KEY, TRELLO_TOKEN)"
+	} else if home, err := r.homeDir(); err == nil && credentials.SamePath(path, filepath.Join(home, ".secrets.env")) {
+		label = "file ~/.secrets.env (shared store)"
+	}
+	if _, err = fmt.Fprintln(r.out, "Credential source: "+label); err != nil {
 		return err
 	}
 	username, granted, err := validate(ctx, r.client(c.APIKey, c.Token), c.Token)
 	if err != nil {
-		return err
+		return fmt.Errorf("credential validation failed; check the token and its read permission, then run `trello-mcp auth`: %w", err)
 	}
-	_, err = fmt.Fprintf(r.out, "Connected as %s. Granted scope: %s.\n", username, granted)
+	_, err = fmt.Fprintf(r.out, "Connected as %s, scope %s\n", username, granted)
 	return err
 }
 

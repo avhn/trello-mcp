@@ -29,22 +29,30 @@ type Config struct {
 func (c Config) HasCredentials() bool { return c.APIKey != "" && c.Token != "" }
 
 // Load reads environment and optional saved credentials, rejecting malformed settings.
-func Load() (Config, error) { return Parse(os.Getenv, os.UserConfigDir) }
+func Load() (Config, error) { return Parse(os.Getenv, os.UserConfigDir, os.UserHomeDir) }
 
 // Parse permits isolated environment tests without modifying the process environment.
-func Parse(env func(string) string, configDir func() (string, error)) (Config, error) {
+func Parse(env func(string) string, configDir, homeDir func() (string, error)) (Config, error) {
 	c := Config{BoardID: env("TRELLO_BOARD_ID")}
-	dir, err := credentials.Directory(env, configDir)
+	paths, err := credentials.Paths(env, homeDir)
 	if err != nil {
 		return c, err
 	}
-	saved, source, err := credentials.Resolve(env, filepath.Join(dir, "credentials.json"))
+	saved, source, _, err := credentials.Resolve(env, paths...)
 	if err != nil {
 		return c, err
 	}
 	c.APIKey, c.Token = saved.APIKey, saved.Token
 	c.CredentialSource, c.CredentialScope = source, saved.Scope
 	c.ReadOnly = saved.Scope == "read"
+	dir, err := credentials.Directory(env, configDir)
+	if err != nil && source != "env" {
+		return c, err
+	}
+	// Env-only sessions can run without a usable home or state directory.
+	if err == nil {
+		c.StatePath = filepath.Join(dir, "state.json")
+	}
 	c.AllowedWorkspaces, err = split(env("TRELLO_ALLOWED_WORKSPACES"))
 	if err != nil {
 		return c, fmt.Errorf("TRELLO_ALLOWED_WORKSPACES: %w", err)
@@ -63,7 +71,6 @@ func Parse(env func(string) string, configDir func() (string, error)) (Config, e
 	default:
 		return c, fmt.Errorf("TRELLO_READ_ONLY must be 0 or 1")
 	}
-	c.StatePath = filepath.Join(dir, "state.json")
 	c.DownloadDir = env("TRELLO_DOWNLOAD_DIR")
 	if c.DownloadDir == "" {
 		c.DownloadDir = filepath.Join(os.TempDir(), "trello-mcp")

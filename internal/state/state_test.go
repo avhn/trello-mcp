@@ -119,3 +119,20 @@ func TestOverrideWorkspace(t *testing.T) {
 		}
 	}
 }
+
+func TestMemoryOnlyState(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, "", "synthetic-board")
+	if err != nil || s.Get() != (Selection{BoardID: "synthetic-board"}) {
+		t.Fatalf("open memory-only state: %v", err)
+	}
+	next := Selection{BoardID: "other-board", WorkspaceID: "synthetic-workspace"}
+	if err := s.Update(ctx, next); err != nil || s.Get() != next {
+		t.Fatalf("update memory-only state: %v", err)
+	}
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+	if err := s.Update(cancelled, Selection{}); err == nil || s.Get() != next {
+		t.Fatal("cancelled update changed memory-only state")
+	}
+}

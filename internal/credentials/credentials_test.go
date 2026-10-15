@@ -7,15 +7,14 @@ import (
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 )
 
 func synthetic() File {
-	return File{APIKey: "synthetic-key", Token: "synthetic-token", Scope: "read", SavedAt: time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC)}
+	return File{APIKey: "synthetic-key", Token: "synthetic-token", Scope: "read"}
 }
 
 func TestSaveLoadLogout(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "trello-mcp", "credentials.json")
+	path := filepath.Join(credentialTestDir(t), ".secrets", ".trello-mcp.secret")
 	for range 2 {
 		if err := Save(path, synthetic()); err != nil {
 			t.Fatal(err)
@@ -50,12 +49,12 @@ func TestSaveLoadLogout(t *testing.T) {
 func TestSymlinkRefusal(t *testing.T) {
 	for _, directory := range []bool{false, true} {
 		t.Run(map[bool]string{false: "file", true: "directory"}[directory], func(t *testing.T) {
-			base := t.TempDir()
-			path := filepath.Join(base, "trello-mcp", "credentials.json")
+			base := credentialTestDir(t)
+			path := filepath.Join(base, ".secrets", ".trello-mcp.secret")
 			if err := Save(path, synthetic()); err != nil {
 				t.Fatal(err)
 			}
-			from, to := path, filepath.Join(base, "target.json")
+			from, to := path, filepath.Join(base, "target.secret")
 			if directory {
 				from, to = filepath.Dir(path), filepath.Join(base, "target")
 			}
@@ -82,11 +81,11 @@ func TestSymlinkRefusal(t *testing.T) {
 }
 
 func TestUnsafeFiles(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "trello-mcp", "credentials.json")
+	path := filepath.Join(credentialTestDir(t), ".secrets", ".trello-mcp.secret")
 	if err := Save(path, synthetic()); err != nil {
 		t.Fatal(err)
 	}
-	for _, data := range []string{"null", "{}", `{"apiKey":"synthetic-key","token":"synthetic-token","scope":"invalid"}`, strings.Repeat("synthetic-token", 2000)} {
+	for _, data := range []string{"TRELLO_API_KEY=synthetic-key\n", "TRELLO_API_KEY=synthetic-key\nTRELLO_TOKEN=synthetic-token\nTRELLO_TOKEN_SCOPE=invalid\n", strings.Repeat("synthetic-token", 2000)} {
 		if err := os.WriteFile(path, []byte(data), 0600); err != nil {
 			t.Fatal(err)
 		}
@@ -105,5 +104,35 @@ func TestUnsafeFiles(t *testing.T) {
 	}
 	if err := Save(path, synthetic()); err == nil {
 		t.Error("directory replaced as file")
+	}
+}
+
+// credentialTestDir resolves system temporary-directory aliases (such as /var on macOS).
+// The credential boundary deliberately refuses symlinks in parent directories.
+func credentialTestDir(t *testing.T) string {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func TestSymlinkedAncestorBeforeCreation(t *testing.T) {
+	base := credentialTestDir(t)
+	real := filepath.Join(base, "real")
+	if err := os.Mkdir(real, 0700); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(base, "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	path := filepath.Join(link, "missing", ".trello-mcp.secret")
+	if err := Save(path, synthetic()); err == nil {
+		t.Fatal("save traversed symlinked ancestor")
+	}
+	if _, err := os.Stat(filepath.Join(real, "missing")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("save created directory through symlink")
 	}
 }

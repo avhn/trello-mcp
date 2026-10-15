@@ -30,11 +30,15 @@ func checkPrivate(info os.FileInfo, directory bool) error {
 	if !ok || stat.Uid != uint32(os.Geteuid()) {
 		return fmt.Errorf("credentials must be owned by the current user; rerun trello-mcp auth as that user")
 	}
-	if info.Mode().Perm()&0077 != 0 {
+	mask := os.FileMode(0077)
+	if directory {
+		mask = 0022
+	}
+	if info.Mode().Perm()&mask != 0 {
 		if directory {
-			return fmt.Errorf("credentials directory is not private; chmod 700 the trello-mcp config directory or rerun trello-mcp auth")
+			return fmt.Errorf("credentials directory is group/world writable; remove group/world write permissions (chmod go-w) or choose a private directory with TRELLO_MCP_CREDENTIALS")
 		}
-		return fmt.Errorf("credentials file is group/world accessible; chmod 600 credentials.json or rerun trello-mcp auth")
+		return fmt.Errorf("credentials file is group/world accessible; chmod 600 the credentials file or rerun trello-mcp auth")
 	}
 	return nil
 }
