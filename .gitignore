@@ -1,0 +1,7 @@
+/trello-mcp
+/coverage.out
+*.test
+.env
+.env.*
+!.env.example
+.DS_Store
