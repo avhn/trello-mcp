@@ -20,6 +20,18 @@ jobs:
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/install_test.ps1
 
+  windows-auth:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test credentials and auth with Windows DACLs
+        run: go test ./internal/credentials/... ./internal/auth/...
+
   check:
     strategy:
       fail-fast: false
