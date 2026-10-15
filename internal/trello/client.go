@@ -202,7 +202,7 @@ func retryDelay(h http.Header, attempt int) (time.Duration, error) {
 		}
 	}
 	if d > 30*time.Second {
-		return d, fmt.Errorf("Trello retry delay exceeds 30 seconds")
+		return d, fmt.Errorf("trello retry delay exceeds 30 seconds")
 	}
 	return d, nil
 }
@@ -264,5 +264,5 @@ func (c *Client) Get(ctx context.Context, path string, q url.Values, out any) er
 		}
 		return nil
 	}
-	return fmt.Errorf("Trello retry budget exhausted")
+	return fmt.Errorf("trello retry budget exhausted")
 }

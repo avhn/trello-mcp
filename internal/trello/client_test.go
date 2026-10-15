@@ -142,7 +142,7 @@ func TestRedirectAndSizeBounds(t *testing.T) {
 	defer destination.Close()
 	source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/redirect" {
-			http.Redirect(w, r, destination.URL, 302)
+			http.Redirect(w, r, destination.URL, http.StatusFound)
 			return
 		}
 		_, _ = w.Write([]byte(strings.Repeat(" ", maxResponseBytes+1)))

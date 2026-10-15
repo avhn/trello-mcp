@@ -22,7 +22,7 @@ func (s *Service) actions(ctx context.Context, path, filter string, a arguments)
 		return nil, err
 	}
 	if len(actions) > a.limit {
-		return nil, fmt.Errorf("Trello action page exceeds requested limit")
+		return nil, fmt.Errorf("trello action page exceeds requested limit")
 	}
 	next := ""
 	if len(actions) == a.limit {

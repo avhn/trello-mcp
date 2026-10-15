@@ -20,8 +20,9 @@ import (
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	if err := run(ctx, logger); err != nil {
+	err := run(ctx, logger)
+	stop()
+	if err != nil {
 		logger.Error("server stopped", "error", err)
 		os.Exit(1)
 	}

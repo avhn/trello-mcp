@@ -83,7 +83,7 @@ func TestLongRetryAfterSharedRecovery(t *testing.T) {
 			defer fake.Close()
 			c := NewClient(fake.URL, "synthetic-key", "synthetic-token", fake.Client())
 			var out any
-			if err := c.Get(context.Background(), "/members/me/boards", nil, &out); err == nil || err.Error() != "Trello retry delay exceeds 30 seconds" {
+			if err := c.Get(context.Background(), "/members/me/boards", nil, &out); err == nil || err.Error() != "trello retry delay exceeds 30 seconds" {
 				t.Fatalf("long Retry-After not refused: %v", err)
 			}
 			for i, w := range c.windows {
@@ -142,7 +142,7 @@ func TestInterleavedRateHeaders(t *testing.T) {
 		t.Fatal("short-window request did not start")
 	}
 	var out any
-	if err := c.Get(ctx, "/members/long", nil, &out); err == nil || err.Error() != "Trello retry delay exceeds 30 seconds" {
+	if err := c.Get(ctx, "/members/long", nil, &out); err == nil || err.Error() != "trello retry delay exceeds 30 seconds" {
 		t.Fatalf("long Retry-After not refused: %v", err)
 	}
 	c.mu.Lock()
@@ -181,10 +181,7 @@ func Test429Cancellation(t *testing.T) {
 	defer deadline.Stop()
 	tick := time.NewTicker(time.Millisecond)
 	defer tick.Stop()
-	for {
-		if c.Stats().Retries == 1 {
-			break
-		}
+	for c.Stats().Retries != 1 {
 		select {
 		case err := <-done:
 			t.Fatalf("request ended before cancellation: %v", err)
