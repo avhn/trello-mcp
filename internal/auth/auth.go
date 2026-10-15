@@ -38,14 +38,6 @@ type runner struct {
 // reader can remain blocked until the process exits.
 func Run(ctx context.Context, args []string, in *os.File, out io.Writer) error {
 	r := runner{in: in, out: out, env: os.Getenv, homeDir: os.UserHomeDir, client: trello.New, browser: openBrowser}
-	if term.IsTerminal(int(in.Fd())) {
-		r.hiddenToken = func(ctx context.Context) (string, error) {
-			return readHidden(ctx, fileTerminal{fd: int(in.Fd())}, func() (string, error) {
-				line, err := bufio.NewReaderSize(in, 8192).ReadSlice('\n')
-				return string(line), err
-			})
-		}
-	}
 	return r.run(ctx, args)
 }
 
@@ -60,7 +52,9 @@ func (r runner) run(ctx context.Context, args []string) error {
 	readOnly := flags.Bool("read-only", false, "request read-only access")
 	write := flags.Bool("write", false, "request read and write access")
 	expiration := flags.String("expiration", "never", "1day, 30days or never")
-	if err := flags.Parse(args); err != nil || flags.NArg() != 0 || (*readOnly && *write) {
+	if err := flags.Parse(args); errors.Is(err, flag.ErrHelp) {
+		return r.help(command)
+	} else if err != nil || flags.NArg() != 0 || (*readOnly && *write) {
 		return fmt.Errorf("usage: trello-mcp auth [status|logout] [--file PATH] [--read-only|--write] [--expiration 1day|30days|never]")
 	}
 	if command != "auth" {
@@ -109,7 +103,12 @@ func (r runner) run(ctx context.Context, args []string) error {
 	}
 	switch command {
 	case "logout":
-		if err = credentials.Logout(path); err != nil {
+		removed, err := credentials.Logout(path)
+		if err != nil {
+			return err
+		}
+		if !removed {
+			_, err = fmt.Fprintf(r.out, "No saved Trello credentials at %s.\n", path)
 			return err
 		}
 		_, err = fmt.Fprintln(r.out, "Saved Trello credentials removed. Environment credentials, if set, still take precedence.")
@@ -119,7 +118,43 @@ func (r runner) run(ctx context.Context, args []string) error {
 	}
 }
 
+func (r runner) help(command string) error {
+	usage := "trello-mcp auth [--file PATH] [--read-only|--write] [--expiration 1day|30days|never]"
+	if command != "auth" {
+		usage = "trello-mcp auth " + command + " [--file PATH]"
+	}
+	_, err := fmt.Fprintf(r.out, `Usage: %s
+
+  --help, -h       Show help for auth, status or logout without side effects.
+  --file PATH      Absolute dedicated credential file (auth, status, logout).
+                   Default: ~/.secrets/.trello-mcp.secret, overridden by
+                   TRELLO_MCP_CREDENTIALS.
+  --read-only      Request read-only access (auth only).
+  --write          Request read and write access (auth only).
+                   Without either flag, auth asks, defaulting to write access.
+  --expiration     1day, 30days or never; default never (auth only).
+
+Auth belongs in the human's private terminal, never chat or agent-captured
+commands. Never share keys, tokens or authorization URLs. After auth, restart
+or reconnect the MCP client; only server_health is exposed until a fresh
+configured server starts. Status validates credentials online without printing
+them. Logout removes saved credentials, not environment credentials or
+Trello-side token authorization; revoke tokens separately in Trello.
+
+Setup: https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md
+`, usage)
+	return err
+}
+
 func (r runner) connect(ctx context.Context, path string, readOnly, write bool, expiration string) error {
+	if in, ok := r.in.(*os.File); ok && r.hiddenToken == nil && term.IsTerminal(int(in.Fd())) {
+		r.hiddenToken = func(ctx context.Context) (string, error) {
+			return readHidden(ctx, fileTerminal{fd: int(in.Fd())}, func() (string, error) {
+				line, err := bufio.NewReaderSize(in, 8192).ReadSlice('\n')
+				return string(line), err
+			})
+		}
+	}
 	if expiration != "1day" && expiration != "30days" && expiration != "never" {
 		return fmt.Errorf("expiration must be 1day, 30days or never")
 	}

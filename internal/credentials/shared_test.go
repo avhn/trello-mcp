@@ -69,7 +69,7 @@ func TestSharedFallback(t *testing.T) {
 	if err != nil || source != "env" || c.Token != "env-token" {
 		t.Fatal("environment did not win")
 	}
-	if err := Logout(paths[0].Path); err != nil {
+	if _, err := Logout(paths[0].Path); err != nil {
 		t.Fatal(err)
 	}
 	after, err := os.ReadFile(shared)
@@ -107,7 +107,7 @@ func TestUnsafeSharedFallbackSkippedWithEarlierSource(t *testing.T) {
 	if _, _, _, err := Resolve(env, Source{Path: dedicated}, Source{Path: shared, Shared: true}); err != nil {
 		t.Fatal("earlier source did not bypass unsafe fallback")
 	}
-	if err := Logout(dedicated); err != nil {
+	if _, err := Logout(dedicated); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, _, err := Resolve(env, Source{Path: dedicated}, Source{Path: shared, Shared: true}); err == nil || !strings.Contains(err.Error(), "symlink") {

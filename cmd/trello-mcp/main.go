@@ -41,8 +41,20 @@ func main() {
 		}
 		return
 	}
-	showVersion := flag.Bool("version", false, "print the version and exit")
-	flag.Parse()
+	flags := flag.NewFlagSet("trello-mcp", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	flags.Usage = func() { _, _ = fmt.Fprint(os.Stdout, rootHelp) }
+	showVersion := flags.Bool("version", false, "print the version and exit")
+	if err := flags.Parse(os.Args[1:]); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return
+		}
+		os.Exit(2)
+	}
+	if flags.NArg() != 0 {
+		fmt.Fprintln(os.Stderr, "trello-mcp: unexpected arguments; use --help")
+		os.Exit(2)
+	}
 	if *showVersion {
 		fmt.Printf("trello-mcp %s\n", version)
 		return
@@ -57,6 +69,31 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+const rootHelp = `Usage: trello-mcp [--help|-h|--version]
+       trello-mcp auth [status|logout] [flags]
+
+With no arguments, serve MCP over standard input/output (stdio).
+  auth         Connect Trello in the human's private terminal.
+  auth status  Validate credentials and show their source without printing them.
+  auth logout  Remove saved credentials, not environment credentials or Trello tokens.
+  --version    Print the version and exit.
+  --help, -h   Print this help and exit.
+Use auth [status|logout] --help for applicable flags.
+
+Credentials default to ~/.secrets/.trello-mcp.secret; TRELLO_MCP_CREDENTIALS
+selects a dedicated file. Never share keys, tokens or authorization URLs in
+chat or agent-captured commands. The human must run auth privately, then
+restart/reconnect the MCP client. Until a configured server starts, only
+server_health is exposed.
+
+Writes are enabled by default; TRELLO_READ_ONLY=1 opts into read-only tools.
+TRELLO_ALLOWED_WORKSPACES restricts workspace access; TRELLO_TOOLS selects
+individual tools or prefix groups (comma-separated, default all).
+Call server_health with detail "policy" to inspect the active policy.
+
+Setup: https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md
+`
 
 // run wires dependencies after validating startup configuration and saved selection.
 func run(ctx context.Context, logger *slog.Logger) error {

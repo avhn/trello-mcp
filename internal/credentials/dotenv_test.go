@@ -30,7 +30,7 @@ func TestDotenvPreservesOtherLines(t *testing.T) {
 		if err != nil || got != synthetic() {
 			t.Fatal("dotenv did not round trip")
 		}
-		if err := Logout(path); err != nil {
+		if _, err := Logout(path); err != nil {
 			t.Fatal(err)
 		}
 		data, err = os.ReadFile(path)

@@ -332,3 +332,31 @@ func credentialTestDir(t *testing.T) string {
 	}
 	return dir
 }
+
+func TestAuthHelpBeforeDependencies(t *testing.T) {
+	for _, command := range []string{"", "status", "logout"} {
+		for _, help := range []string{"--help", "-h"} {
+			t.Run(command+"/"+help, func(t *testing.T) {
+				var out bytes.Buffer
+				// Unset input, environment, home, HTTP and browser dependencies must
+				// never be accessed on the help path.
+				r := runner{out: &out}
+				args := []string{"--file", "relative/invalid", help}
+				if command != "" {
+					args = append([]string{command}, args...)
+				}
+				if err := r.run(context.Background(), args); err != nil {
+					t.Fatal(err)
+				}
+				for _, want := range []string{"Usage: trello-mcp auth", "--file PATH", "auth, status, logout", "--read-only", "auth only", "--expiration", "private terminal", "restart", "server_health"} {
+					if !strings.Contains(out.String(), want) {
+						t.Errorf("help missing %q", want)
+					}
+				}
+				if command != "" && !strings.HasPrefix(out.String(), "Usage: trello-mcp auth "+command+" [--file PATH]\n") {
+					t.Error("subcommand usage includes inapplicable flags")
+				}
+			})
+		}
+	}
+}

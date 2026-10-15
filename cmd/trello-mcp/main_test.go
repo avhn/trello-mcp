@@ -31,6 +31,8 @@ func TestReleaseVersion(t *testing.T) {
 		t.Fatalf("build: %v\n%s", err, output)
 	}
 
+	checkHelp(t, ctx, binary)
+	checkCredentialRecovery(t, ctx, binary)
 	checkInstructions(t, ctx, binary)
 	checkCredentialStartup(t, ctx, binary)
 	checkEnvironmentOnlyStartup(t, ctx, binary)
@@ -88,9 +90,9 @@ func checkInstructions(t *testing.T, ctx context.Context, binary string) {
 		name           string
 		settings, want []string
 	}{
-		{"unrestricted", nil, []string{"workspaces unrestricted", "Read-only: no"}},
-		{"restricted", []string{"TRELLO_ALLOWED_WORKSPACES=team,w2"}, []string{"workspaces restricted to team,w2", "Read-only: no"}},
-		{"read-only", []string{"TRELLO_ALLOWED_WORKSPACES=team", "TRELLO_READ_ONLY=1"}, []string{"workspaces restricted to team", "Read-only: yes (write tools hidden)", "Downloads: disabled"}},
+		{"unrestricted", nil, []string{"Workspaces: unrestricted", "read-only: false"}},
+		{"restricted", []string{"TRELLO_ALLOWED_WORKSPACES=team,w2"}, []string{"Workspaces: restricted", "read-only: false"}},
+		{"read-only", []string{"TRELLO_ALLOWED_WORKSPACES=team", "TRELLO_READ_ONLY=1"}, []string{"Workspaces: restricted", "read-only: true", "downloads: false"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			command := exec.CommandContext(ctx, binary)
@@ -102,7 +104,7 @@ func checkInstructions(t *testing.T, ctx context.Context, binary string) {
 			}
 			defer func() { _ = session.Close() }()
 			instructions := session.InitializeResult().Instructions
-			for _, want := range append(tc.want, `server_health with detail "policy"`) {
+			for _, want := range append(tc.want, `server_health detail "policy"`) {
 				if !strings.Contains(instructions, want) {
 					t.Errorf("instructions missing %q: %s", want, instructions)
 				}
@@ -150,8 +152,8 @@ func checkCredentialStartup(t *testing.T, ctx context.Context, binary string) {
 				if callErr != nil || health.IsError || !strings.Contains(health.Content[0].(*mcp.TextContent).Text, credentials.Hint) {
 					t.Errorf("health missing setup hint: %v", callErr)
 				}
-			} else if tc.scope == "read" && !strings.Contains(session.InitializeResult().Instructions, "saved token scope=read") {
-				t.Error("saved read scope missing from initialize instructions")
+			} else if tc.scope == "read" && !strings.Contains(session.InitializeResult().Instructions, "read-only: true") {
+				t.Error("saved read scope missing from initialize policy summary")
 			}
 			logout := exec.CommandContext(ctx, binary, "auth", "logout")
 			logout.Env = command.Env
@@ -258,5 +260,84 @@ func checkEnvironmentOnlyStartup(t *testing.T, ctx context.Context, binary strin
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+// checkHelp uses invalid configuration and noninteractive stdin to catch startup side effects.
+func checkHelp(t *testing.T, ctx context.Context, binary string) {
+	t.Helper()
+	for _, args := range [][]string{
+		{"--help"}, {"-h"}, {"auth", "--help"}, {"auth", "-h"},
+		{"auth", "status", "--help"}, {"auth", "status", "-h"},
+		{"auth", "logout", "--help"}, {"auth", "logout", "-h"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			dir := credentialTestDir(t)
+			command := exec.CommandContext(ctx, binary, args...)
+			command.Env = []string{
+				"HOME=" + dir, "USERPROFILE=" + dir, "XDG_CONFIG_HOME=relative/config",
+				"TRELLO_MCP_CREDENTIALS=relative/credentials", "TRELLO_READ_ONLY=invalid",
+			}
+			output, err := command.CombinedOutput()
+			if err != nil {
+				t.Fatalf("help: %v\n%s", err, output)
+			}
+			for _, want := range []string{"Usage:", "private terminal", "server_health", "restart", "https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md"} {
+				if !strings.Contains(string(output), want) {
+					t.Errorf("help missing %q: %s", want, output)
+				}
+			}
+			for _, unwanted := range []string{"API key: ", "Token: ", "Token (hidden): ", "https://trello.com/1/authorize?"} {
+				if strings.Contains(string(output), unwanted) {
+					t.Errorf("help started authentication: %s", output)
+				}
+			}
+			entries, err := os.ReadDir(dir)
+			if err != nil || len(entries) != 0 {
+				t.Fatalf("help modified synthetic home: %v", err)
+			}
+		})
+	}
+	for _, args := range [][]string{{"unexpected"}, {"--unknown"}, {"auth", "unknown"}, {"auth", "--unknown"}, {"auth", "status", "--write"}, {"auth", "logout", "--read-only"}} {
+		command := exec.CommandContext(ctx, binary, args...)
+		command.Env = []string{"TRELLO_MCP_CREDENTIALS=relative/credentials"}
+		if output, err := command.CombinedOutput(); err == nil {
+			t.Errorf("unexpected success for %v: %s", args, output)
+		} else if strings.Contains(string(output), "must be an absolute path") {
+			t.Errorf("arguments reached credential resolution for %v: %s", args, output)
+		}
+	}
+}
+
+// checkCredentialRecovery proves saved synthetic credentials require a fresh server.
+func checkCredentialRecovery(t *testing.T, ctx context.Context, binary string) {
+	t.Helper()
+	dir := credentialTestDir(t)
+	connect := func() *mcp.ClientSession {
+		command := exec.CommandContext(ctx, binary)
+		command.Env = []string{"HOME=" + dir, "USERPROFILE=" + dir, "XDG_CONFIG_HOME=" + dir}
+		client := mcp.NewClient(&mcp.Implementation{Name: "recovery-test", Version: "1"}, nil)
+		session, err := client.Connect(ctx, &mcp.CommandTransport{Command: command}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = session.Close() })
+		return session
+	}
+	unconfigured := connect()
+	if unconfigured.InitializeResult().Instructions != credentials.Hint {
+		t.Fatal("unconfigured server missing human auth handoff")
+	}
+	if err := credentials.Save(filepath.Join(dir, ".secrets", ".trello-mcp.secret"), credentials.File{APIKey: "synthetic-key", Token: "synthetic-token", Scope: "read,write"}); err != nil {
+		t.Fatal(err)
+	}
+	listed, err := unconfigured.ListTools(ctx, nil)
+	if err != nil || len(listed.Tools) != 1 || listed.Tools[0].Name != "server_health" {
+		t.Fatalf("running unconfigured server must stay health-only: %v", err)
+	}
+	configured := connect()
+	listed, err = configured.ListTools(ctx, nil)
+	if err != nil || len(listed.Tools) != 48 {
+		t.Fatalf("fresh configured server must expose 48 tools: %v", err)
 	}
 }

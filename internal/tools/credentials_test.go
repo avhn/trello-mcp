@@ -92,7 +92,7 @@ func TestSavedReadScopePolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(s.Instructions(), "saved token scope=read; write tools hidden") || s.enabled("card_create") {
+	if !strings.Contains(s.Instructions(), "read-only: true") || s.enabled("card_create") {
 		t.Error("saved read scope did not hide writes or explain why")
 	}
 	text, failed := callTool(t, s, "server_health", `{"detail":"policy"}`)
@@ -118,4 +118,13 @@ func credentialTestDir(t *testing.T) string {
 		}
 	}
 	return dir
+}
+
+func TestCredentialHintHumanHandoff(t *testing.T) {
+	hint := credentials.Hint
+	for _, want := range []string{"human must run `trello-mcp auth`", "private terminal", "restart/reconnect", "Never share keys, tokens or authorization URLs", "chat or agent-captured commands", "Only server_health", "fresh configured server"} {
+		if !strings.Contains(hint, want) {
+			t.Errorf("credential recovery hint missing %q", want)
+		}
+	}
 }

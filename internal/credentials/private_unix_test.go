@@ -37,7 +37,7 @@ func TestCustomPrivatePermissions(t *testing.T) {
 		for _, operation := range []func() error{
 			func() error { _, err := Load(path); return err },
 			func() error { return Save(path, synthetic()) },
-			func() error { return Logout(path) },
+			func() error { _, err := Logout(path); return err },
 		} {
 			err := operation()
 			if mode&0022 != 0 {
@@ -143,7 +143,7 @@ func TestDefaultDirectoryPermissions(t *testing.T) {
 		}
 		for _, operation := range []func() error{
 			func() error { _, err := Load(path); return err },
-			func() error { return Logout(path) },
+			func() error { _, err := Logout(path); return err },
 		} {
 			if err := operation(); err == nil || !strings.Contains(err.Error(), "chmod 700 ~/.secrets") {
 				t.Errorf("default directory %o accepted: %v", mode, err)
@@ -193,5 +193,28 @@ func TestSharedHomeDirectoryPermissions(t *testing.T) {
 		if mode == 0775 && (err == nil || !strings.Contains(err.Error(), "chmod go-w")) {
 			t.Fatalf("writable shared home directory accepted: %v", err)
 		}
+	}
+}
+
+func TestMissingStoresInWritableHome(t *testing.T) {
+	home := credentialTestDir(t)
+	if err := os.Chmod(home, 0775); err != nil {
+		t.Fatal(err)
+	}
+	env := func(string) string { return "" }
+	paths, err := Paths(env, func() (string, error) { return home, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Both the default directory and the optional shared file are absent.
+	if _, err := loadSource(paths[0]); !os.IsNotExist(err) {
+		t.Fatalf("missing default store: %v", err)
+	}
+	if _, source, _, err := Resolve(env, paths...); err != nil || source != "none" {
+		t.Fatalf("missing stores: source %q, error %v", source, err)
+	}
+	sharedFixture(t, home, "TRELLO_API_KEY=synthetic-key\nTRELLO_TOKEN=synthetic-token\n")
+	if _, _, _, err := Resolve(env, paths...); err == nil || !strings.Contains(err.Error(), "chmod go-w") {
+		t.Fatalf("existing shared file in writable home accepted: %v", err)
 	}
 }

@@ -37,7 +37,7 @@ func TestSaveLoadLogout(t *testing.T) {
 		t.Fatal("temporary files remained")
 	}
 	for range 2 {
-		if err = Logout(path); err != nil {
+		if _, err = Logout(path); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -70,7 +70,7 @@ func TestSymlinkRefusal(t *testing.T) {
 			if _, err := Load(path); err == nil {
 				t.Error("load accepted symlink")
 			}
-			if err := Logout(path); err == nil {
+			if _, err := Logout(path); err == nil {
 				t.Error("logout accepted symlink")
 			}
 			if _, err := os.Stat(to); err != nil {
@@ -141,5 +141,51 @@ func TestSymlinkedAncestorBeforeCreation(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(real, "missing")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("save created directory through symlink")
+	}
+}
+
+func TestLogoutReportsRemoval(t *testing.T) {
+	for _, tc := range []struct {
+		name, data      string
+		exists, removed bool
+	}{
+		{name: "missing"},
+		{name: "empty", exists: true},
+		{name: "unrelated", data: "# retained\nOTHER=synthetic\n", exists: true},
+		{name: "managed", data: "TRELLO_TOKEN=synthetic-token\n", exists: true, removed: true},
+		{name: "empty managed value", data: "TRELLO_TOKEN=\n", exists: true, removed: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(credentialTestDir(t), ".secrets", "test.secret")
+			// Save creates a protected directory and file on Windows too.
+			if err := Save(path, synthetic()); err != nil {
+				t.Fatal(err)
+			}
+			if tc.exists {
+				root, err := openDir(path, false)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer func() { _ = root.Close() }()
+				if err := replace(root, filepath.Base(path), []byte(tc.data)); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+			removed, err := Logout(path)
+			if err != nil || removed != tc.removed {
+				t.Fatalf("removed = %t, want %t, error %v", removed, tc.removed, err)
+			}
+			if tc.exists && !tc.removed {
+				data, err := os.ReadFile(path)
+				if err != nil || string(data) != tc.data {
+					t.Fatalf("unmanaged file changed: %v", err)
+				}
+			}
+			if removed, err = Logout(path); err != nil || removed {
+				t.Fatalf("second logout: removed %t, error %v", removed, err)
+			}
+		})
 	}
 }

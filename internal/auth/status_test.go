@@ -269,3 +269,44 @@ func TestSharedStoreHardlinkGuard(t *testing.T) {
 		t.Fatal("shared store changed")
 	}
 }
+
+func TestLogoutWithoutSavedKeys(t *testing.T) {
+	for _, exists := range []bool{false, true} {
+		t.Run(fmt.Sprintf("exists=%t", exists), func(t *testing.T) {
+			home := credentialTestDir(t)
+			path := filepath.Join(home, ".secrets", "test.secret")
+			const unrelated = "# retained\nOTHER=synthetic\n"
+			if err := credentials.Save(path, credentials.File{APIKey: "synthetic-key", Token: "synthetic-token"}); err != nil {
+				t.Fatal(err)
+			}
+			if exists {
+				// Truncate the existing protected file without recreating its DACL.
+				file, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC, 0)
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, err = file.WriteString(unrelated)
+				closeErr := file.Close()
+				if err != nil || closeErr != nil {
+					t.Fatalf("write unrelated fixture: %v, close: %v", err, closeErr)
+				}
+			} else if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+			var out bytes.Buffer
+			r := runner{out: &out, env: func(string) string { return "" }, homeDir: func() (string, error) { return home, nil }}
+			if err := r.run(context.Background(), []string{"logout", "--file", path}); err != nil {
+				t.Fatal(err)
+			}
+			if want := "No saved Trello credentials at " + path + ".\n"; out.String() != want {
+				t.Fatalf("logout = %q, want %q", out.String(), want)
+			}
+			if exists {
+				data, err := os.ReadFile(path)
+				if err != nil || string(data) != unrelated {
+					t.Fatalf("unrelated file changed: %v", err)
+				}
+			}
+		})
+	}
+}

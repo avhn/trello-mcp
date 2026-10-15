@@ -15,7 +15,7 @@ import (
 )
 
 // Hint is shared by initialize, health and upstream authentication errors.
-const Hint = "Trello credentials not configured: run `trello-mcp auth` to save ~/.secrets/.trello-mcp.secret, or set TRELLO_API_KEY and TRELLO_TOKEN."
+const Hint = "Trello credentials not configured. The human must run `trello-mcp auth` in a private terminal, then restart/reconnect the MCP client. Never share keys, tokens or authorization URLs in chat or agent-captured commands. Only server_health is exposed until a fresh configured server starts."
 
 // File is the private on-disk credential record. Never log or format it.
 type File struct {
@@ -273,6 +273,15 @@ func load(path string, shared bool) (File, error) {
 
 func loadSource(source Source) (File, error) {
 	path, shared := source.Path, source.Shared
+	// The optional shared store must not impose its directory policy when absent.
+	// Lstat leaves existing symlinks for the normal strict checks below.
+	if shared {
+		if _, err := os.Lstat(path); errors.Is(err, os.ErrNotExist) {
+			return File{}, os.ErrNotExist
+		} else if err != nil {
+			return File{}, fmt.Errorf("inspect credentials file")
+		}
+	}
 	root, err := openDirectory(path, false, directoryPolicy(source))
 	if err != nil {
 		return File{}, err
@@ -424,20 +433,22 @@ func save(path string, c File, timeout time.Duration) error {
 }
 
 // Logout removes only managed keys; comments, blank lines and unrelated entries remain.
-func Logout(path string) error {
+// It reports whether any key was removed.
+func Logout(path string) (bool, error) {
 	return logout(path, writeLockTimeout)
 }
 
-func logout(path string, timeout time.Duration) error {
+func logout(path string, timeout time.Duration) (bool, error) {
 	root, err := openDir(path, false)
 	if errors.Is(err, os.ErrNotExist) {
-		return nil
+		return false, nil
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer func() { _ = root.Close() }()
-	return withWriteLock(root, path, timeout, func() error {
+	var removed bool
+	err = withWriteLock(root, path, timeout, func() error {
 		name := filepath.Base(path)
 		data, err := readFile(root, name)
 		if errors.Is(err, os.ErrNotExist) {
@@ -446,27 +457,33 @@ func logout(path string, timeout time.Duration) error {
 		if err != nil {
 			return err
 		}
-		return removeManaged(root, name, data)
+		removed, err = removeManaged(root, name, data)
+		return err
 	})
+	return removed, err
 }
 
 // removeManaged checks again before deleting, so a changed file is rewritten
 // from its latest contents rather than removing unrelated entries. The caller
 // holds the write lock; writers bypassing that protocol cannot be serialized.
-func removeManaged(root *os.Root, name string, original []byte) error {
+func removeManaged(root *os.Root, name string, original []byte) (bool, error) {
 	current, err := readFile(root, name)
 	if errors.Is(err, os.ErrNotExist) {
-		return nil
+		return false, nil
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
 	data := rewrite(current, nil)
+	if bytes.Equal(data, current) {
+		return false, nil
+	}
 	if len(data) != 0 || !bytes.Equal(current, original) {
-		return replace(root, name, data)
+		err = replace(root, name, data)
+		return err == nil, err
 	}
 	if err = root.Remove(name); err != nil {
-		return fmt.Errorf("delete credentials file")
+		return false, fmt.Errorf("delete credentials file")
 	}
-	return nil
+	return true, nil
 }

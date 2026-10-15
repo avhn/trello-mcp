@@ -104,7 +104,7 @@ func TestHeldWriteLock(t *testing.T) {
 	}
 	for _, operation := range []func() error{
 		func() error { return save(path, synthetic(), 20*time.Millisecond) },
-		func() error { return logout(path, 20*time.Millisecond) },
+		func() error { _, err := logout(path, 20*time.Millisecond); return err },
 	} {
 		err := operation()
 		if err == nil || !strings.Contains(err.Error(), "timed out") || !strings.Contains(err.Error(), lockPath) || !strings.Contains(err.Error(), "never auto-stolen") || !strings.Contains(err.Error(), "manually remove") {
@@ -143,7 +143,7 @@ func TestWriteLockReleasedAfterFailure(t *testing.T) {
 	}
 	for _, operation := range []func() error{
 		func() error { return Save(path, synthetic()) },
-		func() error { return Logout(path) },
+		func() error { _, err := Logout(path); return err },
 	} {
 		if err := operation(); err == nil {
 			t.Fatal("nonregular target accepted")
@@ -204,7 +204,8 @@ func TestLogoutChangedAfterRead(t *testing.T) {
 				if err := replace(root, name, []byte(changed)); err != nil {
 					return err
 				}
-				return removeManaged(root, name, original)
+				_, err = removeManaged(root, name, original)
+				return err
 			})
 			if err != nil {
 				t.Fatal(err)
