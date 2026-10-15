@@ -44,7 +44,7 @@ FONT = {
 WIDTH, HEIGHT = 1200, 630
 
 
-def render():
+def render_scanlines():
     background = (17, 29, 27)
     ink = (230, 243, 227)
     accent = (164, 214, 171)
@@ -80,15 +80,55 @@ def render():
     text('CLAUDE + CODEX + CHATGPT', 82, 525, 4, accent)
     text('AVHN.GITHUB.IO/TRELLO-MCP', 82, 581, 2, muted)
 
+    stride = WIDTH * 3
+    return b''.join(b'\x00' + pixels[y * stride:(y + 1) * stride] for y in range(HEIGHT))
+
+
+def render():
     def chunk(kind, data):
         return (struct.pack('!I', len(data)) + kind + data
                 + struct.pack('!I', zlib.crc32(kind + data) & 0xffffffff))
 
-    stride = WIDTH * 3
-    scanlines = b''.join(b'\x00' + pixels[y * stride:(y + 1) * stride] for y in range(HEIGHT))
     header = struct.pack('!IIBBBBB', WIDTH, HEIGHT, 8, 2, 0, 0, 0)
     return (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', header)
-            + chunk(b'IDAT', zlib.compress(scanlines, 9)) + chunk(b'IEND', b''))
+            + chunk(b'IDAT', zlib.compress(render_scanlines(), 9)) + chunk(b'IEND', b''))
+
+
+def read_png_scanlines(data):
+    if data[:8] != b'\x89PNG\r\n\x1a\n':
+        raise ValueError('Social card is not a PNG')
+    offset, compressed, header, ended = 8, bytearray(), None, False
+    while offset < len(data):
+        if ended or len(data) - offset < 12:
+            raise ValueError('Incomplete PNG')
+        size = struct.unpack('!I', data[offset:offset + 4])[0]
+        end = offset + size + 12
+        if end > len(data):
+            raise ValueError('Incomplete PNG')
+        kind = data[offset + 4:offset + 8]
+        payload = data[offset + 8:end - 4]
+        crc = struct.unpack('!I', data[end - 4:end])[0]
+        if zlib.crc32(kind + payload) & 0xffffffff != crc:
+            raise ValueError('Invalid PNG checksum')
+        if kind == b'IHDR':
+            if header is not None or size != 13:
+                raise ValueError('Invalid PNG header')
+            header = struct.unpack('!IIBBBBB', payload)
+        elif kind == b'IDAT':
+            compressed.extend(payload)
+        elif kind == b'IEND':
+            if ended or payload:
+                raise ValueError('Invalid PNG end')
+            ended = True
+        offset = end
+    if header != (WIDTH, HEIGHT, 8, 2, 0, 0, 0):
+        raise ValueError('Expected a 1200x630 RGB social card')
+    if not ended:
+        raise ValueError('Incomplete PNG')
+    scanlines = zlib.decompress(compressed)
+    if len(scanlines) != HEIGHT * (1 + WIDTH * 3):
+        raise ValueError('Invalid PNG pixels')
+    return scanlines
 
 
 def main():
@@ -96,12 +136,16 @@ def main():
     parser.add_argument('--check', action='store_true', help='Compare without changing files')
     args = parser.parse_args()
     path = Path(__file__).resolve().parents[2] / 'site/assets/social.png'
-    data = render()
     if args.check:
-        if not path.is_file() or path.read_bytes() != data:
-            raise SystemExit('FAIL: social.png differs from the generator')
-        print(f'PASS: social.png is reproducible ({WIDTH}x{HEIGHT}, {len(data)} bytes)')
+        try:
+            actual = read_png_scanlines(path.read_bytes())
+        except (OSError, ValueError, zlib.error) as error:
+            raise SystemExit(f'FAIL: social.png is invalid: {error}') from error
+        if actual != render_scanlines():
+            raise SystemExit('FAIL: social.png pixels differ from the generator')
+        print(f'PASS: social.png has generated pixels ({WIDTH}x{HEIGHT}, {len(actual)} scanline bytes)')
     else:
+        data = render()
         path.write_bytes(data)
         print(f'Created {path.name}: {WIDTH}x{HEIGHT}, {len(data)} bytes')
 

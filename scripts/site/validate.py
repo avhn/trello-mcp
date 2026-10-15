@@ -5,19 +5,26 @@ Parser regression checks: python3 -I scripts/site/validate.py --self-test
 """
 from collections import Counter
 from html.parser import HTMLParser
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from urllib.parse import unquote, urljoin, urlsplit
 import json
 import re
-import struct
 import sys
 import unittest
 import xml.etree.ElementTree as ET
-import zlib
 
 ROOT = Path(__file__).resolve().parents[2]
 SITE = ROOT / 'site'
 BASE = 'https://avhn.github.io/trello-mcp/'
+GENERATE_SOCIAL_SPEC = spec_from_file_location(
+    'generate_social', Path(__file__).with_name('generate_social.py'))
+if GENERATE_SOCIAL_SPEC is None or GENERATE_SOCIAL_SPEC.loader is None:
+    raise RuntimeError('Unable to load social card generator')
+GENERATE_SOCIAL = module_from_spec(GENERATE_SOCIAL_SPEC)
+GENERATE_SOCIAL_SPEC.loader.exec_module(GENERATE_SOCIAL)
+read_png_scanlines = GENERATE_SOCIAL.read_png_scanlines
+render_scanlines = GENERATE_SOCIAL.render_scanlines
 VOID = set('area base br col embed hr img input link meta param source track wbr'.split())
 CAPTURE = set('title h1 h2 h3 p pre td th dt dd'.split())
 
@@ -148,25 +155,7 @@ def page_url(file):
 
 
 def validate_png():
-    data = (SITE / 'assets/social.png').read_bytes()
-    require(data[:8] == b'\x89PNG\r\n\x1a\n', 'Social card is not a PNG')
-    offset, compressed, dimensions, ended = 8, bytearray(), None, False
-    while offset < len(data):
-        size = struct.unpack('!I', data[offset:offset + 4])[0]
-        kind = data[offset + 4:offset + 8]
-        payload = data[offset + 8:offset + 8 + size]
-        crc = struct.unpack('!I', data[offset + 8 + size:offset + 12 + size])[0]
-        require(zlib.crc32(kind + payload) & 0xffffffff == crc, 'Invalid PNG checksum')
-        if kind == b'IHDR':
-            dimensions = struct.unpack('!IIBBBBB', payload)
-        if kind == b'IDAT':
-            compressed.extend(payload)
-        if kind == b'IEND':
-            ended = True
-        offset += size + 12
-    require(dimensions == (1200, 630, 8, 2, 0, 0, 0), 'Expected a 1200x630 RGB social card')
-    require(ended and offset == len(data), 'Incomplete PNG')
-    require(len(zlib.decompress(compressed)) == 630 * (1 + 1200 * 3), 'Invalid PNG pixels')
+    read_png_scanlines((SITE / 'assets/social.png').read_bytes())
 
 
 def validate():
@@ -326,6 +315,10 @@ class ParserTests(unittest.TestCase):
     def test_mount_escape(self):
         with self.assertRaisesRegex(ValueError, 'escapes the project mount'):
             local_file('/other-project/', BASE)
+
+    def test_social_card_pixels_match_generator(self):
+        actual = read_png_scanlines((SITE / 'assets/social.png').read_bytes())
+        self.assertEqual(actual, render_scanlines())
 
 
 if __name__ == '__main__':
