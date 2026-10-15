@@ -2,6 +2,7 @@
 package trello
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -209,6 +210,23 @@ func retryDelay(h http.Header, attempt int) (time.Duration, error) {
 
 // Get decodes one bounded response with a total deadline and at most three 429 retries.
 func (c *Client) Get(ctx context.Context, path string, q url.Values, out any) error {
+	return c.request(ctx, http.MethodGet, path, q, nil, "", out)
+}
+
+// Write sends a JSON mutation and decodes only the caller's curated projection.
+func (c *Client) Write(ctx context.Context, method, path string, value, out any) error {
+	var data []byte
+	if value != nil {
+		var err error
+		data, err = json.Marshal(value)
+		if err != nil {
+			return fmt.Errorf("encode trello request")
+		}
+	}
+	return c.request(ctx, method, path, nil, data, "application/json", out)
+}
+
+func (c *Client) request(ctx context.Context, method, path string, q url.Values, body []byte, contentType string, out any) error {
 	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
 	members := strings.HasPrefix(path, "/members/")
@@ -222,9 +240,12 @@ func (c *Client) Get(ctx context.Context, path string, q url.Values, out any) er
 		if err := c.acquire(ctx, members); err != nil {
 			return err
 		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+path+"?"+query.Encode(), nil)
+		req, err := http.NewRequestWithContext(ctx, method, c.base+path+"?"+query.Encode(), bytes.NewReader(body))
 		if err != nil {
 			return fmt.Errorf("build Trello request: %s", c.Scrub(err.Error()))
+		}
+		if contentType != "" {
+			req.Header.Set("Content-Type", contentType)
 		}
 		resp, err := c.http.Do(req)
 		if err != nil {
@@ -258,6 +279,9 @@ func (c *Client) Get(ctx context.Context, path string, q url.Values, out any) er
 		// Error bodies can contain credentials or private data, so never surface them.
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			return fmt.Errorf("trello HTTP %d", resp.StatusCode)
+		}
+		if out == nil {
+			return nil
 		}
 		if err = json.Unmarshal(data, out); err != nil {
 			return fmt.Errorf("invalid Trello JSON response")

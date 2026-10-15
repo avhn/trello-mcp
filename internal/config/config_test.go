@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -89,5 +90,29 @@ func TestConfigDirectory(t *testing.T) {
 				t.Errorf("unexpected state path %s", c.StatePath)
 			}
 		})
+	}
+}
+
+// TestDownloadDirectory validates paths without reading credentials from the environment.
+func TestDownloadDirectory(t *testing.T) {
+	for _, dir := range []string{"", t.TempDir(), "relative/downloads"} {
+		values := map[string]string{"TRELLO_API_KEY": "synthetic-key", "TRELLO_TOKEN": "synthetic-token", "TRELLO_DOWNLOAD_DIR": dir}
+		c, err := Parse(func(k string) string { return values[k] }, func() (string, error) { return t.TempDir(), nil })
+		if dir != "" && !filepath.IsAbs(dir) {
+			if err == nil {
+				t.Error("relative download directory accepted")
+			}
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := dir
+		if want == "" {
+			want = filepath.Join(os.TempDir(), "trello-mcp")
+		}
+		if c.DownloadDir != want {
+			t.Errorf("download directory got %s; want %s", c.DownloadDir, want)
+		}
 	}
 }

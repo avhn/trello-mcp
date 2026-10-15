@@ -18,7 +18,7 @@ var identifier = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 // ValidID restricts path components to identifiers, not caller-controlled URL fragments.
 func ValidID(id string) bool { return identifier.MatchString(id) }
 
-// Access centralizes workspace and object-level authorization for read and future write tools.
+// Access centralizes workspace and object-level authorization for all scoped tools.
 type Access struct {
 	Client  *Client
 	Allowed []string
@@ -101,25 +101,46 @@ func (a *Access) Board(ctx context.Context, id string, full bool) (view.Board, e
 }
 
 // ObjectBoard resolves an object's actual parent before accepting any supplied board constraint.
-// Future comment/action, label and custom-field write handlers must use this boundary too.
 func (a *Access) ObjectBoard(ctx context.Context, kind, id, expectedBoard string) (string, error) {
 	if !ValidID(id) {
 		return "", fmt.Errorf("invalid object id")
 	}
 	var parent struct {
-		BoardID string `json:"idBoard"`
-		CardID  string `json:"idCard"`
+		BoardID   string `json:"idBoard"`
+		CardID    string `json:"idCard"`
+		ModelID   string `json:"idModel"`
+		ModelType string `json:"modelType"`
+		Data      struct {
+			Board view.Named `json:"board"`
+			Card  view.Named `json:"card"`
+		} `json:"data"`
 	}
 	fields := "idBoard"
 	switch kind {
-	case "cards", "lists":
+	case "cards", "lists", "labels":
 	case "checklists":
 		fields = "idBoard,idCard"
+	case "customFields":
+		fields = "idModel,modelType"
+	case "actions":
+		fields = "data"
 	default:
 		return "", fmt.Errorf("unsupported ownership resolver")
 	}
 	if err := a.Client.Get(ctx, "/"+kind+"/"+id, url.Values{"fields": {fields}}, &parent); err != nil {
 		return "", err
+	}
+	if kind == "customFields" && parent.ModelType == "board" {
+		parent.BoardID = parent.ModelID
+	}
+	if kind == "actions" {
+		parent.BoardID = parent.Data.Board.ID
+		if !ValidID(parent.Data.Card.ID) {
+			return "", fmt.Errorf("action card unverifiable")
+		}
+		if _, err := a.ObjectBoard(ctx, "cards", parent.Data.Card.ID, parent.BoardID); err != nil {
+			return "", err
+		}
 	}
 	if parent.BoardID == "" && kind == "checklists" && ValidID(parent.CardID) {
 		return a.ObjectBoard(ctx, "cards", parent.CardID, expectedBoard)
