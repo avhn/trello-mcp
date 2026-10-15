@@ -1,4 +1,4 @@
-// Optional local browser checks. No packages or runtime site JS.
+// Optional local browser checks. No packages; the only site JS is the local deferred copy.js.
 // Usage: node scripts/site/check_browser.mjs /path/to/chromium
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -11,7 +11,11 @@ const site = join(root, 'site');
 const executable = process.argv[2];
 if (!executable) throw new Error('Pass a Chromium executable path');
 const profile = await mkdtemp(join(root, '.browser-'));
-const types = { '.html': 'text/html', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png' };
+const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png' };
+// Exact same-origin request allowlist: the five pages, the missing-page 404 and four shared assets.
+const allowedPaths = new Set(['/trello-mcp/', '/trello-mcp/setup/', '/trello-mcp/tools/', '/trello-mcp/security/',
+  '/trello-mcp/404.html', '/trello-mcp/missing-page/', '/trello-mcp/assets/style.css', '/trello-mcp/assets/copy.js',
+  '/trello-mcp/assets/favicon.svg']);
 const server = createServer(async (request, response) => {
   let path = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
   let status = 200;
@@ -45,6 +49,105 @@ const timeout = setTimeout(() => {
   browser?.kill('SIGTERM');
   process.exitCode = 1;
 }, 60000);
+
+function command(method, params = {}, useSession = true) {
+  return new Promise((resolve, reject) => {
+    const id = ++nextId;
+    pending.set(id, { resolve, reject });
+    socket.send(JSON.stringify({ id, method, params, ...(useSession && session ? { sessionId: session } : {}) }));
+  });
+}
+async function evaluate(expression) {
+  const result = await command('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
+  if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails));
+  return result.result.value;
+}
+async function navigate(url) {
+  const loaded = new Promise(resolve => listeners.set('Page.loadEventFired', resolve));
+  await command('Page.navigate', { url });
+  await loaded;
+}
+async function press(key, code, keyCode, text) {
+  const base = { key, code, windowsVirtualKeyCode: keyCode, nativeVirtualKeyCode: keyCode };
+  await command('Input.dispatchKeyEvent', { type: 'keyDown', ...base, ...(text ? { text } : {}) });
+  await command('Input.dispatchKeyEvent', { type: 'keyUp', ...base });
+}
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+// One representative page at one viewport. The clipboard is a synthetic stub, never the machine clipboard.
+async function copyChecks(origin) {
+  const width = 1024;
+  await command('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+  const stub = await command('Page.addScriptToEvaluateOnNewDocument', { source: `
+    window.__copied = [];
+    window.__mode = 'ok';
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
+      writeText: text => window.__mode === 'reject' ? Promise.reject(new Error('denied')) : (window.__copied.push(text), Promise.resolve()),
+    } });` });
+  const url = `${origin}/trello-mcp/setup/`;
+  await navigate(url);
+  const shape = await evaluate(`(() => {
+    const codes = [...document.querySelectorAll('pre > code')];
+    const buttons = [...document.querySelectorAll('button.copy')];
+    return {
+      codes: codes.length, buttons: buttons.length,
+      typed: buttons.every(b => b.type === 'button' && !b.closest('pre') && b.getAttribute('aria-label')),
+      paired: codes.every(c => c.parentElement.previousElementSibling?.matches('button.copy')),
+      labels: new Set(buttons.map(b => b.getAttribute('aria-label'))).size,
+      live: !!document.querySelector('[role=status][aria-live=polite]'),
+      leaked: codes.some(c => /\\bCopy\\b|Copied/.test(c.textContent)),
+    };
+  })()`);
+  assert(shape.codes > 10 && shape.codes === shape.buttons, `Copy buttons do not cover every code block: ${JSON.stringify(shape)}`);
+  assert(shape.typed && shape.paired && shape.live && !shape.leaked && shape.labels === shape.buttons, `Copy markup is wrong: ${JSON.stringify(shape)}`);
+  const exact = await evaluate(`(async () => {
+    const codes = [...document.querySelectorAll('pre > code')];
+    const buttons = [...document.querySelectorAll('button.copy')];
+    const wait = () => new Promise(r => setTimeout(r, 20));
+    const failures = [];
+    for (let i = 0; i < codes.length; i++) {
+      buttons[i].click();
+      await wait();
+      if (window.__copied.at(-1) !== codes[i].textContent) failures.push('text ' + i);
+      if (buttons[i].textContent !== 'Copied') failures.push('label ' + i);
+    }
+    const before = window.__copied.length;
+    buttons[0].click(); buttons[0].click();
+    await wait();
+    return { failures, repeat: window.__copied.length - before, status: document.querySelector('[role=status]').textContent };
+  })()`);
+  assert(!exact.failures.length, `Copied text differs from code text: ${exact.failures.join(', ')}`);
+  assert(exact.repeat === 2 && exact.status.startsWith('Copied'), `Repeat clicks failed: ${JSON.stringify(exact)}`);
+  // Real key events on the focused button.
+  await evaluate(`(() => { window.__copied.length = 0; document.querySelector('button.copy').focus(); })()`);
+  await press('Enter', 'Enter', 13, '\r');
+  await new Promise(r => setTimeout(r, 50));
+  await press(' ', 'Space', 32, ' ');
+  await new Promise(r => setTimeout(r, 50));
+  const keyboard = await evaluate(`({ count: window.__copied.length, focused: document.activeElement.matches('button.copy') })`);
+  assert(keyboard.count === 2 && keyboard.focused, `Keyboard activation failed: ${JSON.stringify(keyboard)}`);
+  // Clipboard rejection and an absent API give honest manual guidance, never a false success.
+  for (const mode of ['reject', 'absent']) {
+    const outcome = await evaluate(`(async () => {
+      ${mode === 'reject' ? "window.__mode = 'reject';" : "Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });"}
+      const button = document.querySelector('button.copy');
+      button.click();
+      await new Promise(r => setTimeout(r, 20));
+      return { label: button.textContent, status: document.querySelector('[role=status]').textContent };
+    })()`);
+    assert(outcome.label === 'Copy' && /manually/.test(outcome.status) && !/^Copied/.test(outcome.status), `${mode}: ${JSON.stringify(outcome)}`);
+  }
+  await command('Page.removeScriptToEvaluateOnNewDocument', { identifier: stub.identifier });
+  // Without JavaScript the code stays readable and selectable.
+  await command('Emulation.setScriptExecutionDisabled', { value: true });
+  await navigate(url);
+  const plain = await evaluate(`({ pre: document.querySelectorAll('pre > code').length, buttons: document.querySelectorAll('button').length,
+    select: [...document.querySelectorAll('pre')].every(p => getComputedStyle(p).userSelect !== 'none'),
+    width: document.documentElement.scrollWidth })`);
+  await command('Emulation.setScriptExecutionDisabled', { value: false });
+  assert(plain.pre === shape.codes && plain.buttons === 0 && plain.select && plain.width <= width, `No-JS rendering failed: ${JSON.stringify(plain)}`);
+}
 
 try {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -85,19 +188,12 @@ try {
       listeners.delete(data.method);
     }
   });
-  function command(method, params = {}, useSession = true) {
-    return new Promise((resolve, reject) => {
-      const id = ++nextId;
-      pending.set(id, { resolve, reject });
-      socket.send(JSON.stringify({ id, method, params, ...(useSession && session ? { sessionId: session } : {}) }));
-    });
-  }
   const target = await command('Target.createTarget', { url: 'about:blank' }, false);
   session = (await command('Target.attachToTarget', { targetId: target.targetId, flatten: true }, false)).sessionId;
   await command('Page.enable');
   await command('Runtime.enable');
   await command('Network.enable');
-  const paths = ['', 'install/', 'clients/', 'tools/', 'security/', 'faq/', '404.html', 'missing-page/'];
+  const paths = ['', 'setup/', 'tools/', 'security/', '404.html', 'missing-page/'];
   const widths = [320, 390, 420, 421, 760, 761, 768, 1440];
   let checked = 0;
   for (const color of ['light', 'dark']) {
@@ -159,7 +255,7 @@ try {
         if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails));
         const value = result.result.value;
         if (value.documentWidth > width || value.bodyWidth > width || value.h1 !== 1 || value.contrast < 4.5 ||
-            value.headerTargetCount !== 6 || value.headerTargetFailures.length || value.headerSpacingFailures.length) {
+            value.headerTargetCount !== 4 || value.headerTargetFailures.length || value.headerSpacingFailures.length) {
           throw new Error(`${color} ${width}px ${path || '/'}: ${JSON.stringify(value)}`);
         }
         if (path === 'missing-page/' && value.title !== 'Page Not Found | trello-mcp') {
@@ -169,11 +265,14 @@ try {
       }
     }
   }
-  if ([...requests].some(url => !url.startsWith(origin + '/'))) throw new Error('Unexpected external page request');
+  await copyChecks(origin);
+  const unexpected = [...requests].filter(url => !(url.startsWith(origin + '/') && allowedPaths.has(new URL(url).pathname)));
+  if (unexpected.length) throw new Error(`Unexpected page requests: ${unexpected.join(', ')}`);
   if (errors.length) throw new Error(`Browser errors: ${errors.join(', ')}`);
   console.log(`PASS: ${checked} browser checks at ${widths.join('/')}px in light/dark mode, no horizontal overflow, sampled text contrast >= 4.5:1`);
   console.log('PASS: all header links have >= 44x44px targets and >= 4px separation');
-  console.log('PASS: custom 404 keeps project-root assets; no external page requests or browser exceptions');
+  console.log('PASS: custom 404 keeps project-root assets; requests match the same-origin allowlist; no browser exceptions');
+  console.log('PASS: setup page copy buttons cover every code block with exact text, repeat clicks, Enter/Space, rejection, missing API and no-JS reading');
 } finally {
   clearTimeout(timeout);
   socket?.close();

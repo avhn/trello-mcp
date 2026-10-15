@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set up trello-mcp for Claude, Codex and more</title>
+<meta name="description" content="Install the trello-mcp binary, register it with Claude Code, Claude Desktop, Codex, ChatGPT desktop, OpenCode, Cursor or VS Code, and verify it without secrets.">
+<link rel="canonical" href="https://avhn.github.io/trello-mcp/setup/">
+<meta name="theme-color" content="#176249">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Set up trello-mcp for Claude, Codex and more">
+<meta property="og:description" content="Install the trello-mcp binary, register it with Claude Code, Claude Desktop, Codex, ChatGPT desktop, OpenCode, Cursor or VS Code, and verify it without secrets.">
+<meta property="og:url" content="https://avhn.github.io/trello-mcp/setup/">
+<meta property="og:image" content="https://avhn.github.io/trello-mcp/assets/social.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="trello-mcp: a local Trello MCP server in Go. Compact responses. Workspace allowlist. Read-only opt-in.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Set up trello-mcp for Claude, Codex and more">
+<meta name="twitter:description" content="Install the trello-mcp binary, register it with Claude Code, Claude Desktop, Codex, ChatGPT desktop, OpenCode, Cursor or VS Code, and verify it without secrets.">
+<meta name="twitter:image" content="https://avhn.github.io/trello-mcp/assets/social.png">
+<meta name="twitter:image:alt" content="trello-mcp: a local Trello MCP server in Go. Compact responses. Workspace allowlist. Read-only opt-in.">
+<link rel="icon" href="/trello-mcp/assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/trello-mcp/assets/style.css">
+<script src="/trello-mcp/assets/copy.js" defer></script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","@id":"https://avhn.github.io/trello-mcp/#software","name":"trello-mcp","url":"https://avhn.github.io/trello-mcp/","description":"A local Trello MCP server in Go with compact curated responses, workspace restrictions and read-only opt-in.","operatingSystem":"Linux, macOS, Windows","applicationCategory":"DeveloperApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://github.com/avhn/trello-mcp/blob/main/LICENSE","softwareVersion":"0.5.0","downloadUrl":"https://github.com/avhn/trello-mcp/releases","codeRepository":"https://github.com/avhn/trello-mcp","programmingLanguage":"Go"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://avhn.github.io/trello-mcp/"},{"@type":"ListItem","position":2,"name":"Setup","item":"https://avhn.github.io/trello-mcp/setup/"}]}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<header class="site-header"><div class="wrap header-inner"><a class="brand" href="/trello-mcp/"><svg width="30" height="30" viewBox="0 0 32 32" data-mark="tm" fill="none" aria-hidden="true" focusable="false"><rect width="32" height="32" rx="8" fill="currentColor"/><path d="M4 9h10m-5 0v15m8 0V9l5 7 5-7v15" stroke="var(--bg)" stroke-width="2" stroke-linejoin="round"/></svg><span>trello-mcp</span></a><nav class="site-nav" aria-label="Main navigation"><a href="/trello-mcp/setup/" aria-current="page">Setup</a><a href="/trello-mcp/tools/">Tools</a><a href="/trello-mcp/security/">Security</a></nav></div></header>
+<main id="main" class="wrap prose">
+<nav class="breadcrumb" aria-label="Breadcrumb"><ol><li><a href="/trello-mcp/">Home</a></li><li aria-current="page">Setup</li></ol></nav>
+<div data-mirror="setup">
+<h1 id="set-up-trello-mcp">Set up trello-mcp</h1>
+<p>This is the one canonical setup document. A single fetch of it is enough to install, register, verify, update, roll back and remove trello-mcp. Variables and credential details live in <a href="https://github.com/avhn/trello-mcp/blob/main/docs/configuration.md">configuration</a>; tool behavior lives in <a href="/trello-mcp/tools/">tools</a>.</p>
+<section data-section="agent">
+<h2 id="for-an-ai-agent">For an AI agent</h2>
+<p>Follow these steps in order. Resolve every path on the machine you are setting up; do not copy a username or path from an example.</p>
+<ol>
+<li>Install the binary (Install section) and resolve its absolute executable path.</li>
+<li>Register it with the user's client (Clients section). Prefer user scope; use project scope only when asked.</li>
+<li>Stop and ask the human to run <code>trello-mcp auth</code> themselves in a private terminal. Browser consent and API-key creation are human-only.</li>
+<li>Never run bare <code>trello-mcp auth</code> in a terminal you capture, and never ask for, read, print or paste an API key, token, authorization link or credential file.</li>
+<li>Ask the human to restart or reconnect the client. Until a fresh configured server starts, only <code>server_health</code> is exposed.</li>
+<li>Verify with <code>server_health</code> and <code>trello-mcp auth status</code> (Verify section). Both are secret-free.</li>
+</ol>
+<p>The same request as one paste-to-agent line:</p>
+<pre><code class="language-text">Set up trello-mcp by following https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md; ask me to run trello-mcp auth myself in a private terminal, then reconnect. Never capture authentication output.</code></pre>
+</section>
+<section data-section="install">
+<h2 id="install">Install</h2>
+<p>Linux, macOS, or Windows with a POSIX shell such as Git Bash. The installer verifies the SHA-256 checksum and installs to <code>~/.local/bin</code> (change it with <code>INSTALL_DIR</code>):</p>
+<pre><code class="language-sh">curl -fsSL https://raw.githubusercontent.com/avhn/trello-mcp/main/install.sh | sh</code></pre>
+<p>Windows PowerShell 5.1 or PowerShell 7 installs <code>trello-mcp.exe</code> to <code>%LOCALAPPDATA%\Programs\trello-mcp</code> and adds only that directory to the user PATH:</p>
+<pre><code class="language-powershell">irm https://raw.githubusercontent.com/avhn/trello-mcp/main/install.ps1 | iex</code></pre>
+<ul>
+<li>Supported binaries: Linux, macOS and Windows on amd64 and arm64. The POSIX installer on Windows supports amd64 only; use PowerShell for Windows ARM64.</li>
+<li>The POSIX installer needs <code>curl</code>, <code>tar</code> (or <code>unzip</code> for Windows archives) and <code>sha256sum</code> or <code>shasum</code>.</li>
+<li>Both installers fail closed. A missing release, missing asset, unsupported platform or failed checksum stops the install; nothing is built from source and a pinned version never becomes latest.</li>
+<li>Both accept <code>--help</code> and <code>-h</code> (PowerShell also <code>-Help</code>), and reject unknown arguments, before doing any work.</li>
+<li>Neither installer reads credentials or edits client configuration.</li>
+<li>Building from source is a separate manual choice and needs Go 1.26 or newer. It installs to <code>GOBIN</code>, normally <code>~/go/bin</code>:</li>
+</ul>
+<pre><code class="language-sh">go install github.com/avhn/trello-mcp/cmd/trello-mcp@latest</code></pre>
+<p>Resolve the absolute executable path now, because desktop clients do not inherit your shell PATH:</p>
+<pre><code class="language-sh">command -v trello-mcp || { test -x "$HOME/.local/bin/trello-mcp" && echo "$HOME/.local/bin/trello-mcp"; }</code></pre>
+<pre><code class="language-powershell">(Get-Command trello-mcp -ErrorAction SilentlyContinue).Source</code></pre>
+<p>Use the installer's printed path if the command is not on PATH. In the snippets below, replace <code>/absolute/path/to/trello-mcp</code> with that path. In JSON and TOML double every backslash on Windows, for example <code>C:\\Users\\you\\AppData\\Local\\Programs\\trello-mcp\\trello-mcp.exe</code>.</p>
+</section>
+<section data-section="auth">
+<h2 id="connect-trello">Connect Trello</h2>
+<p>This step belongs to the human, in a private terminal that no agent captures:</p>
+<pre><code class="language-sh">trello-mcp auth</code></pre>
+<ul>
+<li>Create an API key at https://trello.com/power-ups/admin when prompted, approve the Trello authorization link, then paste the token at the hidden prompt. The link contains the API key, so keep it private.</li>
+<li>Write access is the default. Use <code>trello-mcp auth --read-only</code> for a read-only token.</li>
+<li>Credentials are validated and saved to <code>~/.secrets/.trello-mcp.secret</code> (<code>%USERPROFILE%\.secrets\.trello-mcp.secret</code> on Windows). Client snippets never need credentials.</li>
+<li>Restart or reconnect the MCP client afterward. Until then the server exposes only <code>server_health</code>.</li>
+</ul>
+<p>Variables, precedence, permissions and troubleshooting are in <a href="https://github.com/avhn/trello-mcp/blob/main/docs/configuration.md">configuration</a>.</p>
+</section>
+<section data-section="clients">
+<h2 id="clients">Clients</h2>
+<div class="table-wrap"><table><thead><tr><th scope="col">Client</th><th scope="col">Platform and scope</th><th scope="col">Where</th><th scope="col">Reload</th></tr></thead><tbody>
+<tr><td>Claude Code</td><td>Linux, macOS, Windows; local, project, user</td><td><code>claude mcp add</code></td><td><code>/mcp</code></td></tr>
+<tr><td>Claude Desktop</td><td>macOS, Windows, Linux beta; user</td><td><code>claude_desktop_config.json</code></td><td>Quit and reopen</td></tr>
+<tr><td>Codex CLI and desktop</td><td>Linux, macOS, Windows; user, trusted project</td><td><code>~/.codex/config.toml</code></td><td><code>/mcp</code>, or Restart</td></tr>
+<tr><td>ChatGPT desktop</td><td>Local MCP only; user</td><td><code>~/.codex/config.toml</code></td><td>Restart</td></tr>
+<tr><td>OpenCode</td><td>Linux, macOS, Windows; user, project</td><td><code>opencode.json</code></td><td>Restart</td></tr>
+<tr><td>Cursor</td><td>Linux, macOS, Windows; user, project</td><td><code>mcp.json</code></td><td>MCP Logs panel</td></tr>
+<tr><td>VS Code</td><td>Linux, macOS, Windows; user profile, workspace</td><td><code>mcp.json</code></td><td>MCP: List Servers</td></tr>
+</tbody></table></div>
+<p>Every snippet uses saved credentials and leaves writes enabled. Merge entries into existing files instead of overwriting them. ChatGPT in a browser cannot start a local stdio server.</p>
+<h3 id="claude-code">Claude Code</h3>
+<p>User scope makes the server available in all your projects. Replace the path first:</p>
+<pre><code class="language-sh">claude mcp add --scope user --transport stdio trello -- "/absolute/path/to/trello-mcp"</code></pre>
+<p>On Windows quote the real path, for example <code>"C:\Users\you\AppData\Local\Programs\trello-mcp\trello-mcp.exe"</code>. Use <code>--scope local</code> (this project only, the default) or <code>--scope project</code> (shared through <code>.mcp.json</code>) only when you want that narrower scope. Check with <code>claude mcp list</code> and <code>/mcp</code>; after authentication run <code>/mcp reconnect all</code> or restart Claude Code.</p>
+<h3 id="claude-desktop">Claude Desktop</h3>
+<p>Merge into the user configuration file, then quit and reopen Claude Desktop:</p>
+<ul>
+<li>macOS: <code>~/Library/Application Support/Claude/claude_desktop_config.json</code></li>
+<li>Windows: <code>%APPDATA%\Claude\claude_desktop_config.json</code></li>
+<li>Linux: Anthropic offers a <a href="https://support.claude.com/en/articles/10065433-installing-claude-desktop">beta Linux build</a> for Ubuntu 22.04+ and Debian 12+ on x64 and arm64. Use Settings &gt; Developer &gt; Edit Config; no path is assumed.</li>
+</ul>
+<pre><code class="language-json">{
+  "mcpServers": {
+    "trello": {
+      "command": "/absolute/path/to/trello-mcp"
+    }
+  }
+}</code></pre>
+<h3 id="codex-cli-and-desktop">Codex CLI and desktop</h3>
+<p>Codex CLI, the Codex desktop app and the IDE extension read the same user file, <code>~/.codex/config.toml</code>. A trusted project may also use <code>.codex/config.toml</code>. Merge this table and restart Codex:</p>
+<pre><code class="language-toml">[mcp_servers.trello]
+command = "/absolute/path/to/trello-mcp"</code></pre>
+<p>Or run <code>codex mcp add trello -- "/absolute/path/to/trello-mcp"</code>. Check with <code>codex mcp list</code> or <code>/mcp</code>.</p>
+<h3 id="chatgpt-desktop">ChatGPT desktop</h3>
+<p>The ChatGPT desktop app shares <code>~/.codex/config.toml</code> with Codex for local MCP servers, so the Codex entry above is the only configuration. Restart the app after saving. Alternatively use the app's MCP settings: add a STDIO server with the same command.</p>
+<h3 id="opencode">OpenCode</h3>
+<p>Use <code>~/.config/opencode/opencode.json</code> for all projects, or <code>opencode.json</code> in a project root. Merge this entry and restart OpenCode:</p>
+<pre><code class="language-json">{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "trello": {
+      "type": "local",
+      "command": ["/absolute/path/to/trello-mcp"],
+      "enabled": true
+    }
+  }
+}</code></pre>
+<h3 id="cursor">Cursor</h3>
+<p>Use <code>~/.cursor/mcp.json</code> for all projects, or <code>.cursor/mcp.json</code> in a project. Merge this entry, then confirm the server in the MCP Logs output panel:</p>
+<pre><code class="language-json">{
+  "mcpServers": {
+    "trello": {
+      "command": "/absolute/path/to/trello-mcp"
+    }
+  }
+}</code></pre>
+<h3 id="vs-code">VS Code</h3>
+<p>For one workspace, merge into <code>.vscode/mcp.json</code>. For your user profile, run the command palette entry MCP: Open User Configuration and merge the same entry there; the profile file location is not fixed across platforms.</p>
+<pre><code class="language-json">{
+  "servers": {
+    "trello": {
+      "type": "stdio",
+      "command": "/absolute/path/to/trello-mcp"
+    }
+  }
+}</code></pre>
+<p>Use MCP: List Servers to start, stop, restart or show output.</p>
+</section>
+<section data-section="profile">
+<h2 id="optional-read-oriented-profile">Optional read-oriented profile</h2>
+<p>This profile registers ten tools: discovery, reading, local board selection and diagnostics. It omits every write tool. <code>board_use</code> still changes the local default board, so it is not wholly read-only. It is measured in the README benchmark.</p>
+<pre><code class="language-text">TRELLO_TOOLS=workspace_find,board_find,board_use,list_find,card_find,card_get,comment_find,checklist_get,checklist_items,server_health</code></pre>
+<p>Place the variable in the client's native environment setting, never in a shell export the client cannot see:</p>
+<div class="table-wrap"><table><thead><tr><th scope="col">Client</th><th scope="col">Setting</th></tr></thead><tbody>
+<tr><td>Claude Code</td><td><code>--env TRELLO_TOOLS=...</code> before the server name</td></tr>
+<tr><td>Claude Desktop, Cursor, VS Code</td><td><code>"env": {"TRELLO_TOOLS": "..."}</code> beside <code>command</code></td></tr>
+<tr><td>Codex CLI, desktop and ChatGPT desktop</td><td><code>[mcp_servers.trello.env]</code> table with <code>TRELLO_TOOLS = "..."</code></td></tr>
+<tr><td>OpenCode</td><td><code>"environment": {"TRELLO_TOOLS": "..."}</code> beside <code>command</code></td></tr>
+</tbody></table></div>
+<pre><code class="language-sh">claude mcp add --scope user --transport stdio --env TRELLO_TOOLS=workspace_find,board_find,board_use,list_find,card_find,card_get,comment_find,checklist_get,checklist_items,server_health trello -- "/absolute/path/to/trello-mcp"</code></pre>
+<pre><code class="language-toml">[mcp_servers.trello]
+command = "/absolute/path/to/trello-mcp"
+
+[mcp_servers.trello.env]
+TRELLO_TOOLS = "workspace_find,board_find,board_use,list_find,card_find,card_get,comment_find,checklist_get,checklist_items,server_health"</code></pre>
+<p>For a token that cannot write at all, authenticate with <code>trello-mcp auth --read-only</code>, or set <code>TRELLO_READ_ONLY=1</code> to hide every write and transfer tool.</p>
+</section>
+<section data-section="verify">
+<h2 id="verify">Verify</h2>
+<ol>
+<li>Ask the client to call <code>server_health</code>. With credentials it answers <code>ok</code>; without them it is the only tool and its message says to run <code>trello-mcp auth</code>.</li>
+<li>Run <code>trello-mcp --version</code> to confirm the installed release.</li>
+<li>Run <code>trello-mcp auth status</code>. It prints the credential source, username and granted scope, never a secret.</li>
+<li>Call <code>server_health</code> with <code>detail</code> set to <code>policy</code> to see the effective workspace allowlist, read-only state and enabled tool count.</li>
+<li>If a tool is hidden or refused, read the policy health before assuming the token is broken.</li>
+</ol>
+</section>
+<section data-section="lifecycle">
+<h2 id="update-roll-back-and-uninstall">Update, roll back and uninstall</h2>
+<h3 id="update">Update</h3>
+<ol>
+<li>Stop every client that runs trello-mcp.</li>
+<li>Repeat the install method you used, with the same destination: the installer command above, or <code>go install ...@latest</code>.</li>
+<li>Run <code>trello-mcp --version</code>.</li>
+<li>Reconnect or restart the client.</li>
+</ol>
+<h3 id="roll-back">Roll back</h3>
+<p>Name an exact known release. A pinned version that is missing fails instead of falling back to latest:</p>
+<pre><code class="language-sh">curl -fsSL https://raw.githubusercontent.com/avhn/trello-mcp/main/install.sh | TRELLO_MCP_VERSION=v0.4.2 sh</code></pre>
+<pre><code class="language-powershell">$env:TRELLO_MCP_VERSION = 'v0.4.2'; irm https://raw.githubusercontent.com/avhn/trello-mcp/main/install.ps1 | iex</code></pre>
+<p>For a Go install use <code>go install github.com/avhn/trello-mcp/cmd/trello-mcp@v0.4.2</code>. Then check the version and reconnect.</p>
+<h3 id="uninstall">Uninstall</h3>
+<ol>
+<li>Optionally run <code>trello-mcp auth logout</code> first. It removes only the three Trello keys from the saved file, not environment credentials and not the token at Trello.</li>
+<li>Remove the registration: <code>claude mcp remove trello --scope user</code>, or delete the <code>trello</code> entry from each client file above and restart that client.</li>
+<li>Delete the exact binary you installed, for example <code>rm "$HOME/.local/bin/trello-mcp"</code>, or <code>trello-mcp.exe</code> in the Windows install directory.</li>
+<li>On Windows remove only the PATH entry the installer added, in your user environment variables. Leave the machine PATH alone.</li>
+<li>Optional cleanup: the selection file <code>trello-mcp/state.json</code> under your user configuration directory (<code>XDG_CONFIG_HOME</code> when set) and the download directory <code>trello-mcp</code> under your temporary directory, or <code>TRELLO_DOWNLOAD_DIR</code>.</li>
+</ol>
+<h3 id="revoke-access">Revoke access</h3>
+<p>Logout and deleting files do not revoke authorization at Trello. Revoke the token in your Trello account's authorized applications. Credentials set through client environment variables must be removed from that client's configuration. Never delete the shared <code>~/.secrets</code> directory or <code>~/.secrets.env</code>; other tools use them.</p>
+</section>
+</div>
+<p>Canonical source: <a href="https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md">raw setup.md</a> for agents, <a href="https://github.com/avhn/trello-mcp/blob/main/docs/setup.md">setup.md on GitHub</a>.</p>
+</main>
+<footer class="site-footer"><div class="wrap footer-inner"><div><p><strong>trello-mcp</strong> / Independent Go implementation. MIT licensed.</p><p>Trello is a trademark of Atlassian. trello-mcp is an independent project, not affiliated with or endorsed by Atlassian.</p></div><nav class="footer-links" aria-label="Project links"><a href="https://github.com/avhn/trello-mcp">Source</a><a href="https://github.com/avhn/trello-mcp/blob/main/LICENSE">License</a></nav></div></footer>
+</body>
+</html>

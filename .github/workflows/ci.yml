@@ -8,6 +8,17 @@ permissions:
   contents: read
 
 jobs:
+  site:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate static site, docs mirror and versions
+        run: |
+          python3 -I scripts/site/validate.py --self-test
+          python3 -I scripts/site/validate.py
+          python3 -I scripts/site/generate_social.py --check
+
   windows-installer:
     runs-on: windows-latest
     timeout-minutes: 10

@@ -3,183 +3,186 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Trello MCP Tools: Boards, Cards &amp; Attachments</title>
-<meta name="description" content="Explore all 48 trello-mcp tools for Trello boards, cards, checklists and attachments, with parameters, tool profiles and read-only behavior explained.">
+<title>Trello MCP Tool Reference</title>
+<meta name="description" content="Reference for the 48 trello-mcp tools: names, parameters, required inputs, read-only eligibility, paging and activity filters, summary and full detail.">
 <link rel="canonical" href="https://avhn.github.io/trello-mcp/tools/">
 <meta name="theme-color" content="#176249">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="trello-mcp">
-<meta property="og:locale" content="en_US">
-<meta property="og:title" content="Trello MCP Tools: Boards, Cards &amp; Attachments">
-<meta property="og:description" content="Explore all 48 trello-mcp tools for Trello boards, cards, checklists and attachments, with parameters, tool profiles and read-only behavior explained.">
+<meta property="og:title" content="Trello MCP Tool Reference">
+<meta property="og:description" content="Reference for the 48 trello-mcp tools: names, parameters, required inputs, read-only eligibility, paging and activity filters, summary and full detail.">
 <meta property="og:url" content="https://avhn.github.io/trello-mcp/tools/">
 <meta property="og:image" content="https://avhn.github.io/trello-mcp/assets/social.png">
-<meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="trello-mcp: a token-efficient Trello MCP server in Go. Local stdio. Workspace allowlist. Read-only opt-in.">
+<meta property="og:image:alt" content="trello-mcp: a local Trello MCP server in Go. Compact responses. Workspace allowlist. Read-only opt-in.">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Trello MCP Tools: Boards, Cards &amp; Attachments">
-<meta name="twitter:description" content="Explore all 48 trello-mcp tools for Trello boards, cards, checklists and attachments, with parameters, tool profiles and read-only behavior explained.">
+<meta name="twitter:title" content="Trello MCP Tool Reference">
+<meta name="twitter:description" content="Reference for the 48 trello-mcp tools: names, parameters, required inputs, read-only eligibility, paging and activity filters, summary and full detail.">
 <meta name="twitter:image" content="https://avhn.github.io/trello-mcp/assets/social.png">
-<meta name="twitter:image:alt" content="trello-mcp: a token-efficient Trello MCP server in Go. Local stdio. Workspace allowlist. Read-only opt-in.">
+<meta name="twitter:image:alt" content="trello-mcp: a local Trello MCP server in Go. Compact responses. Workspace allowlist. Read-only opt-in.">
 <link rel="icon" href="/trello-mcp/assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/trello-mcp/assets/style.css">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","@id":"https://avhn.github.io/trello-mcp/#software","name":"trello-mcp","url":"https://avhn.github.io/trello-mcp/","description":"A token-efficient Trello MCP server in Go, using local stdio with workspace restrictions and read-only opt-in.","operatingSystem":"Linux, macOS, Windows","applicationCategory":"DeveloperApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://github.com/avhn/trello-mcp/blob/main/LICENSE","softwareVersion":"0.4.0","downloadUrl":"https://github.com/avhn/trello-mcp/releases","codeRepository":"https://github.com/avhn/trello-mcp","programmingLanguage":"Go","image":"https://avhn.github.io/trello-mcp/assets/social.png"}</script>
+<script src="/trello-mcp/assets/copy.js" defer></script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","@id":"https://avhn.github.io/trello-mcp/#software","name":"trello-mcp","url":"https://avhn.github.io/trello-mcp/","description":"A local Trello MCP server in Go with compact curated responses, workspace restrictions and read-only opt-in.","operatingSystem":"Linux, macOS, Windows","applicationCategory":"DeveloperApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://github.com/avhn/trello-mcp/blob/main/LICENSE","softwareVersion":"0.5.0","downloadUrl":"https://github.com/avhn/trello-mcp/releases","codeRepository":"https://github.com/avhn/trello-mcp","programmingLanguage":"Go"}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://avhn.github.io/trello-mcp/"},{"@type":"ListItem","position":2,"name":"Tools","item":"https://avhn.github.io/trello-mcp/tools/"}]}</script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to main content</a>
-<header class="site-header"><div class="wrap header-inner"><a class="brand" href="/trello-mcp/"><svg width="30" height="30" viewBox="0 0 32 32" data-mark="tm" fill="none" aria-hidden="true" focusable="false"><rect width="32" height="32" rx="8" fill="currentColor"/><path d="M4 9h10m-5 0v15m8 0V9l5 7 5-7v15" stroke="var(--bg)" stroke-width="2" stroke-linejoin="round"/></svg><span>trello-mcp</span></a><nav class="site-nav" aria-label="Main navigation"><a href="/trello-mcp/install/">Install</a><a href="/trello-mcp/clients/">Clients</a><a href="/trello-mcp/tools/" aria-current="page">Tools</a><a href="/trello-mcp/security/">Security</a><a href="/trello-mcp/faq/">FAQ</a></nav></div></header>
+<header class="site-header"><div class="wrap header-inner"><a class="brand" href="/trello-mcp/"><svg width="30" height="30" viewBox="0 0 32 32" data-mark="tm" fill="none" aria-hidden="true" focusable="false"><rect width="32" height="32" rx="8" fill="currentColor"/><path d="M4 9h10m-5 0v15m8 0V9l5 7 5-7v15" stroke="var(--bg)" stroke-width="2" stroke-linejoin="round"/></svg><span>trello-mcp</span></a><nav class="site-nav" aria-label="Main navigation"><a href="/trello-mcp/setup/">Setup</a><a href="/trello-mcp/tools/" aria-current="page">Tools</a><a href="/trello-mcp/security/">Security</a></nav></div></header>
 <main id="main" class="wrap">
 <nav class="breadcrumb" aria-label="Breadcrumb"><ol><li><a href="/trello-mcp/">Home</a></li><li aria-current="page">Tools</li></ol></nav>
-<p class="eyebrow">Tool reference</p><h1>Trello MCP tools</h1><p class="lead">Find boards, manage cards, edit checklists and handle attachments through 48 focused Model Context Protocol tools.</p>
+<h1>Trello MCP tools</h1><p class="lead">Find boards, manage cards, edit checklists and handle attachments through 48 Model Context Protocol tools.</p>
 <p>With credentials configured, all 48 tools are available by default. Read-only mode hides 29 mutation/transfer tools, leaving 19 reads and local-selection tools eligible. Without credentials, only <code>server_health</code> is registered with a setup hint.</p>
 <nav class="toc" aria-label="Tool groups"><ul><li><a href="#workspace">Workspaces</a></li><li><a href="#board">Boards</a></li><li><a href="#list">Lists</a></li><li><a href="#card">Cards and card members</a></li><li><a href="#comment">Comments</a></li><li><a href="#checklist">Checklists and items</a></li><li><a href="#member">Board members</a></li><li><a href="#label">Labels</a></li><li><a href="#customfield">Custom fields</a></li><li><a href="#attachment">Attachments</a></li><li><a href="#server">Server diagnostics</a></li><li><a href="#parameters">Common parameters</a></li></ul></nav>
 <p>Use <code>TRELLO_TOOLS</code> to select comma-separated tool names or prefix groups. Selectors form a union, so <code>card</code> includes both card-member tools. Unknown selectors fail startup; read-only filtering still applies to explicitly selected writes. Include <code>server</code> or <code>server_health</code> for diagnostics.</p>
 <section aria-labelledby="workspace"><h2 id="workspace">Workspaces</h2><dl class="tool-list">
-<dt id="workspace_find"><code>workspace_find</code><span class="mode">Read / diagnostic</span></dt>
-<dd>Find allowed workspaces by name.<small>Parameters: <code>nameFilter</code>.</small><small>Required: none in the input schema; selection defaults and runtime checks still apply.</small></dd>
+<dt id="workspace_find"><code>workspace_find</code><span class="mode">Read</span></dt>
+<dd>Find allowed workspaces by name.<small>Parameters: <code>nameFilter</code>.</small><small>Required: none (defaults apply).</small></dd>
 <dt id="workspace_use"><code>workspace_use</code><span class="mode">Local selection</span></dt>
-<dd>Set the active workspace and clear the active board.<small>Parameters: <code>workspaceId</code>.</small><small>Required: <code>workspaceId</code>.</small></dd>
+<dd>Set the active workspace and clear the active board.<small>Parameters: <code>workspaceId</code>.</small><small>Required: <code>workspaceId</code></small></dd>
 </dl></section>
 <section aria-labelledby="board"><h2 id="board">Boards</h2><dl class="tool-list">
-<dt id="board_find"><code>board_find</code><span class="mode">Read / diagnostic</span></dt>
-<dd>Find account boards or boards in a workspace.<small>Parameters: <code>workspaceId</code>, <code>nameFilter</code>.</small><small>Required: none in the input schema; selection defaults and runtime checks still apply.</small></dd>
+<dt id="board_find"><code>board_find</code><span class="mode">Read</span></dt>
+<dd>Find account boards or boards in a workspace.<small>Parameters: <code>workspaceId</code>, <code>nameFilter</code>.</small><small>Required: none (defaults apply).</small></dd>
 <dt id="board_use"><code>board_use</code><span class="mode">Local selection</span></dt>
-<dd>Set an authorized board as the local default.<small>Parameters: <code>boardId</code>.</small><small>Required: <code>boardId</code>.</small></dd>
-<dt id="board_get"><code>board_get</code><span class="mode">Read / diagnostic</span></dt>
-<dd>Get curated summary or full board details.<small>Parameters: <code>boardId</code>, <code>detail</code>.</small><small>Required: none in the input schema; selection defaults and runtime checks still apply.</small></dd>
-<dt id="board_activity"><code>board_activity</code><span class="mode">Read / diagnostic</span></dt>
-<dd>Page board actions with since/before cursors.<small>Parameters: <code>boardId</code>, <code>limit</code>, <code>since</code>, <code>before</code>.</small><small>Required: none in the input schema; selection defaults and runtime checks still apply.</small></dd>
+<dd>Set an authorized board as the local default.<small>Parameters: <code>boardId</code>.</small><small>Required: <code>boardId</code></small></dd>
+<dt id="board_get"><code>board_get</code><span class="mode">Read</span></dt>
+<dd>Get curated summary or full board details.<small>Parameters: <code>boardId</code>, <code>detail</code>.</small><small>Required: none (defaults apply).</small></dd>
+<dt id="board_activity"><code>board_activity</code><span class="mode">Read</span></dt>
+<dd>Page board actions, newest first, with an upstream action-type <code>filter</code> (default <code>all</code>) and <code>since</code>/<code>before</code> cursors.<small>Parameters: <code>boardId</code>, <code>limit</code>, <code>since</code>, <code>before</code>, <code>filter</code>.</small><small>Required: none (defaults apply).</small></dd>
 <dt id="board_create"><code>board_create</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Create a board in an authorized workspace.<small>Parameters: <code>workspaceId</code>, <code>name</code>, <code>desc</code>, <code>defaultLists</code>.</small><small>Required: <code>name</code>.</small></dd>
+<dd>Create a board in an authorized workspace.<small>Parameters: <code>workspaceId</code>, <code>name</code>, <code>desc</code>, <code>defaultLists</code>.</small><small>Required: <code>name</code></small></dd>
 </dl></section>
 <section aria-labelledby="list"><h2 id="list">Lists</h2><dl class="tool-list">
-<dt id="list_find"><code>list_find</code><span class="mode">Read / diagnostic</span></dt>
-<dd>Find open lists on a board.<small>Parameters: <code>boardId</code>, <code>nameFilter</code>.</small><small>Required: none in the input schema; selection defaults and runtime checks still apply.</small></dd>
+<dt id="list_find"><code>list_find</code><span class="mode">Read</span></dt>
+<dd>Find open lists on a board.<small>Parameters: <code>boardId</code>, <code>nameFilter</code>.</small><small>Required: none (defaults apply).</small></dd>
 <dt id="list_create"><code>list_create</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Create a list with optional position.<small>Parameters: <code>boardId</code>, <code>name</code>, <code>pos</code>.</small><small>Required: <code>name</code>.</small></dd>
+<dd>Create a list with optional position.<small>Parameters: <code>boardId</code>, <code>name</code>, <code>pos</code>.</small><small>Required: <code>name</code></small></dd>
 <dt id="list_update"><code>list_update</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Rename, reorder, move with <code>idBoard</code>, or reopen with <code>closed: false</code>.<small>Parameters: <code>boardId</code>, <code>listId</code>, <code>name</code>, <code>pos</code>, <code>idBoard</code>, <code>closed</code>.</small><small>Required: <code>listId</code>.</small></dd>
+<dd>Rename, reorder, move with <code>idBoard</code>, or reopen with <code>closed: false</code>.<small>Parameters: <code>boardId</code>, <code>listId</code>, <code>name</code>, <code>pos</code>, <code>idBoard</code>, <code>closed</code>.</small><small>Required: <code>listId</code></small></dd>
 <dt id="list_archive"><code>list_archive</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Archive a list.<small>Parameters: <code>boardId</code>, <code>listId</code>.</small><small>Required: <code>listId</code>.</small></dd>
+<dd>Archive a list.<small>Parameters: <code>boardId</code>, <code>listId</code>.</small><small>Required: <code>listId</code></small></dd>
 <dt id="list_watch"><code>list_watch</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Subscribe or unsubscribe with <code>subscribed</code> (default true).<small>Parameters: <code>boardId</code>, <code>listId</code>, <code>subscribed</code>.</small><small>Required: <code>listId</code>.</small></dd>
+<dd>Subscribe or unsubscribe with <code>subscribed</code> (default true).<small>Parameters: <code>boardId</code>, <code>listId</code>, <code>subscribed</code>.</small><small>Required: <code>listId</code></small></dd>
 </dl></section>
 <section aria-labelledby="card"><h2 id="card">Cards and card members</h2><dl class="tool-list">
-<dt id="card_find"><code>card_find</code><span class="mode">Read / diagnostic</span></dt>
-<dd>Find board, list or assigned cards with name filtering and local paging.<small>Parameters: <code>boardId</code>, <code>listId</code>, <code>mine</code>, <code>nameFilter</code>, <code>detail</code>, <code>limit</code>, <code>before</code>.</small><small>Required: none in the input schema; selection defaults and runtime checks still apply.</small></dd>
-<dt id="card_get"><code>card_get</code><span class="mode">Read / diagnostic</span></dt>
-<dd>Get a card with optional full detail, extras or markdown.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>detail</code>, <code>view</code>, <code>extraFields</code>.</small><small>Required: <code>cardId</code>.</small></dd>
-<dt id="card_history"><code>card_history</code><span class="mode">Read / diagnostic</span></dt>
-<dd>Page card actions with an action-type filter.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>limit</code>, <code>before</code>, <code>since</code>, <code>filter</code>.</small><small>Required: <code>cardId</code>.</small></dd>
+<dt id="card_find"><code>card_find</code><span class="mode">Read</span></dt>
+<dd>Find board, list or assigned cards; names are filtered before paging a local snapshot. Summary detail omits <code>url</code>.<small>Parameters: <code>boardId</code>, <code>listId</code>, <code>mine</code>, <code>nameFilter</code>, <code>detail</code>, <code>limit</code>, <code>before</code>.</small><small>Required: none (defaults apply).</small></dd>
+<dt id="card_get"><code>card_get</code><span class="mode">Read</span></dt>
+<dd>Get a card with optional full detail, extras or markdown.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>detail</code>, <code>view</code>, <code>extraFields</code>.</small><small>Required: <code>cardId</code></small></dd>
+<dt id="card_history"><code>card_history</code><span class="mode">Read</span></dt>
+<dd>Page card actions with an upstream action-type <code>filter</code>.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>limit</code>, <code>before</code>, <code>since</code>, <code>filter</code>.</small><small>Required: <code>cardId</code></small></dd>
 <dt id="card_create"><code>card_create</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Create a card in a verified list, with optional labels, members and checklist.<small>Parameters: <code>boardId</code>, <code>listId</code>, <code>name</code>, <code>desc</code>, <code>due</code>, <code>start</code>, <code>pos</code>, <code>idMembers</code>, <code>idLabels</code>, <code>checklist</code>.</small><small>Required: <code>listId</code>, <code>name</code>.</small></dd>
+<dd>Create a card in a verified list, with optional labels, members and checklist.<small>Parameters: <code>boardId</code>, <code>listId</code>, <code>name</code>, <code>desc</code>, <code>due</code>, <code>start</code>, <code>pos</code>, <code>idMembers</code>, <code>idLabels</code>, <code>checklist</code>.</small><small>Required: <code>listId</code>, <code>name</code></small></dd>
 <dt id="card_create_batch"><code>card_create_batch</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Preflight ids, then create 1-100 cards with optional checklists and per-card results.<small>Parameters: <code>boardId</code>, <code>listId</code>, <code>cards</code>.</small><small>Required: <code>listId</code>, <code>cards</code>.</small></dd>
+<dd>Preflight ids, then create 1-100 cards with optional checklists and per-card results.<small>Parameters: <code>boardId</code>, <code>listId</code>, <code>cards</code>.</small><small>Required: <code>listId</code>, <code>cards</code></small></dd>
 <dt id="card_update"><code>card_update</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Update details, labels, members, dates, archive state or position.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>name</code>, <code>desc</code>, <code>due</code>, <code>start</code>, <code>dueComplete</code>, <code>closed</code>, <code>pos</code>, <code>idMembers</code>, <code>idLabels</code>.</small><small>Required: <code>cardId</code>.</small></dd>
+<dd>Update details, labels, members, dates, archive state or position.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>name</code>, <code>desc</code>, <code>due</code>, <code>start</code>, <code>dueComplete</code>, <code>closed</code>, <code>pos</code>, <code>idMembers</code>, <code>idLabels</code>.</small><small>Required: <code>cardId</code></small></dd>
 <dt id="card_archive"><code>card_archive</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Archive a card.<small>Parameters: <code>boardId</code>, <code>cardId</code>.</small><small>Required: <code>cardId</code>.</small></dd>
+<dd>Archive a card.<small>Parameters: <code>boardId</code>, <code>cardId</code>.</small><small>Required: <code>cardId</code></small></dd>
 <dt id="card_watch"><code>card_watch</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Subscribe or unsubscribe with <code>subscribed</code> (default true).<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>subscribed</code>.</small><small>Required: <code>cardId</code>.</small></dd>
+<dd>Subscribe or unsubscribe with <code>subscribed</code> (default true).<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>subscribed</code>.</small><small>Required: <code>cardId</code></small></dd>
 <dt id="card_move"><code>card_move</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Move to <code>listId</code>, resolving and checking both boards.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>listId</code>, <code>idBoard</code>, <code>pos</code>.</small><small>Required: <code>cardId</code>, <code>listId</code>.</small></dd>
+<dd>Move to <code>listId</code>, resolving and checking both boards.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>listId</code>, <code>idBoard</code>, <code>pos</code>.</small><small>Required: <code>cardId</code>, <code>listId</code></small></dd>
 <dt id="card_copy"><code>card_copy</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Copy to <code>listId</code>, resolving and checking both boards.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>listId</code>, <code>idBoard</code>, <code>name</code>, <code>pos</code>.</small><small>Required: <code>cardId</code>, <code>listId</code>.</small></dd>
+<dd>Copy to <code>listId</code>, resolving and checking both boards.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>listId</code>, <code>idBoard</code>, <code>name</code>, <code>pos</code>.</small><small>Required: <code>cardId</code>, <code>listId</code></small></dd>
 <dt id="card_member_add"><code>card_member_add</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Assign a verified board member to a card.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>memberId</code>.</small><small>Required: <code>cardId</code>, <code>memberId</code>.</small></dd>
+<dd>Assign a verified board member to a card.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>memberId</code>.</small><small>Required: <code>cardId</code>, <code>memberId</code></small></dd>
 <dt id="card_member_remove"><code>card_member_remove</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Remove a verified board member from a card.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>memberId</code>.</small><small>Required: <code>cardId</code>, <code>memberId</code>.</small></dd>
+<dd>Remove a verified board member from a card.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>memberId</code>.</small><small>Required: <code>cardId</code>, <code>memberId</code></small></dd>
 </dl></section>
 <section aria-labelledby="comment"><h2 id="comment">Comments</h2><dl class="tool-list">
-<dt id="comment_find"><code>comment_find</code><span class="mode">Read / diagnostic</span></dt>
-<dd>Page comments on a card.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>limit</code>, <code>before</code>, <code>since</code>.</small><small>Required: <code>cardId</code>.</small></dd>
+<dt id="comment_find"><code>comment_find</code><span class="mode">Read</span></dt>
+<dd>Page comments on a card, newest first.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>limit</code>, <code>before</code>, <code>since</code>.</small><small>Required: <code>cardId</code></small></dd>
 <dt id="comment_create"><code>comment_create</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Add a comment.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>text</code>.</small><small>Required: <code>cardId</code>, <code>text</code>.</small></dd>
+<dd>Add a comment.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>text</code>.</small><small>Required: <code>cardId</code>, <code>text</code></small></dd>
 <dt id="comment_update"><code>comment_update</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Edit a verified card comment by <code>commentId</code>.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>commentId</code>, <code>text</code>.</small><small>Required: <code>cardId</code>, <code>commentId</code>, <code>text</code>.</small></dd>
+<dd>Edit a verified card comment by <code>commentId</code>.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>commentId</code>, <code>text</code>.</small><small>Required: <code>cardId</code>, <code>commentId</code>, <code>text</code></small></dd>
 <dt id="comment_delete"><code>comment_delete</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Delete a verified card comment.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>commentId</code>.</small><small>Required: <code>cardId</code>, <code>commentId</code>.</small></dd>
+<dd>Delete a verified card comment.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>commentId</code>.</small><small>Required: <code>cardId</code>, <code>commentId</code></small></dd>
 </dl></section>
 <section aria-labelledby="checklist"><h2 id="checklist">Checklists and items</h2><dl class="tool-list">
-<dt id="checklist_items"><code>checklist_items</code><span class="mode">Read / diagnostic</span></dt>
-<dd>Get items from an authorized checklist.<small>Parameters: <code>boardId</code>, <code>checklistId</code>.</small><small>Required: <code>checklistId</code>.</small></dd>
-<dt id="checklist_get"><code>checklist_get</code><span class="mode">Read / diagnostic</span></dt>
-<dd>Find a card checklist by exact name, default Acceptance Criteria.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>name</code>.</small><small>Required: <code>cardId</code>.</small></dd>
+<dt id="checklist_items"><code>checklist_items</code><span class="mode">Read</span></dt>
+<dd>Get items from an authorized checklist.<small>Parameters: <code>boardId</code>, <code>checklistId</code>.</small><small>Required: <code>checklistId</code></small></dd>
+<dt id="checklist_get"><code>checklist_get</code><span class="mode">Read</span></dt>
+<dd>Find a card checklist by exact name, default Acceptance Criteria. A miss lists up to 20 available names.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>name</code>.</small><small>Required: <code>cardId</code></small></dd>
 <dt id="checklist_create"><code>checklist_create</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Create a card checklist.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>name</code>, <code>pos</code>.</small><small>Required: <code>cardId</code>, <code>name</code>.</small></dd>
+<dd>Create a card checklist.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>name</code>, <code>pos</code>.</small><small>Required: <code>cardId</code>, <code>name</code></small></dd>
 <dt id="checklist_copy"><code>checklist_copy</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Copy <code>checklistId</code> to <code>cardId</code>, checking both boards.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>checklistId</code>, <code>name</code>, <code>pos</code>.</small><small>Required: <code>cardId</code>, <code>checklistId</code>.</small></dd>
+<dd>Copy <code>checklistId</code> to <code>cardId</code>, checking both boards.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>checklistId</code>, <code>name</code>, <code>pos</code>.</small><small>Required: <code>cardId</code>, <code>checklistId</code></small></dd>
 <dt id="checklist_item_create"><code>checklist_item_create</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Add an item, with optional position, assignee and due date.<small>Parameters: <code>boardId</code>, <code>checklistId</code>, <code>name</code>, <code>pos</code>, <code>checked</code>, <code>due</code>, <code>memberId</code>.</small><small>Required: <code>checklistId</code>, <code>name</code>.</small></dd>
-<dt id="checklist_item_find"><code>checklist_item_find</code><span class="mode">Read / diagnostic</span></dt>
-<dd>Filter a checklist's items by <code>nameFilter</code>.<small>Parameters: <code>boardId</code>, <code>checklistId</code>, <code>nameFilter</code>.</small><small>Required: <code>checklistId</code>.</small></dd>
+<dd>Add an item, with optional position, assignee and due date.<small>Parameters: <code>boardId</code>, <code>checklistId</code>, <code>name</code>, <code>pos</code>, <code>checked</code>, <code>due</code>, <code>memberId</code>.</small><small>Required: <code>checklistId</code>, <code>name</code></small></dd>
+<dt id="checklist_item_find"><code>checklist_item_find</code><span class="mode">Read</span></dt>
+<dd>Filter a checklist's items by <code>nameFilter</code>.<small>Parameters: <code>boardId</code>, <code>checklistId</code>, <code>nameFilter</code>.</small><small>Required: <code>checklistId</code></small></dd>
 <dt id="checklist_item_update"><code>checklist_item_update</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Update a verified item's name, state, position, assignee or due.<small>Parameters: <code>boardId</code>, <code>checklistId</code>, <code>itemId</code>, <code>name</code>, <code>state</code>, <code>pos</code>, <code>due</code>, <code>memberId</code>.</small><small>Required: <code>checklistId</code>, <code>itemId</code>.</small></dd>
+<dd>Update a verified item's name, state, position, assignee or due.<small>Parameters: <code>boardId</code>, <code>checklistId</code>, <code>itemId</code>, <code>name</code>, <code>state</code>, <code>pos</code>, <code>due</code>, <code>memberId</code>.</small><small>Required: <code>checklistId</code>, <code>itemId</code></small></dd>
 <dt id="checklist_item_delete"><code>checklist_item_delete</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Delete <code>itemId</code> after checking membership in <code>checklistId</code>.<small>Parameters: <code>boardId</code>, <code>checklistId</code>, <code>itemId</code>.</small><small>Required: <code>checklistId</code>, <code>itemId</code>.</small></dd>
+<dd>Delete <code>itemId</code> after checking membership in <code>checklistId</code>.<small>Parameters: <code>boardId</code>, <code>checklistId</code>, <code>itemId</code>.</small><small>Required: <code>checklistId</code>, <code>itemId</code></small></dd>
 </dl></section>
 <section aria-labelledby="member"><h2 id="member">Board members</h2><dl class="tool-list">
-<dt id="member_find"><code>member_find</code><span class="mode">Read / diagnostic</span></dt>
-<dd>Find board members by username or full name.<small>Parameters: <code>boardId</code>, <code>nameFilter</code>.</small><small>Required: none in the input schema; selection defaults and runtime checks still apply.</small></dd>
+<dt id="member_find"><code>member_find</code><span class="mode">Read</span></dt>
+<dd>Find board members by username or full name.<small>Parameters: <code>boardId</code>, <code>nameFilter</code>.</small><small>Required: none (defaults apply).</small></dd>
 </dl></section>
 <section aria-labelledby="label"><h2 id="label">Labels</h2><dl class="tool-list">
-<dt id="label_find"><code>label_find</code><span class="mode">Read / diagnostic</span></dt>
-<dd>Find board labels by name.<small>Parameters: <code>boardId</code>, <code>nameFilter</code>.</small><small>Required: none in the input schema; selection defaults and runtime checks still apply.</small></dd>
+<dt id="label_find"><code>label_find</code><span class="mode">Read</span></dt>
+<dd>Find board labels by name.<small>Parameters: <code>boardId</code>, <code>nameFilter</code>.</small><small>Required: none (defaults apply).</small></dd>
 <dt id="label_create"><code>label_create</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Create a board label.<small>Parameters: <code>boardId</code>, <code>name</code>, <code>color</code>.</small><small>Required: <code>name</code>.</small></dd>
+<dd>Create a board label.<small>Parameters: <code>boardId</code>, <code>name</code>, <code>color</code>.</small><small>Required: <code>name</code></small></dd>
 <dt id="label_update"><code>label_update</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Update a label's name or color.<small>Parameters: <code>boardId</code>, <code>labelId</code>, <code>name</code>, <code>color</code>.</small><small>Required: <code>labelId</code>.</small></dd>
+<dd>Update a label's name or color.<small>Parameters: <code>boardId</code>, <code>labelId</code>, <code>name</code>, <code>color</code>.</small><small>Required: <code>labelId</code></small></dd>
 <dt id="label_delete"><code>label_delete</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Delete an authorized label.<small>Parameters: <code>boardId</code>, <code>labelId</code>.</small><small>Required: <code>labelId</code>.</small></dd>
+<dd>Delete an authorized label.<small>Parameters: <code>boardId</code>, <code>labelId</code>.</small><small>Required: <code>labelId</code></small></dd>
 </dl></section>
 <section aria-labelledby="customfield"><h2 id="customfield">Custom fields</h2><dl class="tool-list">
-<dt id="customfield_find"><code>customfield_find</code><span class="mode">Read / diagnostic</span></dt>
-<dd>Get field definitions, types and dropdown option ids.<small>Parameters: <code>boardId</code>.</small><small>Required: none in the input schema; selection defaults and runtime checks still apply.</small></dd>
+<dt id="customfield_find"><code>customfield_find</code><span class="mode">Read</span></dt>
+<dd>Get field definitions, types and dropdown option ids.<small>Parameters: <code>boardId</code>.</small><small>Required: none (defaults apply).</small></dd>
 <dt id="customfield_set"><code>customfield_set</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Set a typed value or dropdown option, or clear a value.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>customFieldId</code>, <code>value</code>, <code>idValue</code>.</small><small>Required: <code>cardId</code>, <code>customFieldId</code>.</small></dd>
+<dd>Set a typed value or dropdown option, or clear a value.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>customFieldId</code>, <code>value</code>, <code>idValue</code>.</small><small>Required: <code>cardId</code>, <code>customFieldId</code></small></dd>
 </dl></section>
 <section aria-labelledby="attachment"><h2 id="attachment">Attachments</h2><dl class="tool-list">
-<dt id="attachment_find"><code>attachment_find</code><span class="mode">Read / diagnostic</span></dt>
-<dd>Find card attachment ids and metadata, with URLs for links only.<small>Parameters: <code>boardId</code>, <code>cardId</code>.</small><small>Required: <code>cardId</code>.</small></dd>
+<dt id="attachment_find"><code>attachment_find</code><span class="mode">Read</span></dt>
+<dd>Find card attachment ids and metadata, with URLs for links only.<small>Parameters: <code>boardId</code>, <code>cardId</code>.</small><small>Required: <code>cardId</code></small></dd>
 <dt id="attachment_add"><code>attachment_add</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Attach an HTTP(S) URL; the server does not fetch it locally.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>url</code>, <code>name</code>.</small><small>Required: <code>cardId</code>, <code>url</code>.</small></dd>
+<dd>Attach an HTTP(S) URL; the server does not fetch it locally.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>url</code>, <code>name</code>.</small><small>Required: <code>cardId</code>, <code>url</code></small></dd>
 <dt id="attachment_upload"><code>attachment_upload</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Upload a local <code>path</code> or <code>base64</code> with <code>fileName</code>.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>path</code>, <code>base64</code>, <code>fileName</code>, <code>mimeType</code>, <code>name</code>.</small><small>Required: <code>cardId</code>.</small></dd>
+<dd>Upload a local <code>path</code> or <code>base64</code> with <code>fileName</code>.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>path</code>, <code>base64</code>, <code>fileName</code>, <code>mimeType</code>, <code>name</code>.</small><small>Required: <code>cardId</code></small></dd>
 <dt id="attachment_download"><code>attachment_download</code><span class="mode">Mutation / transfer</span></dt>
-<dd>Save an uploaded attachment under the private download directory.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>attachmentId</code>.</small><small>Required: <code>cardId</code>, <code>attachmentId</code>.</small></dd>
+<dd>Save an uploaded attachment under the private download directory.<small>Parameters: <code>boardId</code>, <code>cardId</code>, <code>attachmentId</code>.</small><small>Required: <code>cardId</code>, <code>attachmentId</code></small></dd>
 </dl></section>
 <section aria-labelledby="server"><h2 id="server">Server diagnostics</h2><dl class="tool-list">
-<dt id="server_health"><code>server_health</code><span class="mode">Read / diagnostic</span></dt>
-<dd>Get basic, detailed, metadata, performance or access-policy diagnostics (<code>detail: &quot;policy&quot;</code>).<small>Parameters: <code>detail</code>.</small><small>Required: none in the input schema; selection defaults and runtime checks still apply.</small></dd>
+<dt id="server_health"><code>server_health</code><span class="mode">Read</span></dt>
+<dd>Get basic, detailed, metadata, performance or access-policy diagnostics (<code>detail: &quot;policy&quot;</code>).<small>Parameters: <code>detail</code>.</small><small>Required: none (defaults apply).</small></dd>
 </dl></section>
 <section aria-labelledby="parameters"><h2 id="parameters">Common parameters and response behavior</h2>
 <h3>Selection and ownership</h3>
-<p><code>boardId</code> defaults to the active board for board-scoped calls. For object-scoped calls, it is an optional ownership constraint; the object's actual board is resolved independently. <code>workspace_use</code> clears the active board. <code>board_use</code> selects its owning workspace too.</p>
-<p><code>card_find</code> with <code>mine: true</code> finds account-wide assigned cards and cannot be combined with <code>boardId</code> or <code>listId</code>. <code>board_create</code> requires an explicit or active workspace. Comment mutations require <code>cardId</code> and <code>commentId</code>; item mutations require <code>checklistId</code> and <code>itemId</code>.</p>
+<p><code>boardId</code> is described per tool: collection tools default to the active board, <code>board_use</code> requires it, and object-scoped tools take it only as an optional expected owning-board constraint, never authorization. <code>card_find</code> with <code>mine: true</code> finds account-wide assigned cards and cannot be combined with <code>boardId</code> or <code>listId</code>. <code>board_create</code> requires an explicit or active workspace. Comment mutations require <code>cardId</code> and <code>commentId</code>; item mutations require <code>checklistId</code> and <code>itemId</code>.</p>
 <h3>Detail and pagination</h3>
-<p><code>board_get</code>, <code>card_find</code> and <code>card_get</code> support <code>detail: "summary"</code> (default) or <code>"full"</code>. <code>card_get</code> also supports <code>view: "markdown"</code> and bounded <code>extraFields</code>: <code>stickers</code>, <code>pluginData</code>, <code>votes</code> and <code>customFieldItems</code>. Comments are fetched separately.</p>
+<p><code>board_get</code>, <code>card_find</code> and <code>card_get</code> support <code>detail: "summary"</code> (default) or <code>"full"</code>. <code>card_find</code> summary returns ids, ownership, labels, members, dates, status and a description preview of at most 200 characters, with no <code>url</code>; full adds <code>url</code>, and <code>card_get</code> keeps <code>url</code> at both levels. Filters, authorization, ids and cursors are identical in both modes. <code>card_get</code> also supports <code>view: "markdown"</code> and bounded <code>extraFields</code>. Comments are fetched separately.</p>
 <p>Collections return <code>{"items":[...],"next":"cursor"}</code>, omitting empty cursors. Cards default to 100 results (maximum 1000), comments to 20 (maximum 100), and activity/history to 20 (maximum 1000).</p>
-<p>Activity and history retain card and list ids, including <code>listId</code>, <code>listBeforeId</code> and <code>listAfterId</code> when present, alongside their curated names.</p>
 <p>Argument errors identify unknown or duplicate keys and their object location. Unknown keys list allowed keys; type errors name the field and expected type.</p>
-<p>Actions use the last action id as <code>before</code>, accept <code>since</code>, and retain curated action data. Card history also accepts an action-type <code>filter</code>. <code>card_find</code> filters names before paging a bounded local snapshot with the last card id. Missing or changed card cursors fail rather than silently restart; snapshots are not stable across calls.</p>
+<p>Activity pages use the last action id as <code>before</code> and accept <code>since</code>; both take an action id or an RFC 3339 date. <code>board_activity</code> and <code>card_history</code> accept <code>filter</code>, default <code>all</code>: either <code>all</code> alone or comma-separated action identifiers such as <code>commentCard</code>, <code>createCard</code> or <code>updateCard</code> (letters, digits and underscores, starting with a letter). The grammar is open-ended and applied upstream before paging. A full page advertises a possible next page, which can be empty.</p>
+<p>Activity, history and comments share a flat projection: <code>id</code>, <code>type</code>, <code>date</code>, <code>by</code>, then only the relevant fields. Card and list names appear when first seen in a page and whenever they change; an omitted name means the last name for that id earlier in the same page, and each new page starts fresh.</p>
+<p>The <code>card_find</code> <code>before</code> cursor is a card id from the same filtered snapshot, never a date; dates and malformed ids are rejected before any request; a valid id absent from the freshly fetched filtered snapshot is rejected. Missing or changed cursors fail rather than restart, and snapshots are not stable across calls.</p>
 <h3>Mutations and typed values</h3>
 <p>Most writes return <code>{id,name?,url?}</code> or <code>{ok:true}</code>. Card creation can also include checklist progress and an error. Batch creation preflights arguments and referenced ids, then returns zero-based per-item results. It is not transactional: later failures do not roll back earlier cards or checklists, and batch processing continues after a per-card failure.</p>
 <h3>Create a card with an ordered checklist</h3>
-<p><code>card_create</code> and each card in <code>card_create_batch</code> accept <code>checklist</code> with an optional <code>name</code> (default <code>Checklist</code>) and required <code>items</code>: 1-100 nonblank strings, each at most 4096 bytes. Items are created in order.</p>
-<pre aria-label="Card creation with an ordered checklist"><code>{"listId":"l1","name":"Sound test","checklist":{"items":["SND01","SND02"]}}</code></pre>
-<p>Success adds <code>checklist: {id,name,items:N}</code>. A checklist failure retains the card id, the checklist id if confirmed, the confirmed item count and an error naming the failed step. Single-card partial failures set MCP <code>isError</code>; batches keep per-entry error semantics. Counts exclude an ambiguous failed request, which may have succeeded upstream. Inspect with <code>checklist_get</code> and <code>checklist_item_find</code> before resuming; do not repeat card creation.</p>
+<p><code>card_create</code> and each card in <code>card_create_batch</code> accept <code>checklist</code> with an optional <code>name</code> (default <code>Checklist</code>) and required <code>items</code>: 1-100 nonblank strings, each at most 4096 bytes, created in order.</p>
+<pre><code class="language-json">{"listId":"l1","name":"Sound test","checklist":{"items":["SND01","SND02"]}}</code></pre>
+<p>Success adds <code>checklist: {id,name,items:N}</code>. A checklist failure keeps the card id, the checklist id if confirmed, the confirmed item count and an error naming the failed step; do not repeat card creation, inspect with <code>checklist_get</code> and <code>checklist_item_find</code> first.</p>
 <p><code>pos</code> accepts <code>top</code>, <code>bottom</code> or a positive number. Dates use RFC 3339. Empty <code>due</code> or <code>start</code> clears dates, and optional booleans preserve explicit false. Update tools require at least one update field.</p>
 <p>Use <code>customfield_find</code> to discover field types and dropdown option ids. <code>customfield_set</code> requires exactly one of a typed scalar <code>value</code> or dropdown <code>idValue</code>. Clear a scalar with <code>value: ""</code> or a dropdown with <code>idValue: ""</code>.</p>
+<h3>Mutation verification and partial results</h3>
+<p>Clearing <code>due</code>, <code>start</code> or a label <code>color</code> with an empty string is sent as query parameters, because an HTTP JSON null is ignored upstream; checklist item <code>due</code> and <code>memberId</code> do too. The response is checked first and requested values that come back are compared with no extra request. A GET happens only for fields the response omits. No retry follows an ambiguous transport failure, invalid success response or verification mismatch; HTTP 429 allows at most three.</p>
+<p>When the object is confirmed but a requested field is not, the result is <code>{id, error, unconfirmed}</code> and sets MCP <code>isError</code>. The mutation may have been applied, so inspect the object before repeating anything; a created card or item is never recreated to repair a partial result. In live checks Trello ignored checklist item <code>due</code> and <code>memberId</code> while still answering with a populated item, so those requests surface as partial results.</p>
+<p><code>checklist_get</code> matches an exact name. On a miss it returns an error with the searched <code>name</code>, up to 20 available <code>{id,name}</code> choices, <code>total</code> and <code>truncated</code>, and no items.</p>
 <h3>Attachment and policy checks</h3>
 <p><code>attachment_upload</code> requires exactly one confined local <code>path</code> or standard <code>base64</code>; base64 also requires <code>fileName</code>. Both upload and download have a 10 MiB cap. Local path uploads and downloads fail closed on Windows.</p>
 <p><code>server_health</code> accepts <code>basic</code>, <code>detailed</code>, <code>metadata</code>, <code>performance</code> or <code>policy</code> as <code>detail</code>. Use <code>{"detail":"policy"}</code> to inspect restrictions before treating a refusal as a token problem.</p>
-<p>Read the <a href="/trello-mcp/security/">security guide for ownership, credentials and transfer rules</a>. The <a href="https://github.com/avhn/trello-mcp/blob/main/docs/tools.md">source tool documentation</a> includes full mutation requirements and the mapping to reference server names. See <a href="/trello-mcp/clients/">client setup</a> to connect these tools to your assistant.</p>
+<p>Read the <a href="/trello-mcp/security/">security guide</a> for ownership and transfer rules, the <a href="/trello-mcp/setup/">setup guide</a> to connect a client, and the <a href="https://github.com/avhn/trello-mcp/blob/main/docs/tools.md">source tool documentation</a> for the full mutation table and reference-name mapping.</p>
 </section>
 
+
 </main>
-<footer class="site-footer"><div class="wrap footer-inner"><div><p><strong>trello-mcp</strong> / Independent Go implementation. MIT licensed.</p><p>Documentation follows current source behavior; check release notes for availability. Not the official Atlassian connector.</p><p>Trello is a trademark of Atlassian. trello-mcp is an independent project, not affiliated with or endorsed by Atlassian.</p></div><nav class="footer-links" aria-label="Project links"><a href="https://github.com/avhn/trello-mcp">Source repository</a><a href="https://github.com/avhn/trello-mcp/releases">Download releases</a><a href="https://github.com/avhn/trello-mcp/blob/main/LICENSE">MIT license</a><a href="/trello-mcp/sitemap.xml">Sitemap</a></nav></div></footer>
+<footer class="site-footer"><div class="wrap footer-inner"><div><p><strong>trello-mcp</strong> / Independent Go implementation. MIT licensed.</p><p>Trello is a trademark of Atlassian. trello-mcp is an independent project, not affiliated with or endorsed by Atlassian.</p></div><nav class="footer-links" aria-label="Project links"><a href="https://github.com/avhn/trello-mcp">Source</a><a href="https://github.com/avhn/trello-mcp/blob/main/LICENSE">License</a></nav></div></footer>
 </body>
 </html>

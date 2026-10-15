@@ -1,0 +1,11 @@
+# trello-mcp
+
+> A local Trello MCP server in Go. Stdio transport, compact curated responses, workspace allowlists and a read-only opt-in. Not the official Atlassian connector.
+
+This file is an entrypoint index. The linked documents are the references.
+
+- [Setup, one fetch for agents](https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md): install, register with seven clients, verify, update, roll back, uninstall.
+- [Tools](https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/tools.md): tool behavior, parameters and synthetic examples.
+- [Configuration](https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/configuration.md): variables, credential precedence, permissions, troubleshooting, security model.
+
+Humans run `trello-mcp auth` themselves in a private terminal. Agents must never capture authentication output or request keys, tokens or authorization links.

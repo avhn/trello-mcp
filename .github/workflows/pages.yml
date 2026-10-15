@@ -6,6 +6,14 @@ on:
     paths:
       - 'site/**'
       - 'scripts/site/**'
+      - 'README.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - 'server.json'
+      - 'internal/tools/health.go'
+      - 'internal/tools/registry.go'
+      - 'internal/tools/delivery.go'
+      - 'internal/credentials/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
