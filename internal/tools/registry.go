@@ -1,4 +1,4 @@
-// Package tools validates MCP arguments and implements the phase 1 tool domains.
+// Package tools validates MCP arguments and implements the Trello tool domains.
 package tools
 
 import (
@@ -15,7 +15,7 @@ import (
 	"github.com/avhn/trello-mcp/internal/view"
 )
 
-// Service owns domain dependencies; future write tools use the same authorization boundary.
+// Service owns domain dependencies and the shared authorization boundary.
 type Service struct {
 	access  *trello.Access
 	state   *state.Store
@@ -37,7 +37,7 @@ func New(c config.Config, client *trello.Client, store *state.Store) *Service {
 
 // definitions keeps groups derived from names so new domains can slot into registration filters.
 func (s *Service) definitions() []definition {
-	return []definition{
+	return append([]definition{
 		{name: "workspace_find", description: "Find accessible workspaces.", params: "nameFilter", call: s.workspaceFind},
 		{name: "workspace_use", description: "Set active workspace; clear active board.", params: "workspaceId", required: "workspaceId", call: s.workspaceUse},
 		{name: "board_find", description: "Find all accessible boards, including guest boards.", params: "workspaceId nameFilter", call: s.boardFind},
@@ -55,7 +55,7 @@ func (s *Service) definitions() []definition {
 		{name: "label_find", description: "Find board labels.", params: "boardId nameFilter", call: s.labelFind},
 		{name: "customfield_find", description: "Get custom-field types and dropdown option ids.", params: "boardId", call: s.customfieldFind},
 		{name: "server_health", description: "Local health: basic, detailed, metadata or performance.", params: "detail", call: s.serverHealth},
-	}
+	}, s.deliveryDefinitions()...)
 }
 
 // Register validates selectors before installing raw handlers with text-only results.

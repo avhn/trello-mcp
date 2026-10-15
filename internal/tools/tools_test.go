@@ -197,13 +197,14 @@ func TestRegistration(t *testing.T) {
 	for _, tc := range []struct {
 		selectors []string
 		count     int
-	}{{[]string{"all"}, 17}, {[]string{"card"}, 3}, {[]string{"board_get", "server"}, 2}} {
+		readOnly  bool
+	}{{[]string{"all"}, 47, false}, {[]string{"all"}, 18, true}, {[]string{"card"}, 12, false}, {[]string{"card"}, 3, true}, {[]string{"board_get", "server"}, 2, false}, {[]string{"checklist"}, 8, false}, {[]string{"attachment"}, 3, false}, {[]string{"attachment"}, 0, true}, {[]string{"card", "card_get"}, 12, false}} {
 		t.Run(strings.Join(tc.selectors, ","), func(t *testing.T) {
 			fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(500) }))
 			defer fake.Close()
 			service := testService(t, fake, nil)
 			service.config.Tools = tc.selectors
-			service.config.ReadOnly = true
+			service.config.ReadOnly = tc.readOnly
 			server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "1"}, nil)
 			if err := service.Register(server); err != nil {
 				t.Fatal(err)
@@ -234,7 +235,7 @@ func TestRegistration(t *testing.T) {
 					t.Errorf("output schema on %s", tool.Name)
 				}
 			}
-			if tc.count == 17 {
+			if tc.count == 18 {
 				response, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "server_health", Arguments: map[string]any{}})
 				if err != nil {
 					t.Fatal(err)
