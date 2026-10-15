@@ -45,7 +45,7 @@ func TestActionProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"id":"a1","type":"updateCard","date":"today","by":"synthetic","cardId":"c1","card":"Card","list":"List","listBefore":"Before","listAfter":"After","old":{"closed":false,"due":null,"name":"","pos":0},"changed":["cover","prefs"],"checklist":"Checklist","item":"Item","state":"complete","attachment":{"id":"at1","name":"File"},"label":{"id":"lb1","name":"Ready","color":"green"},"member":"teammate"}`
+	want := `{"id":"a1","type":"updateCard","date":"today","by":"synthetic","cardId":"c1","card":"Card","listId":"l1","list":"List","listBeforeId":"l1","listBefore":"Before","listAfterId":"l2","listAfter":"After","old":{"closed":false,"due":null,"name":"","pos":0},"changed":["cover","prefs"],"checklist":"Checklist","item":"Item","state":"complete","attachment":{"id":"at1","name":"File"},"label":{"id":"lb1","name":"Ready","color":"green"},"member":"teammate"}`
 	if got != want {
 		t.Errorf("got %s, want %s", got, want)
 	}
@@ -143,5 +143,34 @@ func TestActionActorFallback(t *testing.T) {
 		if got.By != tc.want || got.Member != actorName(tc.creator) {
 			t.Errorf("actor fallback: %+v, want %q", got, tc.want)
 		}
+	}
+}
+
+func TestActionPageListNames(t *testing.T) {
+	actions := []Action{
+		{Data: ActionData{Card: &Named{ID: "l1", Name: "Same"}, List: &Named{ID: "l1", Name: "Same"}, ListBefore: &Named{ID: "l1", Name: "Same"}, ListAfter: &Named{ID: "l2", Name: "Same"}}},
+		{Data: ActionData{List: &Named{ID: "l2", Name: "Same"}, ListBefore: &Named{ID: "l1", Name: "Renamed"}, ListAfter: &Named{ID: "l1", Name: "Renamed"}}},
+		{Data: ActionData{List: &Named{ID: "l1", Name: "Same"}, ListBefore: &Named{ID: "archived"}, ListAfter: &Named{Name: "No id"}}},
+		{Data: ActionData{List: &Named{Name: "No id"}}},
+	}
+	for range 2 {
+		got := ProjectActions(actions, "")
+		if got[0].Card != "Same" || got[0].List != "Same" || got[0].ListBefore != "" || got[0].ListAfter != "Same" || got[1].List != "" || got[1].ListBefore != "Renamed" || got[1].ListAfter != "" || got[2].List != "Same" || got[2].ListAfter != "No id" || got[3].List != "No id" {
+			t.Fatalf("incorrect list name deduplication: %+v", got)
+		}
+		for i, item := range got {
+			data := actions[i].Data
+			for _, ref := range []struct {
+				id     string
+				source *Named
+			}{{item.ListID, data.List}, {item.ListBeforeID, data.ListBefore}, {item.ListAfterID, data.ListAfter}} {
+				if ref.source != nil && ref.id != ref.source.ID {
+					t.Errorf("action %d lost list id: %+v", i, item)
+				}
+			}
+		}
+	}
+	if ProjectActions(actions[1:], "")[0].List != "Same" || actions[0].Data.ListBefore.Name != "Same" {
+		t.Error("list name cache crossed pages or mutated source")
 	}
 }

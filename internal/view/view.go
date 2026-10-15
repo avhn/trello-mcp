@@ -236,9 +236,9 @@ type Named struct {
 	Name string `json:"name,omitempty"`
 }
 
-// Activity is a flat, type-specific action summary. Related lists, checklist
-// items and actors need names, not repeated object ids or profile metadata.
-// Card ids remain available on every action for follow-up calls.
+// Activity is a flat, type-specific action summary. Checklist items and actors
+// need names, not repeated object ids or profile metadata. Card and list ids
+// remain available on every action for follow-up calls.
 type Activity struct {
 	ID           string         `json:"id"`
 	Type         string         `json:"type"`
@@ -247,8 +247,11 @@ type Activity struct {
 	CardID       string         `json:"cardId,omitempty"`
 	Card         string         `json:"card,omitempty"`
 	Text         string         `json:"text,omitempty"`
+	ListID       string         `json:"listId,omitempty"`
 	List         string         `json:"list,omitempty"`
+	ListBeforeID string         `json:"listBeforeId,omitempty"`
 	ListBefore   string         `json:"listBefore,omitempty"`
+	ListAfterID  string         `json:"listAfterId,omitempty"`
 	ListAfter    string         `json:"listAfter,omitempty"`
 	BoardID      string         `json:"boardId,omitempty"`
 	Old          map[string]any `json:"old,omitempty"`
@@ -298,6 +301,15 @@ func ProjectAction(a Action, boardID string) Activity {
 	if d.Card != nil {
 		out.CardID = d.Card.ID
 	}
+	if d.List != nil {
+		out.ListID = d.List.ID
+	}
+	if d.ListBefore != nil {
+		out.ListBeforeID = d.ListBefore.ID
+	}
+	if d.ListAfter != nil {
+		out.ListAfterID = d.ListAfter.ID
+	}
 	if d.Board != nil && d.Board.ID != boardID {
 		out.BoardID = d.Board.ID
 	}
@@ -326,24 +338,32 @@ func ProjectAction(a Action, boardID string) Activity {
 	return out
 }
 
-// ProjectActions emits a card's name on its first occurrence and whenever it
-// changes within this page. Every page is independently readable, with no cache
-// across requests; an omitted name means the last name for that card in this page.
+// ProjectActions emits card and list names on their first occurrence and whenever
+// they change within this page. Every page is independently readable, with no cache
+// across requests; an omitted name means the last name for that id in this page.
+// List names are shared across list, listBefore and listAfter references.
 func ProjectActions(actions []Action, boardID string) []Activity {
 	out := make([]Activity, len(actions))
-	names := make(map[string]string)
+	cards, lists := make(map[string]string), make(map[string]string)
 	for i, action := range actions {
 		item := ProjectAction(action, boardID)
-		if item.CardID != "" && item.Card != "" {
-			if names[item.CardID] == item.Card {
-				item.Card = ""
-			} else {
-				names[item.CardID] = item.Card
-			}
-		}
+		item.Card = pageName(cards, item.CardID, item.Card)
+		item.List = pageName(lists, item.ListID, item.List)
+		item.ListBefore = pageName(lists, item.ListBeforeID, item.ListBefore)
+		item.ListAfter = pageName(lists, item.ListAfterID, item.ListAfter)
 		out[i] = item
 	}
 	return out
+}
+
+func pageName(names map[string]string, id, name string) string {
+	if id != "" && name != "" {
+		if names[id] == name {
+			return ""
+		}
+		names[id] = name
+	}
+	return name
 }
 
 // Action preserves type, timestamp, actor and relevant changes for history and comments.

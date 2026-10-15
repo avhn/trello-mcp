@@ -308,15 +308,6 @@ func (c *Client) request(ctx context.Context, method, path string, q url.Values,
 		c.observe(resp.Header, members)
 		data, readErr := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
 		closeErr := resp.Body.Close()
-		if readErr != nil {
-			return fmt.Errorf("read Trello response: %s", c.Scrub(readErr.Error()))
-		}
-		if closeErr != nil {
-			return fmt.Errorf("close Trello response: %s", c.Scrub(closeErr.Error()))
-		}
-		if len(data) > maxResponseBytes {
-			return fmt.Errorf("trello response exceeds 8 MiB limit")
-		}
 		if resp.StatusCode == http.StatusTooManyRequests {
 			delay, err := retryDelay(resp.Header, attempt)
 			c.cooldown(delay, members)
@@ -333,6 +324,15 @@ func (c *Client) request(ctx context.Context, method, path string, q url.Values,
 		// Error bodies can contain credentials or private data, so never surface them.
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			return &HTTPError{StatusCode: resp.StatusCode}
+		}
+		if readErr != nil {
+			return fmt.Errorf("read Trello response: %w", transportError(readErr))
+		}
+		if closeErr != nil {
+			return fmt.Errorf("close Trello response: %w", transportError(closeErr))
+		}
+		if len(data) > maxResponseBytes {
+			return fmt.Errorf("trello response exceeds 8 MiB limit")
 		}
 		if out == nil {
 			return nil

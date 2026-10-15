@@ -203,8 +203,8 @@ counts.
 | 20 boards | ~2.17k | ~0.43k | 80.0% |
 | 30 cards in a list | ~9.27k | ~3.21k | 65.4% |
 | 20 comments | ~6.74k | ~4.31k | 36.0% |
-| 50 board actions | ~11.91k | ~4.10k | 65.5% |
-| 22 card actions | ~4.89k | ~1.36k | 72.2% |
+| 50 board actions | ~11.91k | ~4.25k | 64.3% |
+| 22 card actions | ~4.89k | ~1.37k | 72.0% |
 | Card with 20 comments | ~7.40k | ~4.46k | 39.7% |
 | Tool definitions | 57 tools, ~7.3k (static audit) | 48 tools, ~5.23k | not comparable |
 

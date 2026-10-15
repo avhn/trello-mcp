@@ -210,3 +210,94 @@ func TestRetryAfter(t *testing.T) {
 		}
 	}
 }
+
+type notifyingBody struct {
+	io.ReadCloser
+	started chan struct{}
+}
+
+func (b *notifyingBody) Read(p []byte) (int, error) {
+	if b.started != nil {
+		close(b.started)
+		b.started = nil
+	}
+	return b.ReadCloser.Read(p)
+}
+
+func TestCancelDuringResponseBody(t *testing.T) {
+	for _, deadline := range []bool{false, true} {
+		t.Run(fmt.Sprintf("deadline=%t", deadline), func(t *testing.T) {
+			bodyRead := make(chan struct{})
+			fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				w.(http.Flusher).Flush()
+				<-r.Context().Done()
+			}))
+			defer fake.Close()
+			ctx, cancel := context.WithCancel(context.Background())
+			want := context.Canceled
+			if deadline {
+				cancel()
+				ctx, cancel = context.WithTimeout(context.Background(), time.Second)
+				want = context.DeadlineExceeded
+			}
+			defer cancel()
+			hc := fake.Client()
+			transport := hc.Transport
+			hc.Transport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				resp, err := transport.RoundTrip(req)
+				if err == nil {
+					resp.Body = &notifyingBody{ReadCloser: resp.Body, started: bodyRead}
+				}
+				return resp, err
+			})
+			c := NewClient(fake.URL, "synthetic-key", "synthetic-token", hc)
+			result := make(chan error, 1)
+			go func() { result <- c.Get(ctx, "/boards/private", nil, nil) }()
+			select {
+			case <-bodyRead:
+			case err := <-result:
+				t.Fatalf("request ended before body read: %v", err)
+			}
+			if !deadline {
+				cancel()
+			}
+			err := <-result
+			if !errors.Is(err, want) {
+				t.Fatalf("body read cause lost: %v, want %v", err, want)
+			}
+			if strings.Contains(err.Error(), fake.URL) || strings.Contains(err.Error(), "private") {
+				t.Fatalf("body read error leaked request details: %v", err)
+			}
+		})
+	}
+}
+
+func TestTruncatedHTTPErrorBody(t *testing.T) {
+	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests} {
+		t.Run(fmt.Sprint(status), func(t *testing.T) {
+			var requests atomic.Int32
+			fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				requests.Add(1)
+				w.Header().Set("Content-Length", "100")
+				w.Header().Set("Retry-After", "0")
+				w.WriteHeader(status)
+				_, _ = w.Write([]byte("private body"))
+			}))
+			defer fake.Close()
+			c := NewClient(fake.URL, "synthetic-key", "synthetic-token", fake.Client())
+			err := c.Get(context.Background(), "/boards/b1", nil, nil)
+			var upstream *HTTPError
+			if !errors.As(err, &upstream) || upstream.StatusCode != status || err.Error() != (&HTTPError{StatusCode: status}).Error() {
+				t.Fatalf("HTTP diagnosis lost: %v", err)
+			}
+			wantRequests := int32(1)
+			if status == http.StatusTooManyRequests {
+				wantRequests = 4
+			}
+			if requests.Load() != wantRequests {
+				t.Errorf("requests %d, want %d", requests.Load(), wantRequests)
+			}
+		})
+	}
+}
