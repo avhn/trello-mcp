@@ -104,9 +104,11 @@ The health `detail` enum is `basic`, `detailed`, `metadata`, `performance`, `pol
 Policy denials use `{"error":"access denied by <policy>: <reason>. This is server
 policy, not a token/permission error. ..."}` and include a corrective action plus
 `server_health` with `detail "policy"`. Allowlist errors identify
-`TRELLO_ALLOWED_WORKSPACES`, configured selectors and denied board/workspace ids,
-never denied names. Unverifiable ownership explicitly fails closed. A supplied
-`boardId` mismatch reports `object <id> belongs to board <actual>, not the supplied
+`TRELLO_ALLOWED_WORKSPACES`, configured selectors and only the caller-supplied
+object id, never resolved denied board/workspace ids or names. For example:
+`card c1 is outside the allowed workspaces (allowed: team)`. Unverifiable
+ownership explicitly fails closed without exposing resolved parent ids. Only
+after the allowlist passes, a supplied `boardId` mismatch reports `object <id> belongs to board <actual>, not the supplied
 boardId <expected>`. Read-only, confined path uploads and platform transfer
 refusals follow the same format. Do not assume these failures mean a broken token.
 

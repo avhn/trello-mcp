@@ -51,7 +51,7 @@ func TestEveryWriteRejectsDeniedOwner(t *testing.T) {
 			}))
 			defer fake.Close()
 			text, failed := callTool(t, testService(t, fake, []string{"allowed"}), d.name, raw)
-			if !failed || !strings.Contains(text, "access denied by TRELLO_ALLOWED_WORKSPACES") {
+			if !failed || !strings.Contains(text, "access denied by TRELLO_ALLOWED_WORKSPACES") || strings.Contains(text, "w2") {
 				t.Fatalf("not denied at ownership boundary: %s", text)
 			}
 		})
@@ -106,8 +106,15 @@ func TestBothEndsChecked(t *testing.T) {
 				}))
 				defer fake.Close()
 				text, failed := callTool(t, testService(t, fake, []string{"w1"}), tc.tool, tc.args)
-				if !failed || !strings.Contains(text, "access denied by TRELLO_ALLOWED_WORKSPACES") || writes.Load() != 0 {
+				if !failed || !strings.Contains(text, "access denied by TRELLO_ALLOWED_WORKSPACES") || writes.Load() != 0 || strings.Contains(text, "w2") {
 					t.Fatalf("unchecked %s: %s writes=%d", denied, text, writes.Load())
+				}
+				board := "b1"
+				if denied == "destination" {
+					board = "b2"
+				}
+				if !strings.Contains(tc.args, board) && strings.Contains(text, board) {
+					t.Fatalf("denial leaked resolved board: %s", text)
 				}
 			})
 		}
@@ -139,6 +146,8 @@ func TestReferencedObjectsFailClosed(t *testing.T) {
 				switch r.URL.Path {
 				case "/boards/b1":
 					_, _ = w.Write([]byte(boardJSON))
+				case "/boards/b2":
+					_, _ = w.Write([]byte(`{"id":"b2"}`))
 				case "/cards/c1", "/cards/c2", "/lists/l1", "/checklists/cl1":
 					_, _ = w.Write([]byte(`{"idBoard":"b1","idCard":"c1"}`))
 				default:

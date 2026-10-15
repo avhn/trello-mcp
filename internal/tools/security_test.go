@@ -60,6 +60,10 @@ func TestOwnerMismatch(t *testing.T) {
 			var requests atomic.Int32
 			fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				requests.Add(1)
+				if r.URL.Path == "/boards/b2" {
+					_, _ = w.Write([]byte(`{"id":"b2"}`))
+					return
+				}
 				if r.URL.Path != "/cards/c1" {
 					t.Error("unexpected ownership request")
 				}
@@ -71,7 +75,11 @@ func TestOwnerMismatch(t *testing.T) {
 			if _, err := service.cardGet(context.Background(), a); err == nil {
 				t.Error("unverifiable/mismatched ownership accepted")
 			}
-			if requests.Load() != 1 {
+			want := int32(1)
+			if payload != `{}` {
+				want = 2
+			}
+			if requests.Load() != want {
 				t.Errorf("got %d requests", requests.Load())
 			}
 		})

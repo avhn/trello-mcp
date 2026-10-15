@@ -86,7 +86,7 @@ func (s *Service) boardFind(ctx context.Context, a arguments) (any, error) {
 			if !known {
 				_, err := s.access.Workspace(ctx, b.WorkspaceID)
 				if err != nil && !errors.Is(err, trello.ErrDenied) {
-					return nil, err
+					return nil, s.access.ScopeError(err, "board collection")
 				}
 				grant = err == nil
 				grants[b.WorkspaceID] = grant

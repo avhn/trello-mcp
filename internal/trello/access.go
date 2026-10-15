@@ -95,10 +95,7 @@ func (a *Access) Board(ctx context.Context, id string, full bool) (view.Board, e
 			return view.Board{}, OwnershipDenied("workspace for board " + id)
 		}
 		if _, err := a.Workspace(ctx, b.WorkspaceID); err != nil {
-			if errors.Is(err, ErrDenied) {
-				return view.Board{}, a.workspaceDenied("board " + id + " is in workspace " + b.WorkspaceID)
-			}
-			return view.Board{}, err
+			return view.Board{}, a.ScopeError(err, "board "+id)
 		}
 	}
 	return b, nil
@@ -142,21 +139,27 @@ func (a *Access) ObjectBoard(ctx context.Context, kind, id, expectedBoard string
 		if !ValidID(parent.Data.Card.ID) {
 			return "", OwnershipDenied("card for action " + id)
 		}
-		if _, err := a.ObjectBoard(ctx, "cards", parent.Data.Card.ID, parent.BoardID); err != nil {
-			return "", err
-		}
 	}
 	if parent.BoardID == "" && kind == "checklists" && ValidID(parent.CardID) {
-		return a.ObjectBoard(ctx, "cards", parent.CardID, expectedBoard)
+		board, err := a.ObjectBoard(ctx, "cards", parent.CardID, "")
+		if err != nil {
+			return "", a.ScopeError(err, strings.TrimSuffix(kind, "s")+" "+id)
+		}
+		parent.BoardID = board
 	}
 	if !ValidID(parent.BoardID) {
 		return "", OwnershipDenied("board for object " + id)
 	}
+	if _, err := a.Board(ctx, parent.BoardID, false); err != nil {
+		return "", a.ScopeError(err, strings.TrimSuffix(kind, "s")+" "+id)
+	}
+	if kind == "actions" {
+		if _, err := a.ObjectBoard(ctx, "cards", parent.Data.Card.ID, parent.BoardID); err != nil {
+			return "", a.ScopeError(err, strings.TrimSuffix(kind, "s")+" "+id)
+		}
+	}
 	if expectedBoard != "" && expectedBoard != parent.BoardID {
 		return "", PolicyDenied("boardId constraint", fmt.Sprintf("object %s belongs to board %s, not the supplied boardId %s; supply its owning boardId or omit the constraint", id, parent.BoardID, expectedBoard))
-	}
-	if _, err := a.Board(ctx, parent.BoardID, false); err != nil {
-		return "", err
 	}
 	return parent.BoardID, nil
 }
@@ -166,6 +169,18 @@ type workspaceDenial struct{ error }
 
 func (workspaceDenial) Unwrap() error { return ErrDenied }
 
-func (a *Access) workspaceDenied(reason string) error {
-	return workspaceDenial{PolicyDenied("TRELLO_ALLOWED_WORKSPACES", reason+", allowed: "+strings.Join(a.Allowed, ",")+"; use an allowed workspace or ask the operator to update the allowlist")}
+func (a *Access) workspaceDenied(object string) error {
+	return workspaceDenial{PolicyDenied("TRELLO_ALLOWED_WORKSPACES", object+" is outside the allowed workspaces (allowed: "+strings.Join(a.Allowed, ",")+")")}
+}
+
+// ScopeError keeps nested ownership failures limited to the caller's object, not resolved parents.
+func (a *Access) ScopeError(err error, object string) error {
+	if errors.Is(err, ErrDenied) {
+		return a.workspaceDenied(object)
+	}
+	var ownership ownershipDenial
+	if errors.As(err, &ownership) {
+		return OwnershipDenied(object)
+	}
+	return err
 }

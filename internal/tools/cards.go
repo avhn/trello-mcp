@@ -62,7 +62,7 @@ func (s *Service) cardFind(ctx context.Context, a arguments) (any, error) {
 			if !checked[c.BoardID] {
 				_, err = s.access.Board(ctx, c.BoardID, false)
 				if err != nil && !errors.Is(err, trello.ErrDenied) {
-					return nil, err
+					return nil, s.access.ScopeError(err, "card collection")
 				}
 				checked[c.BoardID] = true
 				grants[c.BoardID] = err == nil

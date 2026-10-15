@@ -25,7 +25,7 @@ func (s *Service) loadChecklist(ctx context.Context, a arguments) (view.Checklis
 		return list, trello.OwnershipDenied("checklist")
 	}
 	if _, err = s.access.ObjectBoard(ctx, "cards", list.CardID, board); err != nil {
-		return list, err
+		return list, s.access.ScopeError(err, "checklist "+id)
 	}
 	return list, nil
 }

@@ -416,9 +416,11 @@ See [docs/tools.md](docs/tools.md) for parameters and the full reference name ma
 - **Distinct denials.** Policy failures return compact `{"error":"access denied
   by <policy>: <reason>. This is server policy, not a token/permission error. ..."}`
   with a corrective action and policy-health pointer. Allowlist errors include
-  configured selectors and denied ids, never denied board/workspace names.
-  Ownership failures explicitly refuse access when ownership cannot be verified;
-  a `boardId` mismatch identifies the object's actual and supplied board ids.
+  configured selectors and only the caller-supplied object id, never resolved
+  denied board/workspace ids or names. For example: `card c1 is outside the
+  allowed workspaces (allowed: team)`. Ownership failures explicitly refuse
+  access without exposing resolved parent ids. Only after the allowlist passes
+  does a `boardId` mismatch identify the actual and supplied board ids.
   Genuine upstream HTTP failures use `trello API: HTTP <status>`; 401/403 explicitly
   identify a token/permission issue. Do not change credentials to fix server policy.
 - **Ownership checks, not caller claims.** Every scoped read and write resolves

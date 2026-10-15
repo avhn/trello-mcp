@@ -25,6 +25,8 @@ func TestAttachmentFindOwnership(t *testing.T) {
 						board = "b2"
 					}
 					_, _ = w.Write([]byte(`{"idBoard":"` + board + `"}`))
+				case "/boards/b2":
+					_, _ = w.Write([]byte(`{"id":"b2","idOrganization":"w2"}`))
 				case "/boards/b1":
 					workspace := "w1"
 					if mode == "denied" || ((mode == "board_move" || mode == "retry") && fetched.Load() > 0) {
@@ -56,6 +58,9 @@ func TestAttachmentFindOwnership(t *testing.T) {
 			out, err := s.attachmentFind(context.Background(), a)
 			if err == nil || out != nil {
 				t.Fatalf("unauthorized metadata returned: %v, %v", out, err)
+			}
+			if mode != "constraint" && (strings.Contains(err.Error(), "b1") || strings.Contains(err.Error(), "b2") || strings.Contains(err.Error(), "w2")) {
+				t.Fatalf("denial leaked resolved scope: %v", err)
 			}
 			wantFetch, wantCards := int32(1), int32(2)
 			switch mode {

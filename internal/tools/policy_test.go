@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -149,8 +150,8 @@ func TestPolicyDenialMessages(t *testing.T) {
 	for _, tc := range []struct {
 		name, tool, args, path, response, policy, reason string
 	}{
-		{"workspace", "workspace_use", `{"workspaceId":"w2"}`, "/organizations/w2", `{"id":"w2","name":"private-workspace"}`, "TRELLO_ALLOWED_WORKSPACES", "workspace w2, allowed: allowed"},
-		{"board", "board_get", `{}`, "/boards/b1", `{"id":"b1","idOrganization":"w2","name":"private-board"}`, "TRELLO_ALLOWED_WORKSPACES", "board b1 is in workspace w2, allowed: allowed"},
+		{"workspace", "workspace_use", `{"workspaceId":"w2"}`, "/organizations/w2", `{"id":"w2","name":"private-workspace"}`, "TRELLO_ALLOWED_WORKSPACES", "workspace w2 is outside the allowed workspaces (allowed: allowed)"},
+		{"board", "board_get", `{}`, "/boards/b1", `{"id":"b1","idOrganization":"w2","name":"private-board"}`, "TRELLO_ALLOWED_WORKSPACES", "board b1 is outside the allowed workspaces (allowed: allowed)"},
 		{"workspace-ownership", "workspace_use", `{"workspaceId":"w2"}`, "/organizations/w2", `{}`, "ownership verification", "workspace w2 ownership could not be verified, so policy refused"},
 		{"board-ownership", "board_get", `{}`, "/boards/b1", `{}`, "ownership verification", "board b1 ownership could not be verified, so policy refused"},
 		{"board-workspace", "board_get", `{}`, "/boards/b1", `{"id":"b1"}`, "ownership verification", "workspace for board b1 ownership could not be verified"},
@@ -240,5 +241,62 @@ func TestPolicyScrubbing(t *testing.T) {
 	err := trello.PolicyDenied("test", "test-key test-token")
 	if got := s.access.Client.Scrub(err.Error()); strings.Contains(got, "test-key") || strings.Contains(got, "test-token") {
 		t.Errorf("unsafe denial: %s", got)
+	}
+}
+
+func TestResolvedParentFailuresHideScopes(t *testing.T) {
+	for _, mode := range []string{"board-collection", "card-collection", "checklist-card"} {
+		t.Run(mode, func(t *testing.T) {
+			fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/members/me/boards":
+					_, _ = w.Write([]byte(`[{"id":"hidden-board","idOrganization":"hidden-workspace"}]`))
+				case "/members/me/cards":
+					_, _ = w.Write([]byte(`[{"id":"hidden-card","idBoard":"hidden-board"}]`))
+				case "/checklists/cl1":
+					_, _ = w.Write([]byte(`{"id":"cl1","idBoard":"b1","idCard":"hidden-card"}`))
+				case "/cards/hidden-card":
+					_, _ = w.Write([]byte(`{"idBoard":"hidden-board"}`))
+				case "/boards/b1":
+					_, _ = w.Write([]byte(boardJSON))
+				case "/organizations/w1":
+					_, _ = w.Write([]byte(workspaceJSON))
+				case "/boards/hidden-board":
+					if mode == "card-collection" {
+						_, _ = w.Write([]byte(`{}`))
+					} else {
+						_, _ = w.Write([]byte(`{"id":"hidden-board","idOrganization":"hidden-workspace"}`))
+					}
+				case "/organizations/hidden-workspace":
+					if mode == "board-collection" {
+						_, _ = w.Write([]byte(`{}`))
+					} else {
+						_, _ = w.Write([]byte(`{"id":"hidden-workspace","name":"private-name"}`))
+					}
+				default:
+					t.Errorf("unexpected route: %s", r.URL.Path)
+					w.WriteHeader(500)
+				}
+			}))
+			defer fake.Close()
+			s := testService(t, fake, []string{"allowed"})
+			var err error
+			switch mode {
+			case "board-collection":
+				_, err = s.boardFind(context.Background(), arguments{})
+			case "card-collection":
+				_, err = s.cardFind(context.Background(), arguments{mine: true})
+			case "checklist-card":
+				_, err = s.loadChecklist(context.Background(), arguments{strings: map[string]string{"checklistId": "cl1"}})
+			}
+			if err == nil {
+				t.Fatal("unverifiable or denied parent accepted")
+			}
+			for _, hidden := range []string{"hidden-board", "hidden-workspace", "hidden-card", "private-name"} {
+				if strings.Contains(err.Error(), hidden) {
+					t.Errorf("resolved parent leaked %q: %v", hidden, err)
+				}
+			}
+		})
 	}
 }

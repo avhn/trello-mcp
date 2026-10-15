@@ -44,8 +44,8 @@ func TestWriteTools(t *testing.T) {
 	loadedChecklist = append(loadedChecklist, card...)
 	member := requestSpec{"/boards/b1/members", query("fields", "id,username,fullName"), "members"}
 	comment := append(append([]requestSpec{}, card...), requestSpec{"/actions/a1", query("fields", "data"), "comment"})
-	comment = append(comment, card...)
 	comment = append(comment, boardRequests()...)
+	comment = append(comment, card...)
 	comment = append(comment, requestSpec{"/actions/a1", query("fields", "id,type,data"), "comment"})
 	batchPreflight := append(append([]requestSpec{}, list...), list...)
 	batchPreflight = append(batchPreflight, list...)
