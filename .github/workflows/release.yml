@@ -1,0 +1,55 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test with race detector
+        run: go test -race ./...
+      - name: Test installer
+        run: |
+          sh -n install.sh
+          sh tests/install_test.sh
+      - name: Build release archives
+        shell: bash
+        run: |
+          mkdir -p dist
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
+            export GOOS=${target%/*} GOARCH=${target#*/} CGO_ENABLED=0
+            directory="$RUNNER_TEMP/trello-mcp_${GOOS}_${GOARCH}"
+            mkdir -p "$directory"
+            binary=trello-mcp
+            if [ "$GOOS" = windows ]; then
+              binary=trello-mcp.exe
+            fi
+            go build -trimpath -ldflags "-s -w -X main.version=$RELEASE_TAG" \
+              -o "$directory/$binary" ./cmd/trello-mcp
+            archive="dist/trello-mcp_${GOOS}_${GOARCH}"
+            if [ "$GOOS" = windows ]; then
+              zip -j "$archive.zip" "$directory/$binary"
+            else
+              tar -czf "$archive.tar.gz" -C "$directory" "$binary"
+            fi
+          done
+          (cd dist && sha256sum *.tar.gz *.zip > checksums.txt)
+      - name: Publish GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$RELEASE_TAG" dist/*.tar.gz dist/*.zip dist/checksums.txt \
+            --verify-tag --generate-notes --title "$RELEASE_TAG"
