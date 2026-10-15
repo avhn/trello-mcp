@@ -53,7 +53,10 @@ func TestSizes(t *testing.T) {
 		case "/cards/c1":
 			name = "card_with_comments"
 		case "/cards/c1/actions":
-			name = "comments_20"
+			name = "history_22"
+			if r.URL.Query().Get("filter") == "commentCard" {
+				name = "comments_20"
+			}
 		default:
 			t.Errorf("unexpected bench path %s", r.URL.Path)
 			w.WriteHeader(500)
@@ -113,6 +116,7 @@ func TestSizes(t *testing.T) {
 		{"30 cards in a list", "cards_30", call("card_find", map[string]any{"listId": "l1"})},
 		{"20 comments", "comments_20", call("comment_find", map[string]any{"cardId": "c1", "limit": 20})},
 		{"50 board actions", "actions_50", call("board_activity", map[string]any{"limit": 50})},
+		{"22 card actions", "history_22", call("card_history", map[string]any{"cardId": "c1", "limit": 22})},
 		{"Card with 20 comments", "card_with_comments", call("card_get", map[string]any{"cardId": "c1", "detail": "full"}) + call("comment_find", map[string]any{"cardId": "c1", "limit": 20})},
 		{"Tool definitions", "", string(defs)},
 	}

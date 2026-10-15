@@ -24,14 +24,11 @@ func (s *Service) actions(ctx context.Context, path, filter, boardID string, a a
 	if len(actions) > a.limit {
 		return nil, fmt.Errorf("trello action page exceeds requested limit")
 	}
-	for i := range actions {
-		actions[i] = view.ProjectAction(actions[i], boardID)
-	}
 	next := ""
 	if len(actions) == a.limit {
 		next = actions[len(actions)-1].ID
 	}
-	return view.Collection(actions, next), nil
+	return view.Collection(view.ProjectActions(actions, boardID), next), nil
 }
 
 // boardActivity checks ownership before requesting board actions with since/before intact.

@@ -4,6 +4,7 @@ package view
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"unicode/utf8"
 )
@@ -235,39 +236,124 @@ type Named struct {
 	Name string `json:"name,omitempty"`
 }
 
-// ProjectAction removes redundant board references and bounds previous values.
-// Comment text is preserved unchanged, as in the existing comments projection.
-func ProjectAction(a Action, boardID string) Action {
-	if a.Data.Board != nil && a.Data.Board.ID == boardID {
-		a.Data.Board = nil
+// Activity is a flat, type-specific action summary. Related lists, checklist
+// items and actors need names, not repeated object ids or profile metadata.
+// Card ids remain available on every action for follow-up calls.
+type Activity struct {
+	ID           string         `json:"id"`
+	Type         string         `json:"type"`
+	Date         string         `json:"date"`
+	By           string         `json:"by,omitempty"`
+	CardID       string         `json:"cardId,omitempty"`
+	Card         string         `json:"card,omitempty"`
+	Text         string         `json:"text,omitempty"`
+	List         string         `json:"list,omitempty"`
+	ListBefore   string         `json:"listBefore,omitempty"`
+	ListAfter    string         `json:"listAfter,omitempty"`
+	BoardID      string         `json:"boardId,omitempty"`
+	Old          map[string]any `json:"old,omitempty"`
+	OldTruncated []string       `json:"oldTruncated,omitempty"`
+	Changed      []string       `json:"changed,omitempty"`
+	Checklist    string         `json:"checklist,omitempty"`
+	Item         string         `json:"item,omitempty"`
+	State        string         `json:"state,omitempty"`
+	Attachment   *Named         `json:"attachment,omitempty"`
+	Label        *Label         `json:"label,omitempty"`
+	Member       string         `json:"member,omitempty"`
+}
+
+// actorName uses the id only when Trello has no username (for example a deleted member).
+func actorName(actor *Actor) string {
+	if actor == nil {
+		return ""
 	}
-	old := make(map[string]any)
-	for _, key := range []string{"name", "desc", "closed", "due", "start", "dueComplete", "idList", "pos", "state"} {
-		value, ok := a.Data.Old[key]
-		if !ok {
-			continue
-		}
+	if actor.Username != "" {
+		return actor.Username
+	}
+	return actor.ID
+}
+
+func entityName(entity *Named) string {
+	if entity == nil {
+		return ""
+	}
+	return entity.Name
+}
+
+// ProjectAction removes redundant references and bounds old strings to 80 runes.
+// Non-scalar previous values retain their field names in changed, never raw data.
+// Comment text and entity names are preserved without additional truncation.
+func ProjectAction(a Action, boardID string) Activity {
+	d := a.Data
+	out := Activity{
+		ID: a.ID, Type: a.Type, Date: a.Date, By: actorName(a.Creator),
+		Text: d.Text, Card: entityName(d.Card), List: entityName(d.List),
+		ListBefore: entityName(d.ListBefore), ListAfter: entityName(d.ListAfter),
+		Checklist: entityName(d.Checklist), Attachment: d.Attachment,
+		Label: d.Label, Member: actorName(d.Member),
+	}
+	if out.By == "" {
+		out.By = a.CreatorID
+	}
+	if d.Card != nil {
+		out.CardID = d.Card.ID
+	}
+	if d.Board != nil && d.Board.ID != boardID {
+		out.BoardID = d.Board.ID
+	}
+	if d.CheckItem != nil {
+		out.Item, out.State = d.CheckItem.Name, d.CheckItem.State
+	}
+	if len(d.Old) > 0 {
+		out.Old = make(map[string]any, len(d.Old))
+	}
+	for key, value := range d.Old {
 		switch v := value.(type) {
 		case string:
-			if utf8.RuneCountInString(v) > 200 {
-				v = string([]rune(v)[:197]) + "..."
+			if utf8.RuneCountInString(v) > 80 {
+				v = string([]rune(v)[:80])
+				out.OldTruncated = append(out.OldTruncated, key)
 			}
-			old[key] = v
+			out.Old[key] = v
 		case nil, bool, float64:
-			old[key] = v
+			out.Old[key] = v
+		default:
+			out.Changed = append(out.Changed, key)
 		}
 	}
-	a.Data.Old = old
-	return a
+	slices.Sort(out.OldTruncated)
+	slices.Sort(out.Changed)
+	return out
+}
+
+// ProjectActions emits a card's name on its first occurrence and whenever it
+// changes within this page. Every page is independently readable, with no cache
+// across requests; an omitted name means the last name for that card in this page.
+func ProjectActions(actions []Action, boardID string) []Activity {
+	out := make([]Activity, len(actions))
+	names := make(map[string]string)
+	for i, action := range actions {
+		item := ProjectAction(action, boardID)
+		if item.CardID != "" && item.Card != "" {
+			if names[item.CardID] == item.Card {
+				item.Card = ""
+			} else {
+				names[item.CardID] = item.Card
+			}
+		}
+		out[i] = item
+	}
+	return out
 }
 
 // Action preserves type, timestamp, actor and relevant changes for history and comments.
 type Action struct {
-	ID      string     `json:"id"`
-	Type    string     `json:"type"`
-	Date    string     `json:"date"`
-	Data    ActionData `json:"data"`
-	Creator *Actor     `json:"memberCreator,omitempty"`
+	ID        string     `json:"id"`
+	Type      string     `json:"type"`
+	Date      string     `json:"date"`
+	Data      ActionData `json:"data"`
+	Creator   *Actor     `json:"memberCreator,omitempty"`
+	CreatorID string     `json:"idMemberCreator,omitempty"`
 }
 
 // Option includes dropdown ids, which callers need for customfield_set in phase 2.
