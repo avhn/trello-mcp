@@ -25,11 +25,11 @@ func TestInstructions(t *testing.T) {
 		readOnly                 bool
 		want                     []string
 	}{
-		{"unrestricted", "", "", false, []string{"workspaces unrestricted", "Read-only: no", "Path uploads: disabled", "Downloads: enabled"}},
-		{"restricted", "team,w2", "/staging", false, []string{"workspaces restricted to team,w2", "Path uploads: enabled under /staging"}},
-		{"read-only", "team", "/staging", true, []string{"Read-only: yes (write tools hidden)", "Path uploads: disabled", "Downloads: disabled"}},
-		{"long", strings.Repeat("workspace", 100), "/" + strings.Repeat("staging", 100), false, []string{"..."}},
-		{"scrubbed", "test-token", "/test-key", false, []string{"[redacted]"}},
+		{"unrestricted", "", "", false, []string{"Workspaces: unrestricted", "read-only: false", "path uploads: false", "downloads: true"}},
+		{"restricted", "team,w2", "/staging", false, []string{"Workspaces: restricted", "path uploads: true"}},
+		{"read-only", "team", "/staging", true, []string{"read-only: true", "path uploads: false", "downloads: false"}},
+		{"long", strings.Repeat("workspace", 100), "/" + strings.Repeat("staging", 100), false, []string{"Workspaces: restricted"}},
+		{"scrubbed", "test-token", "/test-key", false, []string{"Workspaces: restricted"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var allowed []string
@@ -39,20 +39,20 @@ func TestInstructions(t *testing.T) {
 			s := testService(t, fake, allowed)
 			s.config.ReadOnly, s.config.UploadDir = tc.readOnly, tc.upload
 			text := s.Instructions()
-			for _, want := range append(tc.want, "not token/permission errors", `server_health with detail "policy"`) {
+			for _, want := range append(tc.want, `server_health detail "policy"`) {
 				if !fileTransfersSupported {
-					if strings.HasPrefix(want, "Downloads: enabled") {
-						want = "Downloads: disabled"
+					if want == "downloads: true" {
+						want = "downloads: false"
 					}
-					if strings.HasPrefix(want, "Path uploads: enabled") {
-						want = "Path uploads: disabled"
+					if want == "path uploads: true" {
+						want = "path uploads: false"
 					}
 				}
 				if !strings.Contains(text, want) {
 					t.Errorf("instructions %q missing %q", text, want)
 				}
 			}
-			if utf8.RuneCountInString(text) > 400 || strings.ContainsAny(text, "\r\n") {
+			if utf8.RuneCountInString(text) > 150 || strings.ContainsAny(text, "\r\n") {
 				t.Errorf("instructions not a short paragraph (%d chars): %s", utf8.RuneCountInString(text), text)
 			}
 			for _, hidden := range []string{"test-key", "test-token", "b1", "w1"} {
@@ -79,6 +79,7 @@ func TestPolicyHealth(t *testing.T) {
 		{"resolved", []string{"allowed", "w2", "missing"}, []string{"all"}, false, false, 48, 0, `[{"selector":"allowed","id":"w1","name":"allowed"},{"selector":"w2","id":"w2","name":"second"},{"selector":"missing"}]`},
 		{"read-only", []string{"w1"}, []string{"all"}, true, false, 19, 29, `[{"selector":"w1","id":"w1","name":"allowed"}]`},
 		{"profile", nil, []string{"card", "server_health"}, true, false, 4, 9, `[]`},
+		{"read-oriented discovery", nil, strings.Split(discoveryProfile, ","), false, false, 10, 0, `[]`},
 		{"resolution-failed", []string{"w1"}, []string{"all"}, false, true, 48, 0, `[{"selector":"w1"}]`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -123,7 +124,7 @@ func TestPolicyHealth(t *testing.T) {
 					if got.Restricted != (len(tc.allowed) > 0) || got.ReadOnly != tc.readOnly || got.EnabledToolCount != tc.enabled || got.HiddenWriteTools != tc.hidden || string(got.AllowedWorkspaces) != tc.workspaces || strings.Join(got.ToolProfile, ",") != strings.Join(tc.profile, ",") {
 						t.Errorf("wrong policy: %s", text)
 					}
-					transfer := fileTransfersSupported && !tc.readOnly
+					transfer := fileTransfersSupported && !tc.readOnly && strings.Join(tc.profile, ",") == "all"
 					if got.Uploads != (transferPolicy{transfer, "/staging"}) || got.Downloads != (transferPolicy{transfer, "/downloads"}) {
 						t.Errorf("wrong transfers: %s", text)
 					}

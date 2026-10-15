@@ -9,10 +9,12 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -21,9 +23,12 @@ import (
 	"github.com/avhn/trello-mcp/internal/trello"
 )
 
+const discoveryProfile = "workspace_find,board_find,board_use,list_find,card_find,card_get,comment_find,checklist_get,checklist_items,server_health"
+
 const boardJSON = `{"id":"b1","name":"Release","url":"https://trello.com/b/b1","idOrganization":"w1"}`
 const workspaceJSON = `{"id":"w1","name":"allowed","displayName":"Allowed Workspace"}`
 const cardJSON = `{"id":"c1","name":"Fix login","url":"https://trello.com/c/c1","idBoard":"b1","idList":"l1","desc":"Synthetic card description","due":"2026-10-20T09:00:00Z","labels":[{"id":"label1","name":"Ready","color":"green"}],"idMembers":["m1"]}`
+const cardSummaryJSON = `{"id":"c1","name":"Fix login","idBoard":"b1","idList":"l1","desc":"Synthetic card description","due":"2026-10-20T09:00:00Z","labels":[{"id":"label1","name":"Ready","color":"green"}],"idMembers":["m1"]}`
 const itemJSON = `{"id":"i1","name":"Works","state":"complete","pos":1}`
 const actionJSON = `{"id":"a1","type":"commentCard","date":"2026-10-15T12:00:00Z","data":{"text":"Looks good","card":{"id":"c1","name":"Fix login"}},"memberCreator":{"id":"m1","username":"synthetic"}}`
 const projectedActionJSON = `{"id":"a1","type":"commentCard","date":"2026-10-15T12:00:00Z","by":"synthetic","cardId":"c1","card":"Fix login","text":"Looks good"}`
@@ -85,7 +90,7 @@ func TestTools(t *testing.T) {
 		{"board_get", `{}`, boardJSON, boardRequests()},
 		{"board_activity", `{}`, `{"items":[` + projectedActionJSON + `]}`, append(boardRequests(), requestSpec{"/boards/b1/actions", actionQuery("all"), "actions"})},
 		{"list_find", `{}`, `{"items":[{"id":"l1","name":"Doing","idBoard":"b1","pos":1}]}`, append(boardRequests(), requestSpec{"/boards/b1/lists", query("fields", "id,name,idBoard,closed,pos", "filter", "open"), "lists"})},
-		{"card_find", `{"listId":"l1","nameFilter":"login","limit":1}`, `{"items":[` + cardJSON + `]}`, append(objectRequests("lists", "l1", "list"), requestSpec{"/lists/l1/cards", query("fields", cardFields, "filter", "open"), "cards"})},
+		{"card_find", `{"listId":"l1","nameFilter":"login","limit":1}`, `{"items":[` + cardSummaryJSON + `]}`, append(objectRequests("lists", "l1", "list"), requestSpec{"/lists/l1/cards", query("fields", cardSummaryFields, "filter", "open"), "cards"})},
 		{"card_get", `{"cardId":"c1"}`, cardJSON, append(objectRequests("cards", "c1", "card"), requestSpec{"/cards/c1", query("fields", cardFields), "card"})},
 		{"card_history", `{"cardId":"c1"}`, `{"items":[` + projectedActionJSON + `]}`, cardActionRequests("all")},
 		{"attachment_find", `{"cardId":"c1","boardId":"b1"}`, `{"items":[{"id":"at1","name":"Report","fileName":"report.txt","mimeType":"text/plain","bytes":12,"date":"2026-10-15T12:00:00Z","isUpload":true},{"id":"at2","name":"Design","fileName":"","mimeType":"","bytes":0,"date":"2026-10-15T13:00:00Z","isUpload":false,"url":"https://example.invalid/design"}]}`, append(append(objectRequests("cards", "c1", "card"), requestSpec{"/cards/c1/attachments", query("fields", "id,name,fileName,mimeType,bytes,date,isUpload,url"), "attachments"}), objectRequests("cards", "c1", "card")...)},
@@ -200,14 +205,21 @@ func TestRegistration(t *testing.T) {
 		selectors []string
 		count     int
 		readOnly  bool
-	}{{[]string{"all"}, 48, false}, {[]string{"all"}, 19, true}, {[]string{"card"}, 12, false}, {[]string{"card"}, 3, true}, {[]string{"board_get", "server"}, 2, false}, {[]string{"checklist"}, 8, false}, {[]string{"attachment"}, 4, false}, {[]string{"attachment"}, 1, true}, {[]string{"card", "card_get"}, 12, false}} {
+	}{{[]string{"all"}, 48, false}, {[]string{"all"}, 19, true}, {[]string{"card"}, 12, false}, {[]string{"card"}, 3, true}, {[]string{"board_get", "server"}, 2, false}, {[]string{"checklist"}, 8, false}, {[]string{"attachment"}, 4, false}, {[]string{"attachment"}, 1, true}, {[]string{"card", "card_get"}, 12, false}, {strings.Split(discoveryProfile, ","), 10, false}} {
 		t.Run(strings.Join(tc.selectors, ","), func(t *testing.T) {
-			fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(500) }))
+			fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tc.count == 10 && r.URL.Path == "/boards/b1" {
+					_, _ = w.Write([]byte(boardJSON))
+					return
+				}
+				t.Errorf("unexpected registration/profile request: %s", r.URL.Path)
+				w.WriteHeader(500)
+			}))
 			defer fake.Close()
 			service := testService(t, fake, nil)
 			service.config.Tools = tc.selectors
 			service.config.ReadOnly = tc.readOnly
-			server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "1"}, nil)
+			server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "1"}, &mcp.ServerOptions{Instructions: service.Instructions()})
 			if err := service.Register(server); err != nil {
 				t.Fatal(err)
 			}
@@ -232,12 +244,69 @@ func TestRegistration(t *testing.T) {
 			if len(result.Tools) != tc.count {
 				t.Fatalf("got %d tools, want %d", len(result.Tools), tc.count)
 			}
+			if tc.count == 48 {
+				catalog, err := json.Marshal(result)
+				if err != nil {
+					t.Fatal(err)
+				}
+				const catalogBudget = 20832
+				if chars := utf8.RuneCount(catalog); chars > catalogBudget {
+					t.Errorf("tools/list: %d chars exceeds %d-char budget", chars, catalogBudget)
+				}
+			}
+			if cs.InitializeResult().Instructions != service.Instructions() {
+				t.Errorf("initialize did not carry startup instructions: %+v", cs.InitializeResult())
+			}
 			for _, tool := range result.Tools {
+				gotSchema, err := json.Marshal(tool.InputSchema)
+				if err != nil {
+					t.Fatal(err)
+				}
+				wantSchema, err := json.Marshal(schema(toolDefinition(t, tool.Name)))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if string(gotSchema) != string(wantSchema) {
+					t.Errorf("registered schema differs from runtime definition for %s", tool.Name)
+				}
+				if tc.count == 10 && !slices.Contains(tc.selectors, tool.Name) {
+					t.Errorf("unexpected profile tool %s", tool.Name)
+				}
+				d := toolDefinition(t, tool.Name)
+				readOnly := !d.write && d.name != "workspace_use" && d.name != "board_use"
+				if readOnly {
+					if tool.Annotations == nil || !tool.Annotations.ReadOnlyHint {
+						t.Errorf("read tool %s missing readOnlyHint:true", tool.Name)
+					}
+				} else if tool.Annotations != nil {
+					t.Errorf("tool %s should omit default annotations: %+v", tool.Name, tool.Annotations)
+				}
 				if tc.readOnly && strings.HasPrefix(tool.Name, "attachment_") && (tool.Name != "attachment_find" || tool.Annotations == nil || !tool.Annotations.ReadOnlyHint) {
 					t.Errorf("unexpected read-only attachment tool: %+v", tool)
 				}
 				if tool.OutputSchema != nil {
 					t.Errorf("output schema on %s", tool.Name)
+				}
+			}
+			if tc.count == 10 {
+				for _, call := range []struct {
+					name string
+					args map[string]any
+					want string
+				}{
+					{"server_health", map[string]any{"detail": "policy"}, `"enabledToolCount":10`},
+					{"board_use", map[string]any{"boardId": "b1"}, boardJSON},
+				} {
+					response, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: call.name, Arguments: call.args})
+					if err != nil {
+						t.Fatal(err)
+					}
+					if response.IsError || response.StructuredContent != nil || len(response.Content) != 1 || !strings.Contains(response.Content[0].(*mcp.TextContent).Text, call.want) {
+						t.Errorf("profile %s: %+v", call.name, response)
+					}
+				}
+				if service.state.Get().BoardID != "b1" {
+					t.Error("profile board_use did not persist local selection")
 				}
 			}
 			if tc.count == 19 {
@@ -250,5 +319,42 @@ func TestRegistration(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// syntheticPartialResult exercises the handler contract without depending on a mutation domain.
+type syntheticPartialResult struct {
+	ID          string   `json:"id"`
+	Error       string   `json:"error,omitempty"`
+	Unconfirmed []string `json:"unconfirmed,omitempty"`
+}
+
+func (r syntheticPartialResult) toolFailed() bool { return r.Error != "" }
+
+func TestHandlerFailureMarker(t *testing.T) {
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("failure-marker test made an HTTP request")
+		w.WriteHeader(500)
+	}))
+	defer fake.Close()
+	s := testService(t, fake, nil)
+	for _, failed := range []bool{false, true} {
+		out := syntheticPartialResult{ID: "c1"}
+		if failed {
+			out.Error = "mutation may have applied; inspect before retrying"
+			out.Unconfirmed = []string{"due"}
+		}
+		d := definition{call: func(context.Context, arguments) (any, error) { return out, nil }}
+		result, err := s.handler(d)(context.Background(), &mcp.CallToolRequest{Params: &mcp.CallToolParamsRaw{Arguments: json.RawMessage(`{}`)}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want, err := json.Marshal(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.IsError != failed || result.StructuredContent != nil || len(result.Content) != 1 || result.Content[0].(*mcp.TextContent).Text != string(want) {
+			t.Fatalf("partial progress was not preserved as text-only IsError=%v: %+v", failed, result)
+		}
 	}
 }

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/google/jsonschema-go/jsonschema"
 )
 
 func toolDefinition(t *testing.T, name string) definition {
@@ -136,6 +138,100 @@ func TestCardChecklistSchema(t *testing.T) {
 		items := props["items"].(map[string]any)
 		if checklist["additionalProperties"] != false || props["name"].(map[string]any)["default"] != "Checklist" || items["minItems"] != 1 || items["maxItems"] != 100 {
 			t.Errorf("%s: incomplete checklist schema: %v", tool, checklist)
+		}
+	}
+}
+
+func TestContextualSchemaDescriptions(t *testing.T) {
+	active := map[string]bool{"board_get": true, "board_activity": true, "list_find": true, "member_find": true, "label_find": true, "customfield_find": true, "list_create": true, "label_create": true}
+	for _, d := range (&Service{}).definitions() {
+		props := schema(d)["properties"].(map[string]any)
+		if p, ok := props["boardId"]; ok {
+			desc := p.(map[string]any)["description"].(string)
+			switch {
+			case d.name == "board_use":
+				if !strings.Contains(desc, "Required active-board selection") || d.required != "boardId" {
+					t.Errorf("selection schema: %v", p)
+				}
+			case d.name == "card_find":
+				for _, word := range []string{"listId", "expected owner", "active board", "mine"} {
+					if !strings.Contains(desc, word) {
+						t.Errorf("card discovery schema missing %s: %v", word, p)
+					}
+				}
+			case active[d.name]:
+				if desc != "Defaults to active board." {
+					t.Errorf("%s: wrong active-board default: %v", d.name, p)
+				}
+			default:
+				if !strings.Contains(desc, "Optional expected owner; actual board verified.") || strings.Contains(desc, "active board") {
+					t.Errorf("%s: wrong object constraint: %v", d.name, p)
+				}
+			}
+		}
+	}
+	props := schema(toolDefinition(t, "card_find"))["properties"].(map[string]any)
+	if !strings.Contains(props["mine"].(map[string]any)["description"].(string), "excludes boardId/listId") || !strings.Contains(props["before"].(map[string]any)["description"].(string), "same filtered snapshot, not a date") {
+		t.Fatalf("card discovery exclusivity/cursor hints missing: %v", props)
+	}
+}
+
+func TestActionFilterSchemaRuntimeParity(t *testing.T) {
+	for _, tool := range []string{"board_activity", "card_history"} {
+		d := toolDefinition(t, tool)
+		encoded, err := json.Marshal(schema(d))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var published jsonschema.Schema
+		if err := json.Unmarshal(encoded, &published); err != nil {
+			t.Fatal(err)
+		}
+		resolved, err := published.Resolve(nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tc := range []struct {
+			filter string
+			valid  bool
+		}{
+			{"all", true}, {"commentCard", true}, {"createCard,updateCard,updateCheckItemStateOnCard", true}, {"future_Action2", true}, {"all_custom", true}, {"ALL,commentCard", true},
+			{"", false}, {",commentCard", false}, {"commentCard,", false}, {"commentCard,,updateCard", false}, {"commentCard, updateCard", false}, {" commentCard", false}, {"commentCard\n", false}, {"all,commentCard", false}, {"commentCard,all", false}, {"commentCard,all,updateCard", false}, {"all,all", false}, {"1update", false}, {"_update", false}, {"comment-Card", false}, {"commentCard&key=bad", false},
+		} {
+			t.Run(tool+"/"+tc.filter, func(t *testing.T) {
+				args := map[string]any{"filter": tc.filter}
+				if tool == "card_history" {
+					args["cardId"] = "c1"
+				}
+				raw, err := json.Marshal(args)
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, runtimeErr := validate(raw, d)
+				schemaErr := resolved.Validate(args)
+				if (runtimeErr == nil) != tc.valid || (schemaErr == nil) != tc.valid {
+					t.Fatalf("valid=%v runtime=%v schema=%v", tc.valid, runtimeErr, schemaErr)
+				}
+			})
+		}
+		if published.Properties["filter"].Default == nil || string(published.Properties["filter"].Default) != `"all"` {
+			t.Error("filter default is not all")
+		}
+	}
+}
+
+func TestChecklistStateSchemaRuntimeParity(t *testing.T) {
+	d := toolDefinition(t, "checklist_item_update")
+	props := schema(d)["properties"].(map[string]any)
+	states := props["state"].(map[string]any)["enum"].([]string)
+	if strings.Join(states, ",") != "complete,incomplete" {
+		t.Fatalf("incomplete state enum: %v", states)
+	}
+	for _, state := range []string{"complete", "incomplete", "", "done"} {
+		raw := fmt.Sprintf(`{"checklistId":"cl1","itemId":"i1","state":%q}`, state)
+		_, err := validate(json.RawMessage(raw), d)
+		if (err == nil) != (state == "complete" || state == "incomplete") {
+			t.Errorf("state %q: %v", state, err)
 		}
 	}
 }

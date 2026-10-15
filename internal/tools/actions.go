@@ -40,7 +40,11 @@ func (s *Service) boardActivity(ctx context.Context, a arguments) (any, error) {
 	if _, err = s.access.Board(ctx, id, false); err != nil {
 		return nil, err
 	}
-	return s.actions(ctx, "/boards/"+id+"/actions", "all", id, a)
+	filter := a.str("filter")
+	if filter == "" {
+		filter = "all"
+	}
+	return s.actions(ctx, "/boards/"+id+"/actions", filter, id, a)
 }
 
 // cardActions rechecks the resolved owner after fetching actions, including any retries.

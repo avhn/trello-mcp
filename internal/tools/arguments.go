@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -43,7 +44,9 @@ func maxLimit(name string) (int, int) {
 	}
 }
 
-var actionFilter = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*(,[A-Za-z][A-Za-z0-9]*)*$`)
+const actionFilterPattern = `^(all|[A-Za-z][A-Za-z0-9_]*(,[A-Za-z][A-Za-z0-9_]*)*)$`
+
+var actionFilter = regexp.MustCompile(actionFilterPattern)
 
 // validate rejects unknown fields, nulls, duplicate keys, bad types and unsafe path components.
 func validate(raw json.RawMessage, d definition) (arguments, error) {
@@ -313,16 +316,28 @@ func validateAt(raw json.RawMessage, d definition, location string) (arguments, 
 	if v := a.str("view"); seen["view"] && v != "json" && v != "markdown" {
 		return a, fmt.Errorf("view must be json or markdown")
 	}
-	if v := a.str("filter"); v != "" && !actionFilter.MatchString(v) {
-		return a, fmt.Errorf("invalid action-type filter")
+	if v := a.str("filter"); seen["filter"] {
+		if !actionFilter.MatchString(v) || (v != "all" && slices.Contains(strings.Split(v, ","), "all")) {
+			return a, fmt.Errorf("filter must be all or comma-separated action identifiers without whitespace or all components")
+		}
 	}
 	for _, key := range []string{"before", "since"} {
 		v := a.str(key)
-		if v != "" {
-			_, err = time.Parse(time.RFC3339, v)
-			if !trello.ValidID(v) && err != nil {
-				return a, fmt.Errorf("invalid %s cursor", key)
+		if !seen[key] {
+			continue
+		}
+		if d.name == "card_find" {
+			if !trello.ValidID(v) {
+				return a, fmt.Errorf("before must be a previously returned card id in the same filtered snapshot")
 			}
+			continue
+		}
+		if v == "" {
+			continue
+		}
+		_, err = time.Parse(time.RFC3339, v)
+		if !trello.ValidID(v) && err != nil {
+			return a, fmt.Errorf("invalid %s cursor", key)
 		}
 	}
 	if d.name == "card_find" && a.mine && (a.str("listId") != "" || a.str("boardId") != "") {
@@ -374,6 +389,20 @@ func fieldValue(raw json.RawMessage) (any, error) {
 	return a.values, nil
 }
 
+// boardDescription classifies tool contexts explicitly, never by identifier suffix.
+func boardDescription(name string) string {
+	switch name {
+	case "board_use":
+		return "Required active-board selection."
+	case "board_get", "board_activity", "list_find", "member_find", "label_find", "customfield_find", "list_create", "label_create":
+		return "Defaults to active board."
+	case "card_find":
+		return "With listId: expected owner; otherwise active board, unless mine."
+	default:
+		return "Optional expected owner; actual board verified."
+	}
+}
+
 // schema publishes concise bounds; validate is the authoritative runtime trust boundary.
 func schema(d definition) map[string]any {
 	properties := map[string]any{}
@@ -381,11 +410,26 @@ func schema(d definition) map[string]any {
 		p := map[string]any{"type": "string"}
 		switch key {
 		case "boardId":
-			p["description"] = "Defaults to the active board."
+			p["description"] = boardDescription(d.name)
+		case "before", "since":
+			p["description"] = "Action id or RFC3339."
+			if d.name == "card_find" {
+				p["description"] = "Prior card id from same filtered snapshot, not a date."
+				p["pattern"] = `^[A-Za-z0-9_-]{1,64}$`
+			}
+		case "filter":
+			p["default"] = "all"
+			p["pattern"] = actionFilterPattern
+			p["not"] = map[string]any{"pattern": `(^all,|,all,|,all$)`}
+			p["description"] = "Upstream action types, e.g. commentCard; all alone or comma-separated names (no spaces)."
+		case "state":
+			p["enum"] = []string{"complete", "incomplete"}
 		case "limit":
 			def, max := maxLimit(d.name)
 			p = map[string]any{"type": "integer", "minimum": 1, "maximum": max, "default": def}
-		case "mine", "closed", "subscribed", "dueComplete", "checked", "defaultLists":
+		case "mine":
+			p = map[string]any{"type": "boolean", "description": "My authorized cards; excludes boardId/listId."}
+		case "closed", "subscribed", "dueComplete", "checked", "defaultLists":
 			p = map[string]any{"type": "boolean"}
 		case "pos":
 			p = map[string]any{"anyOf": []any{map[string]any{"type": "string"}, map[string]any{"type": "number", "exclusiveMinimum": 0}}}

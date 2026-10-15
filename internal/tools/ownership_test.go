@@ -186,7 +186,8 @@ func TestAssignedCardAllowlist(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != `{"items":[`+cardJSON+`]}` || strings.Contains(got, "private") {
+	want := `{"items":[` + strings.Replace(cardJSON, `"url":"https://trello.com/c/c1",`, "", 1) + `]}`
+	if got != want || strings.Contains(got, "private") {
 		t.Errorf("denied card affected page: %s", got)
 	}
 }

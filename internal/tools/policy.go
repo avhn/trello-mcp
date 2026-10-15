@@ -43,33 +43,13 @@ func (s *Service) Instructions() string {
 	if !s.config.HasCredentials() {
 		return credentials.Hint
 	}
-	brief := func(value string, limit int) string {
-		runes := []rune(strings.Join(strings.Fields(s.access.Client.Scrub(value)), " "))
-		if len(runes) > limit {
-			return string(runes[:limit-3]) + "..."
-		}
-		return string(runes)
-	}
 	workspaces := "unrestricted"
 	if len(s.config.AllowedWorkspaces) > 0 {
-		workspaces = "restricted to " + brief(strings.Join(s.config.AllowedWorkspaces, ","), 65)
+		workspaces = "restricted"
 	}
-	readOnly := "no"
-	if s.config.ReadOnly {
-		readOnly = "yes (write tools hidden)"
-		if s.config.CredentialScope == "read" {
-			readOnly = "yes (saved token scope=read; write tools hidden)"
-		}
-	}
-	uploads := "disabled"
-	if fileTransfersSupported && s.config.UploadDir != "" && s.enabled("attachment_upload") {
-		uploads = "enabled under " + brief(s.config.UploadDir, 55)
-	}
-	downloads := "disabled"
-	if fileTransfersSupported && s.enabled("attachment_download") {
-		downloads = "enabled"
-	}
-	return fmt.Sprintf("Access policy: workspaces %s. Read-only: %s. Path uploads: %s. Downloads: %s. Denials are server policy, not token/permission errors; call server_health with detail \"policy\" for details.", workspaces, readOnly, uploads, downloads)
+	uploads := fileTransfersSupported && s.config.UploadDir != "" && s.enabled("attachment_upload")
+	downloads := fileTransfersSupported && s.enabled("attachment_download")
+	return fmt.Sprintf("Workspaces: %s; read-only: %t; path uploads: %t; downloads: %t. See server_health detail \"policy\" for access restrictions.", workspaces, s.config.ReadOnly, uploads, downloads)
 }
 
 type allowedWorkspace struct {

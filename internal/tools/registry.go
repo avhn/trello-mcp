@@ -27,6 +27,11 @@ type Service struct {
 	policyWorkspaces []view.Workspace
 }
 
+// toolFailed marks partial mutation results without expanding their text-only output.
+type toolFailed interface {
+	toolFailed() bool
+}
+
 // definition binds one concise schema to a domain method. Write is separate from local selection changes.
 type definition struct {
 	name, description, params, required string
@@ -47,13 +52,13 @@ func (s *Service) definitions() []definition {
 		{name: "board_find", description: "Find all accessible boards, including guest boards.", params: "workspaceId nameFilter", call: s.boardFind},
 		{name: "board_use", description: "Set active board.", params: "boardId", required: "boardId", call: s.boardUse},
 		{name: "board_get", description: "Get board details.", params: "boardId detail", call: s.boardGet},
-		{name: "board_activity", description: "Page board actions, newest first.", params: "boardId limit since before", call: s.boardActivity},
+		{name: "board_activity", description: "Page board actions, newest first; omitted card/list names inherit per page.", params: "boardId limit since before filter", call: s.boardActivity},
 		{name: "list_find", description: "Find board lists.", params: "boardId nameFilter", call: s.listFind},
 		{name: "card_find", description: "Find cards; filter names before paging a snapshot.", params: "boardId listId mine nameFilter detail limit before", call: s.cardFind},
 		{name: "card_get", description: "Get a card; optional curated extras or markdown.", params: "boardId cardId detail view extraFields", required: "cardId", call: s.cardGet},
-		{name: "card_history", description: "Page card actions with an action-type filter.", params: "boardId cardId limit before since filter", required: "cardId", call: s.cardHistory},
+		{name: "card_history", description: "Page filtered card actions; omitted card/list names inherit per page.", params: "boardId cardId limit before since filter", required: "cardId", call: s.cardHistory},
 		{name: "attachment_find", description: "Find card attachment metadata and link URLs.", params: "boardId cardId", required: "cardId", call: s.attachmentFind},
-		{name: "comment_find", description: "Page card comments.", params: "boardId cardId limit before since", required: "cardId", call: s.commentFind},
+		{name: "comment_find", description: "Page card comments; omitted card/list names inherit per page.", params: "boardId cardId limit before since", required: "cardId", call: s.commentFind},
 		{name: "checklist_items", description: "Get checklist items by checklist id.", params: "boardId checklistId", required: "checklistId", call: s.checklistItems},
 		{name: "checklist_get", description: "Find a card checklist by exact name.", params: "boardId cardId name", required: "cardId", call: s.checklistGet},
 		{name: "member_find", description: "Find board members.", params: "boardId nameFilter", call: s.memberFind},
@@ -80,8 +85,11 @@ func (s *Service) Register(server *mcp.Server) error {
 		if (!s.config.HasCredentials() && d.name != "server_health") || (s.config.ReadOnly && d.write) || (s.config.HasCredentials() && !s.selected(d)) {
 			continue
 		}
-		readOnly := !d.write && d.name != "workspace_use" && d.name != "board_use"
-		server.AddTool(&mcp.Tool{Name: d.name, Description: d.description, InputSchema: schema(d), Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly}}, s.handler(d))
+		var annotations *mcp.ToolAnnotations
+		if !d.write && d.name != "workspace_use" && d.name != "board_use" {
+			annotations = &mcp.ToolAnnotations{ReadOnlyHint: true}
+		}
+		server.AddTool(&mcp.Tool{Name: d.name, Description: d.description, InputSchema: schema(d), Annotations: annotations}, s.handler(d))
 	}
 	return nil
 }
@@ -102,7 +110,7 @@ func (s *Service) handler(d definition) mcp.ToolHandler {
 			out, err = d.call(ctx, args)
 		}
 		failed := err != nil
-		if result, ok := out.(cardCreateResult); ok && result.Error != "" {
+		if result, ok := out.(toolFailed); ok && result.toolFailed() {
 			failed = true
 		}
 		if err != nil {

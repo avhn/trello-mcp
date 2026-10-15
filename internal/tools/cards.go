@@ -10,6 +10,7 @@ import (
 	"github.com/avhn/trello-mcp/internal/view"
 )
 
+const cardSummaryFields = "id,name,idBoard,idList,desc,due,dueComplete,closed,labels,idMembers"
 const cardFields = "id,name,url,idBoard,idList,desc,due,dueComplete,closed,labels,idMembers"
 
 // cardFind filters the complete bounded endpoint snapshot before local cursor paging.
@@ -34,9 +35,9 @@ func (s *Service) cardFind(ctx context.Context, a arguments) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	fields := cardFields
+	fields := cardSummaryFields
 	if a.full() {
-		fields += ",start,dateLastActivity"
+		fields = cardFields + ",start,dateLastActivity"
 	}
 	var all []view.Card
 	if err = s.access.Client.Get(ctx, path, url.Values{"fields": {fields}, "filter": {"open"}}, &all); err != nil {
@@ -46,6 +47,9 @@ func (s *Service) cardFind(ctx context.Context, a arguments) (any, error) {
 	checked := map[string]bool{}
 	grants := map[string]bool{}
 	for _, c := range all {
+		if !a.full() {
+			c.URL = ""
+		}
 		c.Stickers = nil
 		c.PluginData = nil
 		c.Votes = nil
