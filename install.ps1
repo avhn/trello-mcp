@@ -2,8 +2,32 @@
 # Keep variables and helper functions local when invoked through irm | iex.
 & {
     $ErrorActionPreference = 'Stop'
+    $showHelp = $false
+    foreach ($argument in $args) {
+        switch -Exact ($argument) {
+            '-Help' { $showHelp = $true }
+            '--help' { $showHelp = $true }
+            '-h' { $showHelp = $true }
+            default { throw "trello-mcp: unknown argument: $argument (use -Help)" }
+        }
+    }
+    if ($showHelp) {
+        Write-Output @'
+Usage: install.ps1 [-Help|--help|-h]
+Install a checksum-verified release into INSTALL_DIR (default: %LOCALAPPDATA%\Programs\trello-mcp).
+TRELLO_MCP_VERSION selects an exact release tag; omitted means latest release.
+Downloads and SHA-256 checksums must succeed; no automatic source build occurs.
+Advanced/test override: TRELLO_MCP_RELEASE_BASE_URL accepts HTTPS or an absolute fixture directory.
+Pin TRELLO_MCP_VERSION when using offline fixtures to avoid latest-release networking.
+Installation adds only the destination to the user PATH; no client configuration is changed.
+Run trello-mcp auth yourself in a private terminal (not through an agent), then restart or reconnect the MCP client.
+Setup: https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md
+'@
+        return
+    }
     [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
     $temp = $null
+    $tag = $env:TRELLO_MCP_VERSION
     try {
         $architecture = $env:PROCESSOR_ARCHITECTURE
         if ($env:PROCESSOR_ARCHITEW6432) { $architecture = $env:PROCESSOR_ARCHITEW6432 }
@@ -13,7 +37,6 @@
             default { throw "Unsupported Windows architecture: $architecture (expected AMD64 or ARM64)." }
         }
 
-        $tag = $env:TRELLO_MCP_VERSION
         if (-not $tag) {
             try {
                 $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/avhn/trello-mcp/releases/latest'
@@ -92,38 +115,29 @@
         Write-Output 'Windows refuses path uploads and attachment downloads (fail closed). Base64 uploads remain available.'
 
         $quotedExe = "'" + $exe.Replace("'", "''") + "'"
-        # JSON string escaping also produces a valid TOML basic string for a Windows path.
-        $encodedExe = ConvertTo-Json -InputObject $exe -Compress
         Write-Output @"
 
-Next: run ``& $quotedExe auth`` to connect your Trello account
+Run trello-mcp auth yourself in a private terminal (not through an agent), then restart or reconnect the MCP client.
+Installed executable: $exe
 Credentials: %USERPROFILE%\.secrets\.trello-mcp.secret; override with absolute TRELLO_MCP_CREDENTIALS or auth --file PATH.
 Read-only opt-in: TRELLO_READ_ONLY=1 or trello-mcp auth --read-only.
-Alternative: set both TRELLO_API_KEY and TRELLO_TOKEN in the server environment; env vars still override the file.
 
-Register with Claude Code (run locally in PowerShell):
-claude mcp add trello --transport stdio -- $quotedExe
+Register with Claude Code (user scope, in PowerShell):
+claude mcp add --scope user --transport stdio trello -- $quotedExe
 
-Claude Desktop: merge into %APPDATA%\Claude\claude_desktop_config.json and restart the app.
-Full paths are used because desktop apps do not inherit shell PATH.
-This installer never asks for credentials.
-{
-  "mcpServers": {
-    "trello": {
-      "command": $encodedExe
-    }
-  }
-}
-
-Codex CLI/desktop and ChatGPT desktop: merge into ~/.codex/config.toml.
-[mcp_servers.trello]
-command = $encodedExe
+Setup, other clients and explicit local/project scope alternatives:
+https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md
 "@
     } catch {
-        throw "trello-mcp: $($_.Exception.Message)"
+        $sourceVersion = 'latest'
+        if ($tag -cmatch '\Av?[a-zA-Z0-9._-]+\z') {
+            $sourceVersion = $tag
+            if (-not $sourceVersion.StartsWith('v', [StringComparison]::Ordinal)) { $sourceVersion = "v$sourceVersion" }
+        }
+        throw "trello-mcp: $($_.Exception.Message) No automatic source build was attempted. Manual source-build alternative (not executed): go install github.com/avhn/trello-mcp/cmd/trello-mcp@$sourceVersion"
     } finally {
         if ($temp -and (Test-Path -LiteralPath $temp)) {
             Remove-Item -LiteralPath $temp -Recurse -Force
         }
     }
-}
+} @args

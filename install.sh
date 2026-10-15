@@ -4,9 +4,41 @@ set -eu
 
 fail() {
     printf 'trello-mcp: %s\n' "$*" >&2
+    if [ -n "${source_version:-}" ]; then
+        printf 'Manual source-build alternative (not executed): go install github.com/avhn/trello-mcp/cmd/trello-mcp@%s\n' "$source_version" >&2
+    fi
     exit 1
 }
 
+show_help=false
+for arg do
+    case "$arg" in
+        --help|-h) show_help=true ;;
+        *) fail "unknown argument: $arg (use --help)" ;;
+    esac
+done
+if [ "$show_help" = true ]; then
+    cat <<'EOF'
+Usage: sh install.sh [--help|-h]
+Install a checksum-verified release into INSTALL_DIR (default: $HOME/.local/bin).
+TRELLO_MCP_VERSION selects an exact release tag; omitted means latest release.
+Downloads and SHA-256 checksums must succeed; no automatic source build occurs.
+Advanced/test download overrides are not supported by this POSIX installer.
+No credentials or client configuration are read or changed; PATH is not changed.
+Run trello-mcp auth yourself in a private terminal (not through an agent), then restart or reconnect the MCP client.
+Setup: https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md
+EOF
+    exit 0
+fi
+
+tag=${TRELLO_MCP_VERSION:-}
+if [ -n "$tag" ]; then
+    case "$tag" in v*) ;; *) tag="v$tag" ;; esac
+    case "$tag" in
+        *[!a-zA-Z0-9._-]*|v) fail 'TRELLO_MCP_VERSION must be a release tag such as v0.1.0' ;;
+    esac
+fi
+source_version=${tag:-latest}
 command -v curl >/dev/null 2>&1 || fail 'curl is required'
 install_dir=${INSTALL_DIR:-"$HOME/.local/bin"}
 case "$install_dir" in
@@ -41,23 +73,18 @@ if [ "$os" = windows ]; then
 fi
 asset="trello-mcp_${os}_${arch}.${extension}"
 
-fallback() {
-    command -v go >/dev/null 2>&1 || fail "$*; install Go to build from source"
-    printf 'trello-mcp: %s; falling back to go install at @latest\n' "$*" >&2
-    mkdir -p "$install_dir" || fail "cannot create $install_dir"
-    GOBIN="$install_dir" go install github.com/avhn/trello-mcp/cmd/trello-mcp@latest \
-        || fail 'go install failed'
+unavailable() {
+    fail "$*; no automatic source build was attempted"
 }
 
 download_release() {
-    tag=${TRELLO_MCP_VERSION:-}
     if [ -z "$tag" ]; then
         info=$(curl --proto '=https' --proto-redir '=https' -sSL -o /dev/null \
             -w '%{http_code} %{url_effective}' "$repo/releases/latest") \
             || fail 'could not resolve the latest release'
         case "$info" in
             '200 '*) url=${info#* }; tag=${url##*/} ;;
-            '404 '*) fallback 'no published release is available'; return ;;
+            '404 '*) unavailable 'no published release is available' ;;
             *) fail "could not resolve the latest release (HTTP ${info%% *})" ;;
         esac
     fi
@@ -68,13 +95,14 @@ download_release() {
     case "$tag" in
         *[!a-zA-Z0-9._-]*|v) fail 'TRELLO_MCP_VERSION must be a release tag such as v0.1.0' ;;
     esac
+    source_version=$tag
     url="$repo/releases/download/$tag"
     status=$(curl --proto '=https' --proto-redir '=https' -sSL \
         -o "$tmp/archive/$asset" -w '%{http_code}' "$url/$asset") \
         || fail "could not download $asset"
     case "$status" in
         200) ;;
-        404) fallback "no release asset $asset exists for $tag"; return ;;
+        404) unavailable "no release asset $asset exists for $tag" ;;
         *) fail "could not download $asset (HTTP $status)" ;;
     esac
     curl --proto '=https' --proto-redir '=https' -fsSL \
@@ -113,7 +141,7 @@ download_release() {
 
 case "$os/$arch" in
     linux/amd64|linux/arm64|darwin/amd64|darwin/arm64|windows/amd64) download_release ;;
-    *) fallback 'no release asset is available for this platform' ;;
+    *) unavailable 'no release asset is available for this platform' ;;
 esac
 printf 'Installed %s\n' "$install_dir/$binary"
 case ":${PATH:-}:" in
@@ -126,57 +154,15 @@ client_binary="$install_dir/$binary"
 if [ "$os" = windows ] && command -v cygpath >/dev/null 2>&1; then
     client_binary=$(cygpath -w "$client_binary") || fail 'could not convert the Windows executable path'
 fi
-printf '\nNext: run `'
-printf "'"
-printf '%s' "$client_binary" | sed "s/'/'\\\\''/g"
-printf "' auth"
-printf '` to connect your Trello account\n'
+printf '\nRun trello-mcp auth yourself in a private terminal (not through an agent), then restart or reconnect the MCP client.\n'
+printf 'Installed executable: %s\n' "$client_binary"
 printf 'Credentials: ~/.secrets/.trello-mcp.secret; override with absolute TRELLO_MCP_CREDENTIALS or auth --file PATH.\n'
 printf 'Read-only opt-in: TRELLO_READ_ONLY=1 or trello-mcp auth --read-only.\n'
-printf 'Alternative: set both TRELLO_API_KEY and TRELLO_TOKEN in the server environment; env vars still override the file.\n'
-printf '\nRegister with Claude Code (run locally):\n'
-printf 'claude mcp add trello --transport stdio -- '
+printf '\nRegister with Claude Code (user scope):\n'
+printf 'claude mcp add --scope user --transport stdio trello -- '
 # Quote the installed path as a single shell argument, including embedded quotes.
 printf "'"
 printf '%s' "$client_binary" | sed "s/'/'\\\\''/g"
 printf "'\n"
-
-# JSON string escaping also produces a TOML basic string. Escape control characters
-# as well as quotes and backslashes without requiring a language runtime.
-encoded_binary=$(printf '%s' "$client_binary" | awk '
-    BEGIN {
-        printf "\""
-        for (i = 1; i < 32; i++) controls[sprintf("%c", i)] = sprintf("\\u%04x", i)
-    }
-    {
-        if (NR > 1) printf "\\n"
-        for (i = 1; i <= length($0); i++) {
-            c = substr($0, i, 1)
-            if (c == "\"") printf "\\\""
-            else if (c == "\\") printf "\\\\"
-            else if (c in controls) printf "%s", controls[c]
-            else printf "%s", c
-        }
-    }
-    END { printf "\"" }
-')
-printf '\nClaude Desktop: merge into the client configuration and restart the app.\n'
-case "$os" in
-    darwin) printf 'Configuration: ~/Library/Application Support/Claude/claude_desktop_config.json\n' ;;
-    windows) printf 'Configuration: %%APPDATA%%\\Claude\\claude_desktop_config.json\n' ;;
-    *) printf 'Claude Desktop has no official Linux build. Other MCP clients can use this JSON.\n' ;;
-esac
-cat <<EOF
-Full paths are used because desktop apps do not inherit shell PATH.
-{
-  "mcpServers": {
-    "trello": {
-      "command": $encoded_binary
-    }
-  }
-}
-
-Codex CLI/desktop and ChatGPT desktop: merge into ~/.codex/config.toml.
-[mcp_servers.trello]
-command = $encoded_binary
-EOF
+printf '\nSetup, other clients and explicit local/project scope alternatives:\n'
+printf 'https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md\n'

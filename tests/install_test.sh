@@ -1,5 +1,5 @@
 #!/bin/sh
-# Offline installer integration tests. All downloads and Go installs are synthetic.
+# Offline installer integration tests. Downloads are synthetic; Go must never run.
 set -eu
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 tmp=$(mktemp -d)
@@ -73,9 +73,7 @@ cat > "$tmp/bin/go" <<'EOF'
 #!/bin/sh
 set -eu
 printf 'go %s\n' "$*" >> "$TEST_LOG"
-[ "$*" = 'install github.com/avhn/trello-mcp/cmd/trello-mcp@latest' ]
-printf 'synthetic source binary\n' > "$GOBIN/trello-mcp"
-chmod 755 "$GOBIN/trello-mcp"
+exit 1
 EOF
 cat > "$tmp/bin/claude" <<'EOF'
 #!/bin/sh
@@ -143,50 +141,66 @@ run_case() {
     [ -z "$(ls -A "$run/temp")" ] || { printf 'FAIL %s: temporary files remain\n' "$name"; exit 1; }
     if [ "$expected" = pass ]; then
         [ -x "$destination/$binary" ]
-        grep -Fq 'Next: run `' "$run/out"
-        grep -Fq 'auth` to connect your Trello account' "$run/out"
+        grep -Fq 'Run trello-mcp auth yourself in a private terminal (not through an agent), then restart or reconnect the MCP client.' "$run/out"
         grep -Fq 'TRELLO_READ_ONLY=1 or trello-mcp auth --read-only' "$run/out"
-        grep -Fq 'set both TRELLO_API_KEY and TRELLO_TOKEN' "$run/out"
         grep -Fq 'TRELLO_MCP_CREDENTIALS' "$run/out"
-        grep -Fq 'env vars still override the file' "$run/out"
-        grep -Fq '.secrets/.trello-mcp.secret' "$run/out"
-        assert_not_logged 'YOUR_API_KEY\|YOUR_TOKEN\|--env\|"env"\|TRELLO_READ_ONLY =\|TRELLO_READ_ONLY"' "$run/out"
-        grep -q '"mcpServers"' "$run/out"
-        grep -q 'Claude Desktop' "$run/out"
-        grep -Fq '[mcp_servers.trello]' "$run/out"
-        assert_not_logged '\[mcp_servers.trello.env\]' "$run/out"
-        if [ "$name" = escaping ]; then
-            encoded="\"$run/bin with \\\"quote\\\\slash/$binary\""
-        elif [ "$os" = MINGW64_NT ]; then
-            encoded='"C:\\synthetic\\trello-mcp.exe"'
-        else
-            encoded="\"$destination/$binary\""
-        fi
-        grep -Fxq "      \"command\": $encoded" "$run/out"
-        grep -Fxq "command = $encoded" "$run/out"
-        # Assert the literal path printed for macOS, without expanding its tilde.
-        # shellcheck disable=SC2088
-        case "$os" in
-            Darwin) grep -Fq '~/Library/Application Support/Claude/claude_desktop_config.json' "$run/out" ;;
-            MINGW*|MSYS*|CYGWIN*) grep -Fq '%APPDATA%\Claude\claude_desktop_config.json' "$run/out" ;;
-            *) grep -Fq 'Claude Desktop has no official Linux build' "$run/out" ;;
-        esac
+        grep -Fq 'https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md' "$run/out"
+        grep -Fq 'claude mcp add --scope user --transport stdio trello -- ' "$run/out"
+        assert_not_logged 'YOUR_API_KEY\|YOUR_TOKEN\|--env\|"mcpServers"\|\[mcp_servers' "$run/out"
         grep -q 'not on PATH' "$run/err"
         sed -n '/^claude mcp add /p' "$run/out" > "$run/registration.sh"
         sh -n "$run/registration.sh"
-        if [ "$mode" = missing ] || [ "$mode" = no-release ] || [ "$os" = FreeBSD ]; then
-            grep -q '^go install .*@latest$' "$run/log"
+        # Parse and execute only the printed registration with a synthetic function.
+        if [ "$os" = MINGW64_NT ]; then
+            expected_binary='C:\synthetic\trello-mcp.exe'
         else
-            cmp "$tmp/source/$binary" "$destination/$binary"
-            assert_not_logged '^go ' "$run/log"
+            expected_binary="$destination/$binary"
         fi
+        EXPECTED_BINARY="$expected_binary" sh -c '
+            claude() {
+                [ "$#" -eq 9 ] && [ "$1 $2 $3 $4 $5 $6 $7 $8" = "mcp add --scope user --transport stdio trello --" ] && [ "$9" = "$EXPECTED_BINARY" ]
+            }
+            . "$1"
+        ' sh "$run/registration.sh"
+        cmp "$tmp/source/$binary" "$destination/$binary"
+        assert_not_logged '^go ' "$run/log"
     else
-        [ ! -e "$destination/$binary" ]
+        [ ! -e "$destination" ]
         assert_not_logged '^go ' "$run/log"
     fi
     assert_not_logged '^ERROR:' "$run/log"
     printf 'PASS %s\n' "$name"
 }
+
+# Help and invalid arguments must not invoke dependency/platform/temp/PATH tools.
+mkdir "$tmp/sentinels"
+for tool in curl uname mktemp go mkdir cp chmod claude cygpath; do
+    cat > "$tmp/sentinels/$tool" <<'EOF'
+#!/bin/sh
+printf 'ERROR: side effect %s\n' "$0" >> "$TEST_LOG"
+exit 1
+EOF
+    chmod +x "$tmp/sentinels/$tool"
+done
+shell=$(command -v sh)
+for mode in --help -h --unknown unknown; do
+    log="$tmp/runs/arguments.log"
+    : > "$log"
+    if env -i PATH="$tmp/sentinels:/usr/bin:/bin" HOME="$tmp/absent-home" \
+        INSTALL_DIR="$tmp/absent-install" TMPDIR="$tmp/absent-temp" \
+        TRELLO_MCP_CREDENTIALS=relative-invalid TEST_LOG="$log" \
+        "$shell" "$root/install.sh" "$mode" < /dev/null > "$tmp/runs/arguments.out" 2> "$tmp/runs/arguments.err"; then
+        case "$mode" in --help|-h) ;; *) printf 'FAIL accepted %s\n' "$mode"; exit 1 ;; esac
+        grep -Fq 'TRELLO_MCP_VERSION' "$tmp/runs/arguments.out"
+        grep -Fq 'Run trello-mcp auth yourself in a private terminal (not through an agent), then restart or reconnect the MCP client.' "$tmp/runs/arguments.out"
+    else
+        case "$mode" in --help|-h) cat "$tmp/runs/arguments.err"; exit 1 ;; esac
+        grep -Fq 'unknown argument' "$tmp/runs/arguments.err"
+    fi
+    [ ! -s "$log" ]
+    [ ! -e "$tmp/absent-home" ] && [ ! -e "$tmp/absent-install" ] && [ ! -e "$tmp/absent-temp" ]
+    printf 'PASS argument %s (no side effects)\n' "$mode"
+done
 
 run_case latest success Linux x86_64 '' pass
 run_case pinned success Linux x86_64 v1.2.3 pass
@@ -195,9 +209,17 @@ grep -q '/download/v1.2.3/' "$tmp/runs/pinned/log"
 run_case normalized-version success Linux x86_64 1.2.3 pass
 run_case escaping success Linux x86_64 v1.2.3 pass
 run_case macos success Darwin aarch64 '' pass
-run_case missing-asset missing Linux x86_64 v1.2.3 pass
-run_case no-release no-release Linux x86_64 '' pass
-run_case unsupported success FreeBSD x86_64 '' pass
+run_case missing-asset missing Linux x86_64 v1.2.3 fail
+assert_not_logged '/releases/latest' "$tmp/runs/missing-asset/log"
+grep -Fq 'cmd/trello-mcp@v1.2.3' "$tmp/runs/missing-asset/err"
+run_case missing-unpinned missing Linux x86_64 '' fail
+grep -Fq 'cmd/trello-mcp@v1.2.3' "$tmp/runs/missing-unpinned/err"
+run_case no-release no-release Linux x86_64 '' fail
+grep -Fq 'cmd/trello-mcp@latest' "$tmp/runs/no-release/err"
+run_case unsupported success FreeBSD x86_64 '' fail
+assert_not_logged '/releases/' "$tmp/runs/unsupported/log"
+run_case unsupported-pinned success FreeBSD x86_64 v1.2.3 fail
+grep -Fq 'cmd/trello-mcp@v1.2.3' "$tmp/runs/unsupported-pinned/err"
 run_case checksum-mismatch corrupt Linux x86_64 '' fail
 grep -q 'checksum verification failed' "$tmp/runs/checksum-mismatch/err"
 run_case missing-checksums missing-checksums Linux x86_64 '' fail
@@ -207,7 +229,7 @@ run_case forbidden forbidden Linux x86_64 '' fail
 run_case network network Linux x86_64 '' fail
 run_case invalid-version success Linux x86_64 '../../bad' fail
 run_case no-go missing Linux x86_64 v1.2.3 fail "$tmp/no-go"
-grep -q 'install Go to build from source' "$tmp/runs/no-go/err"
+grep -q 'no automatic source build was attempted' "$tmp/runs/no-go/err"
 run_case no-hash success Linux x86_64 v1.2.3 fail "$tmp/no-hash"
 grep -q 'sha256sum or shasum is required' "$tmp/runs/no-hash/err"
 if command -v shasum >/dev/null 2>&1; then
