@@ -69,8 +69,8 @@ def render_scanlines():
 
     rect(0, 0, WIDTH, 12, accent)
     rect(82, 70, 54, 54, accent)
-    rect(93, 81, 12, 32, background)
-    rect(113, 81, 12, 21, background)
+    # Original TM monogram, not a product or platform logo.
+    text('TM', 92, 86, 3, background)
     text('GO + MODEL CONTEXT PROTOCOL', 162, 86, 3, accent)
     text('TRELLO-MCP', 82, 177, 12, ink)
     text('TOKEN-EFFICIENT TRELLO MCP SERVER', 82, 300, 4, ink)

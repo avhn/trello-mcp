@@ -4,6 +4,7 @@ Run: python3 -I scripts/site/validate.py
 Parser regression checks: python3 -I scripts/site/validate.py --self-test
 """
 from collections import Counter
+from html import unescape
 from html.parser import HTMLParser
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
@@ -22,11 +23,22 @@ GENERATE_SOCIAL_SPEC = spec_from_file_location(
 if GENERATE_SOCIAL_SPEC is None or GENERATE_SOCIAL_SPEC.loader is None:
     raise RuntimeError('Unable to load social card generator')
 GENERATE_SOCIAL = module_from_spec(GENERATE_SOCIAL_SPEC)
+sys.dont_write_bytecode = True
 GENERATE_SOCIAL_SPEC.loader.exec_module(GENERATE_SOCIAL)
 read_png_scanlines = GENERATE_SOCIAL.read_png_scanlines
 render_scanlines = GENERATE_SOCIAL.render_scanlines
 VOID = set('area base br col embed hr img input link meta param source track wbr'.split())
 CAPTURE = set('title h1 h2 h3 p pre td th dt dd'.split())
+TRADEMARK = ('Trello is a trademark of Atlassian. trello-mcp is an independent project, '
+             'not affiliated with or endorsed by Atlassian.')
+
+
+def validate_brand(source):
+    footer = re.search(r'<footer\b[^>]*>(.*?)</footer>', source, re.S)
+    require(footer is not None and TRADEMARK in footer.group(1), 'Missing footer trademark notice')
+    require('data-mark="tm"' in source, 'Missing independent TM monogram')
+    require(not re.search(r'#(?:0079bf|0052cc)\b', source, re.I), 'Do not use platform brand colors')
+
 
 
 def require(condition, message):
@@ -162,6 +174,7 @@ def validate():
     pages = {}
     for file in sorted(SITE.rglob('*.html')):
         source = file.read_text()
+        validate_brand(source)
         require(not re.search('[–—\U0001f300-\U0001faff]', source), f'Forbidden punctuation or emoji: {file}')
         page = Page()
         try:
@@ -244,9 +257,23 @@ def validate():
     require(len(css.encode()) < 10000, 'Keep the shared stylesheet small')
     require('prefers-color-scheme: dark' in css, 'Missing dark mode')
     require((SITE / '.nojekyll').is_file(), 'Missing .nojekyll')
-    ET.parse(SITE / 'assets/favicon.svg')
+    favicon = ET.parse(SITE / 'assets/favicon.svg').getroot()
+    require(favicon.get('data-mark') == 'tm', 'Favicon must use the independent TM mark')
     validate_png()
     readme = (ROOT / 'README.md').read_text()
+    require(TRADEMARK in readme, 'Missing README trademark notice')
+    for name in ('security', 'install', 'clients', 'faq'):
+        source = (SITE / name / 'index.html').read_text()
+        for term in ('~/.secrets/.trello-mcp.secret', '~/.secrets.env', 'TRELLO_MCP_CREDENTIALS',
+                     'TRELLO_TOKEN_SCOPE', 'https://github.com/avhn/secret', 'secret show trello-mcp',
+                     'secret exec -f trello-mcp', 'secret stash', '0700', '0600'):
+            require(term in source, f'{name}: missing credential convention {term}')
+    security = unescape((SITE / 'security/index.html').read_text())
+    for name in ('credentials.go', 'private_unix.go', 'private_windows.go'):
+        source = (ROOT / 'internal/credentials' / name).read_text()
+        errors = re.findall(r'fmt.Errorf\("(credentials (?:directory is|file is|must be owned|parent must|file must|require a)[^"]+)"\)', source)
+        for error in errors:
+            require(error in security and error in readme, f'Undocumented credential refusal: {error}')
     bench = readme.split('<!-- bench:start -->')[1].split('<!-- bench:end -->')[0]
     expected = [[cell.strip() for cell in line.strip().strip('|').split('|')] for line in bench.splitlines() if line.startswith('|')][2:]
     require(pages[SITE / 'index.html'].rows[1:] == expected, 'Benchmark table differs from current README')
@@ -284,6 +311,21 @@ class ParserTests(unittest.TestCase):
         page.feed(source)
         page.finish()
         return page
+
+    def test_independent_mark_and_notice(self):
+        validate_brand('<header data-mark="tm"></header><footer>' + TRADEMARK + '</footer>')
+
+    def test_missing_trademark_notice(self):
+        with self.assertRaisesRegex(ValueError, 'trademark'):
+            validate_brand('<header data-mark="tm"></header><footer>Independent</footer>')
+
+    def test_platform_brand_colors(self):
+        with self.assertRaisesRegex(ValueError, 'brand colors'):
+            validate_brand('<header data-mark="tm" fill="#0079BF"></header><footer>' + TRADEMARK + '</footer>')
+
+    def test_missing_independent_mark(self):
+        with self.assertRaisesRegex(ValueError, 'monogram'):
+            validate_brand('<header></header><footer>' + TRADEMARK + '</footer>')
 
     def test_balanced_html_and_svg(self):
         self.parse('<main><h1>Title</h1><svg><rect width="1"/></svg><br></main>')

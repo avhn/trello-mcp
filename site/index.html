@@ -29,7 +29,7 @@
 </head>
 <body>
 <a class="skip" href="#main">Skip to main content</a>
-<header class="site-header"><div class="wrap header-inner"><a class="brand" href="/trello-mcp/"><svg width="30" height="30" viewBox="0 0 32 32" fill="none" aria-hidden="true" focusable="false"><rect width="32" height="32" rx="8" fill="currentColor"/><rect x="7" y="7" width="7" height="18" rx="2" fill="var(--bg)"/><rect x="18" y="7" width="7" height="12" rx="2" fill="var(--bg)"/></svg><span>trello-mcp</span></a><nav class="site-nav" aria-label="Main navigation"><a href="/trello-mcp/install/">Install</a><a href="/trello-mcp/clients/">Clients</a><a href="/trello-mcp/tools/">Tools</a><a href="/trello-mcp/security/">Security</a><a href="/trello-mcp/faq/">FAQ</a></nav></div></header>
+<header class="site-header"><div class="wrap header-inner"><a class="brand" href="/trello-mcp/"><svg width="30" height="30" viewBox="0 0 32 32" data-mark="tm" fill="none" aria-hidden="true" focusable="false"><rect width="32" height="32" rx="8" fill="currentColor"/><path d="M4 9h10m-5 0v15m8 0V9l5 7 5-7v15" stroke="var(--bg)" stroke-width="2" stroke-linejoin="round"/></svg><span>trello-mcp</span></a><nav class="site-nav" aria-label="Main navigation"><a href="/trello-mcp/install/">Install</a><a href="/trello-mcp/clients/">Clients</a><a href="/trello-mcp/tools/">Tools</a><a href="/trello-mcp/security/">Security</a><a href="/trello-mcp/faq/">FAQ</a></nav></div></header>
 <main id="main" class="wrap">
 
 <div class="hero">
@@ -65,7 +65,7 @@
 <h3>2. Connect your Trello account</h3>
 <pre aria-label="Connect your Trello account"><code>trello-mcp auth</code></pre>
 <p>Create an API key at <a href="https://trello.com/power-ups/admin">Trello's Power-Ups administration page</a> when prompted. Approve the authorization link, then paste the token at the hidden terminal prompt. Keep the link private because it contains your API key.</p>
-<p>Write access is the default: Enter at <code>Allow write access? [Y/n]</code> means yes. Use <code>trello-mcp auth --read-only</code> for a read-only token. Credentials are validated and saved in your user configuration directory, not client snippets.</p>
+<p>Write access is the default: Enter at <code>Allow write access? [Y/n]</code> means yes. Use <code>trello-mcp auth --read-only</code> for a read-only token. Credentials are validated and saved in <code>~/.secrets/.trello-mcp.secret</code>, not client snippets. <code>TRELLO_MCP_CREDENTIALS</code> selects an absolute custom file; the complete environment key/token pair overrides files. The final fallback is <code>~/.secrets.env</code>, the optional <a href="https://github.com/avhn/secret">avhn/secret</a> shared store. See the <a href="/trello-mcp/security/#credentials">dotenv format, precedence and permission rules</a>.</p>
 <h3>3. Add it to an MCP client</h3><p>For Claude Code on a default macOS or Linux install:</p>
 <pre aria-label="Add trello-mcp to Claude Code"><code>claude mcp add trello --transport stdio -- "$HOME/.local/bin/trello-mcp"</code></pre>
 <p>For clients using generic MCP JSON, replace the path and merge this into your configuration:</p>
@@ -105,6 +105,6 @@
 </section>
 
 </main>
-<footer class="site-footer"><div class="wrap footer-inner"><div><p><strong>trello-mcp</strong> / Independent Go implementation. MIT licensed.</p><p>Documentation follows current source behavior; check release notes for availability. Not the official Atlassian connector.</p></div><nav class="footer-links" aria-label="Project links"><a href="https://github.com/avhn/trello-mcp">Source repository</a><a href="https://github.com/avhn/trello-mcp/releases">Download releases</a><a href="https://github.com/avhn/trello-mcp/blob/main/LICENSE">MIT license</a><a href="/trello-mcp/sitemap.xml">Sitemap</a></nav></div></footer>
+<footer class="site-footer"><div class="wrap footer-inner"><div><p><strong>trello-mcp</strong> / Independent Go implementation. MIT licensed.</p><p>Documentation follows current source behavior; check release notes for availability. Not the official Atlassian connector.</p><p>Trello is a trademark of Atlassian. trello-mcp is an independent project, not affiliated with or endorsed by Atlassian.</p></div><nav class="footer-links" aria-label="Project links"><a href="https://github.com/avhn/trello-mcp">Source repository</a><a href="https://github.com/avhn/trello-mcp/releases">Download releases</a><a href="https://github.com/avhn/trello-mcp/blob/main/LICENSE">MIT license</a><a href="/trello-mcp/sitemap.xml">Sitemap</a></nav></div></footer>
 </body>
 </html>
