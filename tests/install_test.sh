@@ -82,6 +82,11 @@ cat > "$tmp/bin/claude" <<'EOF'
 printf 'ERROR: installer ran claude\n' >> "$TEST_LOG"
 exit 1
 EOF
+cat > "$tmp/bin/cygpath" <<'EOF'
+#!/bin/sh
+[ "$1" = -w ] || exit 1
+printf '%s\n' 'C:\synthetic\trello-mcp.exe'
+EOF
 chmod +x "$tmp/bin/"*
 
 # Restricted PATHs exercise missing tools without depending on the host's Go setup.
@@ -117,6 +122,9 @@ run_case() {
     mkdir "$run" "$run/home" "$run/temp"
     : > "$run/log"
     destination="$run/bin with 'quote"
+    if [ "$name" = escaping ]; then
+        destination="$run/bin with \"quote\\slash"
+    fi
     binary=trello-mcp
     case "$os" in MINGW*|MSYS*|CYGWIN*) binary=trello-mcp.exe ;; esac
     if env -i PATH="${7:-$tmp/bin:$PATH}" HOME="$run/home" TMPDIR="$run/temp" \
@@ -137,6 +145,26 @@ run_case() {
         [ -x "$destination/$binary" ]
         grep -q 'YOUR_API_KEY' "$run/out"
         grep -q '"mcpServers"' "$run/out"
+        grep -q 'Claude Desktop' "$run/out"
+        grep -Fq '[mcp_servers.trello]' "$run/out"
+        grep -Fq '[mcp_servers.trello.env]' "$run/out"
+        grep -Fq 'TRELLO_READ_ONLY = "1"' "$run/out"
+        grep -Fq 'TRELLO_API_KEY = "YOUR_API_KEY"' "$run/out"
+        grep -Fq 'TRELLO_TOKEN = "YOUR_TOKEN"' "$run/out"
+        if [ "$name" = escaping ]; then
+            encoded="\"$run/bin with \\\"quote\\\\slash/$binary\""
+        elif [ "$os" = MINGW64_NT ]; then
+            encoded='"C:\\synthetic\\trello-mcp.exe"'
+        else
+            encoded="\"$destination/$binary\""
+        fi
+        grep -Fxq "      \"command\": $encoded," "$run/out"
+        grep -Fxq "command = $encoded" "$run/out"
+        case "$os" in
+            Darwin) grep -Fq '~/Library/Application Support/Claude/claude_desktop_config.json' "$run/out" ;;
+            MINGW*|MSYS*|CYGWIN*) grep -Fq '%APPDATA%\Claude\claude_desktop_config.json' "$run/out" ;;
+            *) grep -Fq 'Claude Desktop has no official Linux build' "$run/out" ;;
+        esac
         grep -q 'not on PATH' "$run/err"
         sed -n '/^claude mcp add /p' "$run/out" > "$run/registration.sh"
         sh -n "$run/registration.sh"
@@ -159,6 +187,7 @@ run_case pinned success Linux x86_64 v1.2.3 pass
 assert_not_logged '/releases/latest' "$tmp/runs/pinned/log"
 grep -q '/download/v1.2.3/' "$tmp/runs/pinned/log"
 run_case normalized-version success Linux x86_64 1.2.3 pass
+run_case escaping success Linux x86_64 v1.2.3 pass
 run_case macos success Darwin aarch64 '' pass
 run_case missing-asset missing Linux x86_64 v1.2.3 pass
 run_case no-release no-release Linux x86_64 '' pass

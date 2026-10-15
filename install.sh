@@ -121,22 +121,49 @@ case ":${PATH:-}:" in
     *) printf 'Warning: %s is not on PATH. Add it to your shell and MCP client PATH.\n' "$install_dir" >&2 ;;
 esac
 
-if command -v claude >/dev/null 2>&1; then
-    printf '\nRegister with Claude Code (replace placeholders locally, then run):\n'
-    printf 'claude mcp add trello --transport stdio --env TRELLO_API_KEY=YOUR_API_KEY --env TRELLO_TOKEN=YOUR_TOKEN --env TRELLO_READ_ONLY=1 -- '
-    # Quote the installed path as a single shell argument, including embedded quotes.
-    printf "'"
-    printf '%s' "$install_dir/$binary" | sed "s/'/'\\\\''/g"
-    printf "'\n"
+client_binary="$install_dir/$binary"
+# Windows desktop clients need a native path, not Git Bash/MSYS/Cygwin notation.
+if [ "$os" = windows ] && command -v cygpath >/dev/null 2>&1; then
+    client_binary=$(cygpath -w "$client_binary") || fail 'could not convert the Windows executable path'
 fi
-cat <<'EOF'
+printf '\nRegister with Claude Code (replace placeholders locally, then run):\n'
+printf 'claude mcp add trello --transport stdio --env TRELLO_API_KEY=YOUR_API_KEY --env TRELLO_TOKEN=YOUR_TOKEN --env TRELLO_READ_ONLY=1 -- '
+# Quote the installed path as a single shell argument, including embedded quotes.
+printf "'"
+printf '%s' "$client_binary" | sed "s/'/'\\\\''/g"
+printf "'\n"
 
-For other MCP clients, merge this into the client configuration.
-Replace placeholders locally. Use the full installed path if trello-mcp is not on the client's PATH.
+# JSON string escaping also produces a TOML basic string. Escape control characters
+# as well as quotes and backslashes without requiring a language runtime.
+encoded_binary=$(printf '%s' "$client_binary" | awk '
+    BEGIN {
+        printf "\""
+        for (i = 1; i < 32; i++) controls[sprintf("%c", i)] = sprintf("\\u%04x", i)
+    }
+    {
+        if (NR > 1) printf "\\n"
+        for (i = 1; i <= length($0); i++) {
+            c = substr($0, i, 1)
+            if (c == "\"") printf "\\\""
+            else if (c == "\\") printf "\\\\"
+            else if (c in controls) printf "%s", controls[c]
+            else printf "%s", c
+        }
+    }
+    END { printf "\"" }
+')
+printf '\nClaude Desktop: merge into the client configuration and restart the app.\n'
+case "$os" in
+    darwin) printf 'Configuration: ~/Library/Application Support/Claude/claude_desktop_config.json\n' ;;
+    windows) printf 'Configuration: %%APPDATA%%\\Claude\\claude_desktop_config.json\n' ;;
+    *) printf 'Claude Desktop has no official Linux build. Other MCP clients can use this JSON.\n' ;;
+esac
+cat <<EOF
+Replace placeholders locally. Full paths are used because desktop apps do not inherit shell PATH.
 {
   "mcpServers": {
     "trello": {
-      "command": "trello-mcp",
+      "command": $encoded_binary,
       "env": {
         "TRELLO_API_KEY": "YOUR_API_KEY",
         "TRELLO_TOKEN": "YOUR_TOKEN",
@@ -145,4 +172,13 @@ Replace placeholders locally. Use the full installed path if trello-mcp is not o
     }
   }
 }
+
+Codex CLI and desktop: merge into ~/.codex/config.toml (replace placeholders locally).
+[mcp_servers.trello]
+command = $encoded_binary
+
+[mcp_servers.trello.env]
+TRELLO_API_KEY = "YOUR_API_KEY"
+TRELLO_TOKEN = "YOUR_TOKEN"
+TRELLO_READ_ONLY = "1"
 EOF

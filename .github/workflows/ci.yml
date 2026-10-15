@@ -8,6 +8,18 @@ permissions:
   contents: read
 
 jobs:
+  windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Test installer with PowerShell 7
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/install_test.ps1
+      - name: Test installer with Windows PowerShell 5.1
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/install_test.ps1
+
   check:
     strategy:
       fail-fast: false
