@@ -228,7 +228,7 @@ func (c *Client) Get(ctx context.Context, path string, q url.Values, out any) er
 		}
 		resp, err := c.http.Do(req)
 		if err != nil {
-			return fmt.Errorf("Trello request: %s", c.Scrub(err.Error()))
+			return fmt.Errorf("trello request: %s", c.Scrub(err.Error()))
 		}
 		c.observe(resp.Header, members)
 		data, readErr := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
@@ -240,7 +240,7 @@ func (c *Client) Get(ctx context.Context, path string, q url.Values, out any) er
 			return fmt.Errorf("close Trello response: %s", c.Scrub(closeErr.Error()))
 		}
 		if len(data) > maxResponseBytes {
-			return fmt.Errorf("Trello response exceeds 8 MiB limit")
+			return fmt.Errorf("trello response exceeds 8 MiB limit")
 		}
 		if resp.StatusCode == http.StatusTooManyRequests {
 			delay, err := retryDelay(resp.Header, attempt)
@@ -257,7 +257,7 @@ func (c *Client) Get(ctx context.Context, path string, q url.Values, out any) er
 		}
 		// Error bodies can contain credentials or private data, so never surface them.
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			return fmt.Errorf("Trello HTTP %d", resp.StatusCode)
+			return fmt.Errorf("trello HTTP %d", resp.StatusCode)
 		}
 		if err = json.Unmarshal(data, out); err != nil {
 			return fmt.Errorf("invalid Trello JSON response")

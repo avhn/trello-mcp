@@ -20,7 +20,7 @@ func TestHTTP(t *testing.T) {
 		status, failures, wantRequests int
 		wantErr                        string
 	}{
-		{"success", 200, 0, 1, ""}, {"unauthorized", 401, 99, 1, "Trello HTTP 401"}, {"429 then success", 429, 2, 3, ""}, {"retry exhausted", 429, 99, 4, "Trello HTTP 429"}, {"invalid json", 200, 99, 1, "invalid Trello JSON response"},
+		{"success", 200, 0, 1, ""}, {"unauthorized", 401, 99, 1, "trello HTTP 401"}, {"429 then success", 429, 2, 3, ""}, {"retry exhausted", 429, 99, 4, "trello HTTP 429"}, {"invalid json", 200, 99, 1, "invalid Trello JSON response"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var requests atomic.Int32
@@ -149,7 +149,7 @@ func TestRedirectAndSizeBounds(t *testing.T) {
 	}))
 	defer source.Close()
 	c := NewClient(source.URL, "key", "token", source.Client())
-	for path, want := range map[string]string{"/redirect": "Trello HTTP 302", "/big": "Trello response exceeds 8 MiB limit"} {
+	for path, want := range map[string]string{"/redirect": "trello HTTP 302", "/big": "trello response exceeds 8 MiB limit"} {
 		var out any
 		err := c.Get(context.Background(), path, nil, &out)
 		if err == nil || err.Error() != want {
