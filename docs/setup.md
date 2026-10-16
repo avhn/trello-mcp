@@ -109,7 +109,7 @@ Variables, precedence, permissions and troubleshooting are in [configuration](ht
 | ChatGPT desktop | Local MCP only; user | `~/.codex/config.toml` | Restart |
 | OpenCode | Linux, macOS, Windows; user, project | `opencode.json` | Restart |
 | Cursor | Linux, macOS, Windows; user, project | `mcp.json` | MCP Logs panel |
-| VS Code | Linux, macOS, Windows; user profile, workspace | `mcp.json` | MCP: List Servers |
+| VS Code | Linux, macOS, Windows; personal, workspace | `~/.copilot/mcp-config.json` | MCP: List Servers |
 
 Every snippet uses saved credentials and leaves writes enabled. Merge entries into existing files instead of overwriting them. ChatGPT in a browser cannot start a local stdio server.
 
@@ -195,18 +195,15 @@ Use `~/.cursor/mcp.json` for all projects, or `.cursor/mcp.json` in a project. M
 
 ### VS Code
 
-For one workspace, merge into `.vscode/mcp.json`. For your user profile, run the command palette entry MCP: Open User Configuration and merge the same entry there; the profile file location is not fixed across platforms.
+Prefer the personal file `~/.copilot/mcp-config.json` (`$COPILOT_HOME/mcp-config.json` when that variable is set); it keeps a machine-specific path out of repositories. Merge, do not overwrite:
 
 ```json
-{
-  "servers": {
-    "trello": {
-      "type": "stdio",
-      "command": "/absolute/path/to/trello-mcp"
-    }
-  }
-}
+{"mcpServers":{"trello":{"command":"/absolute/path/to/trello-mcp"}}}
 ```
+
+- Copilot CLI shares this file when it uses the same configuration home.
+- A workspace-root `.mcp.json` uses the same shape for intentionally shared configuration. Claude Code also reads it, so if trello is already registered through `claude mcp add`, check for duplicates instead of adding a second entry.
+- Existing `.vscode/mcp.json` and user-profile files (MCP: Open User Configuration) remain supported for compatibility, with the older `servers` root; keep working entries.
 
 Use MCP: List Servers to start, stop, restart or show output.
 <!-- /section:clients -->
@@ -272,16 +269,16 @@ TRELLO_TOOLS = "workspace_find,board_find,board_use,list_find,card_find,card_get
 
 `--env` is variadic: an option such as `--transport` must separate its values from the server name, or `trello` can be consumed as another environment value.
 
-For a token that cannot write at all, use the printed absolute-path auth command with `--read-only`, or set `TRELLO_READ_ONLY=1` to hide every write and transfer tool.
+For a read-only token, use the printed auth command with --read-only. TRELLO_READ_ONLY=1 only hides this server's write and transfer tools; token permissions stay unchanged.
 <!-- /section:profile -->
 
 <!-- section:verify -->
 ## Verify
 
-1. Call `server_health {}` for local configuration presence and credential source. `ok: true` does not validate authentication. Basic and detailed modes report `credentialSource` as `env`, `file` or `none`, never a path or secret. Configured responses include `access: "unverified; call workspace_find"`.
-2. Call `server_health` with `detail: "metadata"` for the installed version. CLI users may also use the printed absolute-path version and `trello-mcp auth status` commands; status describes that CLI invocation's credentials, not Desktop's environment.
-3. Call `server_health` with `detail: "policy"` for effective workspace restrictions, read-only state and tool availability. Its best-effort workspace labels do not validate authentication.
-4. Call `workspace_find {}` to verify a real Trello read. Success with empty `items` still proves the upstream read worked, not that a configured workspace selector matches. Authentication rejection differs from permission, network or rate-limit errors; use the scrubbed error rather than assuming every failure means a bad token.
+1. Credentials must be present before health metadata or policy fields exist; every unconfigured detail returns the same four-field setup response. Call `server_health {}` for local configuration presence and credential source. `ok: true` does not validate authentication. Basic and detailed modes report `credentialSource` as `env`, `file` or `none`, never a path or secret. Configured responses include `access: "unverified; call workspace_find"`.
+2. Call `server_health` with `detail: "metadata"` for the installed version (configured servers only). CLI users may also use the printed absolute-path version and `trello-mcp auth status` commands; status describes that CLI invocation's credentials, not Desktop's environment.
+3. Call `server_health` with `detail: "policy"` (configured servers only) for effective workspace restrictions, read-only state and tool availability. Its best-effort workspace labels do not validate authentication.
+4. Call `workspace_find {}` to verify a real Trello read. Success with empty `items` still proves the upstream read worked, not that a configured workspace selector matches. A configured server that gets 401 or 403 is not missing setup. A 401 can mean an expired or revoked token, a missing scope (especially write) or no access to that object, so it is not proof of an invalid token. If `workspace_find {}` succeeds, the token is valid for that read; check object access or write scope. A 403 points to object access, permissions or token scopes. Network and rate-limit errors differ. If renewal is needed, the human privately reruns the printed auth command or updates Desktop settings.
 5. If a custom profile omits `workspace_find`, use a permitted existing upstream read such as `board_find`. A health-only profile cannot verify access: change the profile and reconnect if appropriate, never bypass restrictions. Desktop extension users need no CLI auth/status or credential copying.
 
 Configured basic response (the source may instead be `file`):
@@ -300,7 +297,7 @@ Health does not become an enduring validation after a successful read; access ve
 
 1. Stop every client that runs trello-mcp.
 2. For CLI installs repeat your install method with the same destination: the installer command above, or the source install command. For Desktop extensions verify the newer bundle checksum, install it manually and check settings using supported controls.
-3. CLI users run the printed absolute-path version command, for example `"/absolute/path/to/trello-mcp" --version`; source users use `"$trello_mcp" --version` or `& $trelloMcp --version`. Desktop users use health metadata.
+3. CLI users run the printed absolute-path version command, for example `"/absolute/path/to/trello-mcp" --version`; source users use `"$trello_mcp" --version` or `& $trelloMcp --version`. Desktop users use health metadata, which needs configured credentials.
 4. Use the individual trello Reconnect action, restart the extension or fully restart the client, then repeat Verify, including the actual upstream read.
 
 Updating from v0.4.x? Read [upgrading from v0.4.x](https://github.com/avhn/trello-mcp/releases/tag/v0.5.0#upgrading-from-v04x) for the summary URL migration and the explicit versioned `go install` fallback when release assets are missing.

@@ -85,8 +85,9 @@ With no credentials the server still initializes and registers only `server_heal
 regardless of the selected profile. Initialization instructions and every health mode
 tell a CLI human to run the installer's absolute-path auth command in a private terminal (or a Desktop
 extension human to use extension settings), then use the individual Reconnect action or restart the
-client. Never request keys, tokens or authorization links in chat. See
-[configuration](configuration.md) for the exact message and precedence.
+client. Never request keys, tokens or authorization links in chat. Metadata and policy fields exist only
+once credentials are configured: every unconfigured health detail returns the same four-field setup
+response. See [configuration](configuration.md) for the exact message and precedence.
 
 - `boardId` is described per tool. Board collection tools default to the active board;
   `board_use` requires it; object-scoped tools accept it only as an optional expected
@@ -213,7 +214,9 @@ Call `server_health` with `detail: "policy"` for compact text-only JSON containi
   readiness. Unconfigured upload directories are empty strings.
 
 Custom profiles should include `server` or `server_health` to retain diagnostics.
-The health `detail` enum is `basic`, `detailed`, `metadata`, `performance`, `policy`.
+The health `detail` enum is `basic`, `detailed`, `metadata`, `performance`, `policy`. When credentials are
+not configured, every one of them returns only the setup response (`ok: false`, `message`,
+`credentialSource: "none"`, `enabledToolCount`), never version or policy fields.
 `basic` and `detailed` also report `credentialSource` as `env`, `file` or `none`; it never contains a
 path, key or token. An environment source includes credentials supplied by a Claude Desktop extension. Source means where
 credentials came from, not validated authentication. Configured basic and detailed responses include
@@ -243,8 +246,30 @@ boardId <expected>`. Read-only, confined path uploads and platform transfer
 refusals follow the same format. Do not assume these failures mean a broken token.
 
 Upstream HTTP failures instead use `trello API: HTTP <status>`; 401/403 explicitly
-say `token/permission issue, not server policy`. Error bodies are never returned,
-and credentials remain scrubbed from diagnostics.
+say `token/permission issue, not server policy`. With configured credentials these are never reported as
+missing setup or a health-only server. A 401 can mean an expired or revoked token, a missing scope
+(especially write scope) or no access to the object, so it is not proof of an invalid token; if
+`workspace_find {}` succeeds, the token is valid for that read and object access or write scope is the
+likelier check. A 403 points to object access, granted permissions or token scopes. Error bodies are never
+returned, and credentials remain scrubbed from diagnostics.
+
+## Response conventions
+
+For requested card fields subject to zero-value omission, an absent key means empty, false or unset after
+decoding; fields from unrequested expansions are absent. A `card_find` summary with an empty description,
+no due date, no labels or members and false status is `{"id":"c1","name":"Example","idBoard":"b1","idList":"l1"}`. The
+server omits Go zero values after decoding, so absence does not show whether upstream omitted the key or sent
+an empty value. Apply the rule only after considering the requested
+projection and options (for example `includeDesc: false`).
+
+Two exceptions are not empty-value signals. Activity responses omit unchanged card and list names: reuse
+the last name for that ID earlier in the same page (names do not carry across pages). Security redaction
+also removes populated upstream data: uploaded attachment URLs are deliberately omitted. Never infer an
+empty upstream value from either.
+
+Single-call partial results set MCP `isError`; batches put `error` and `unconfirmed` on entries, not on the
+envelope, so `isError` stays false for a batch with partial entries. Inspect every `items[]` entry, keep
+progress ids and read back before retrying anything.
 
 ## Activity and comments
 
@@ -333,7 +358,10 @@ Single-card partial failures set MCP `isError` while preserving that result;
 batches retain their existing per-entry error semantics. Counts exclude an
 ambiguous failed request, which might have succeeded upstream. Inspect the card
 with `checklist_get` and its items with `checklist_item_find` before resuming with
-`checklist_create` or `checklist_item_create`; do not repeat card creation.
+`checklist_create` or `checklist_item_create`; do not repeat card creation. In a batch the same `error` and
+checklist progress appear on the affected entry while the MCP result is not an error, so inspect each entry.
+Whenever card fields are unconfirmed (single call or batch entry), the checklist is not attempted and no
+`checklist` key is returned; inspect the card, then use `checklist_create`.
 
 ```json
 {"listId":"l1","cards":[{"name":"Sound test","checklist":{"items":["SND01","SND02"]}}]}
@@ -362,10 +390,15 @@ request, including a mismatch. A GET happens only for fields the response omits,
 Mutations are not retried after ambiguous transport failures, invalid success responses or verification
 mismatches. HTTP 429 responses get bounded retries (at most three). In live checks Trello ignored checklist item `due` and
 `memberId` while still answering with a populated item, so those requests surface as a partial result rather
-than success when the value does not come back; the cause is not diagnosed further.
+than success when the value does not come back; the cause is not diagnosed further. Checklist item
+`due` and `memberId` can depend on advanced checklist availability and workspace membership, which this
+server cannot check, so the error text points at feature availability and permissions without inferring
+any plan. A populated response or readback that differs means that field was not applied at that
+observation, while other fields and object creation may still have applied. A field the response omits
+and a readback cannot confirm stays uncertain. Neither case justifies an automatic retry.
 
 When the object is confirmed but a requested field is not, the result is `{id, error, unconfirmed}` (plus the
-usual `name` or `url`), where `unconfirmed` lists input names. The MCP result sets `isError`. The mutation
+usual `name` or `url`), where `unconfirmed` lists input names. Single calls set MCP `isError`. The mutation
 may have been applied, so inspect the object before repeating anything. A created card or item is never
 recreated to repair a partial result.
 
@@ -423,7 +456,9 @@ redirects are refused, so credentials cannot follow even a same-origin redirect.
 are created as 0700. Existing directories must be private, owned by the current
 user and not symlinks. A pinned directory root and exclusive 0600 creation avoid
 following or overwriting target symlinks. Names are
-`attachmentId-sanitized_fileName`; collisions fail instead of overwriting.
+`attachmentId-sanitized_fileName`. If that name exists, `-1` through `-100` is tried before the
+extension; the call fails only after all 101 candidates are unavailable, and nothing is ever overwritten.
+Use the returned `path`, not a predicted name.
 Failed or oversized transfers are removed. Results contain only `path`, `size`,
 `mimeType`, never inline file bodies. Directory ownership verification is
 currently Unix-only (including Linux and macOS); other platforms fail closed.
@@ -449,7 +484,8 @@ currently Unix-only (including Linux and macOS); other platforms fail closed.
 7. Attachment downloads use OAuth headers, attachment `fileName` and no redirects.
 8. Download storage verifies directory ownership/type, rejects symlinks, creates
    exclusively, sanitizes names and enforces a size cap.
-9. Health modes `basic`, `detailed`, `metadata`, `performance` are all local:
+9. Health modes `basic`, `detailed`, `metadata`, `performance` are all local, and every unconfigured
+   detail returns only the setup response:
    configured `basic` returns `ok`, `credentialSource` and the unverified `access` pointer;
    `detailed` adds read-only/restriction and selection-presence booleans;
    `metadata` reports implementation/runtime/transport; `performance` reports
@@ -458,3 +494,39 @@ currently Unix-only (including Linux and macOS); other platforms fail closed.
    exposes saved ids or credentials. This is not an upstream readiness check.
 10. Dropdown ids and all scalar types are preserved and tested, including writes
     and empty-value clearing for each type.
+
+## Compatibility and versioning
+
+Published in v0.8.0 for review; binding from v1.0.0. Until then only the v0.7.0 stability intent applies:
+tool names, `TRELLO_TOOLS` selection syntax, local-health semantics and the configured basic/detailed
+health fields; incompatible changes require explicit review in the v1.0.0 audit.
+
+### Covered
+
+- Documented tools, arguments and defaults, profile syntax, local health, response envelopes, types,
+  meanings and omission rules.
+- Documented auth commands and flags, environment values and defaults, credential precedence and
+  locations, and saved credential and state read compatibility within a major version.
+- Documented release asset naming patterns, installer URLs and extension identity; not indefinite hosting
+  availability.
+- For requested card fields subject to zero-value omission, an absent key means empty, false or unset
+  after decoding. This rule excludes activity name deduplication and security redaction; unrequested
+  expansions are absent. Consumers must tolerate additive fields.
+
+### Not covered
+
+- Internal Go packages, state representation, opaque cursor encoding, JSON key order and whitespace, counts,
+  descriptions and human error wording.
+- Upstream Trello availability, data, permissions and plans, external client formats, Desktop settings or
+  secure-storage migration, and the Linux Desktop beta.
+- Downgrades across releases; a stable extension identity does not guarantee settings retention.
+
+### How changes are signalled
+
+- From 1.0, compatible fixes use patch versions, additive tools or optional fields use minor versions, and
+  incompatible documented changes require a major version.
+- Deprecations appear in documentation and minor-release notes with migration guidance; removal waits for
+  a later major version.
+- GitHub release notes and signed tag messages are the changelog; there is no separate CHANGELOG file.
+- Before 1.0, any unavoidable reviewed incompatibility needs a bold breaking-change notice and a migration;
+  security incompatibilities are explicit too.

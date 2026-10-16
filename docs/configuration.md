@@ -26,7 +26,10 @@ PATH, use the absolute path the installer printed.
 Selected tools form a union and unknown selectors fail startup. Groups use the prefix before the
 first underscore, so `card` includes `card_member_add` and `card_member_remove`. Read-only filtering
 applies even when write tools are selected explicitly. The copyable read-oriented profile is in
-[setup](setup.md#optional-read-oriented-profile).
+[setup](setup.md#optional-read-oriented-profile). For a token that cannot write at all, use a read-only
+token (`auth --read-only`); `TRELLO_READ_ONLY` only hides this server's write and transfer tools and leaves
+token permissions unchanged. Tool names, `TRELLO_TOOLS` syntax and local health are covered by the
+[compatibility and versioning policy](tools.md#compatibility-and-versioning).
 
 ## Credential storage
 
@@ -59,8 +62,8 @@ Both environment values are required together; a partial pair is an error, not a
 configs need only the full binary path, with no credential env block. The Claude Desktop extension is the
 exception: Desktop passes its masked key and token settings as this environment pair, so they win over any
 saved file, and an environment token has unknown scope and is never assumed read-only. Do not use CLI
-`auth` to store Desktop credentials. Setup for the supported macOS/Windows extension is in
-[setup](setup.md#claude-desktop-extension). Linux Desktop remains beta. Updates are manual: verify the
+`auth` to store Desktop credentials. Setup for the supported macOS and Windows amd64 extension (Windows
+on Arm is not claimed) is in [setup](setup.md#claude-desktop-extension). Linux Desktop remains beta. Updates are manual: verify the
 release checksum, install the newer bundle, check settings with supported controls and restart. Settings
 retention or migration is not guaranteed. To remove it, use supported controls in Settings > Extensions,
 manage any retained sensitive settings there and revoke access at Trello separately. Removal does not
@@ -138,7 +141,8 @@ are best effort and do not validate auth. Successful empty results prove the rea
 selector matches. A permitted `board_find` can serve custom profiles without `workspace_find`;
 health-only profiles cannot verify access. Change profile and reconnect if appropriate, never bypass
 restrictions. CLI status describes that invocation, not Desktop environment credentials. Desktop users
-need no CLI auth/status or credential copying. With none found:
+need no CLI auth/status or credential copying. Metadata and policy details exist only when credentials
+are configured; without credentials every detail returns the setup response. With none found:
 
 ```text
 No credentials in this shell or <path>. MCP clients may pass them through their own config; run `trello-mcp auth` to save them for all clients.
@@ -150,7 +154,10 @@ Validation failure starts with:
 credential validation failed; check the token and its read permission, then run `trello-mcp auth`:
 ```
 
-The scrubbed upstream error follows that prefix.
+The error follows that prefix: an HTTP 401 uses the CLI validation message (`token rejected during auth
+validation; ...; nothing saved`); a token whose identity or read permission cannot be verified reports
+`trello identity or read permission could not be verified; nothing saved`; other failures use the
+scrubbed upstream error.
 Logout removes only the three Trello keys; unrelated lines and comments remain, and
 the file is deleted only if no bytes remain. It does not revoke the token or
 unset environment values.
@@ -196,9 +203,16 @@ paths, and rerun as the owner rather than bypassing ownership checks.
 - Permission refused: use the exact corrective message above. On Unix auth
   repairs only the default `~/.secrets` to 0700, when it is a current-user-owned real directory; it does not
   chmod custom parents or read an unsafe file to preserve its lines.
-- 401 token rejected: CLI users rerun the printed absolute-path auth command privately; Desktop users
-  update extension settings and restart. Check token expiry, revocation and the matching API key.
-  403 can indicate insufficient permission; network and rate-limit failures are distinct from auth rejection.
+- Configured server with 401: credentials exist, so this is not a missing-setup case. A 401 can mean an
+  expired or revoked token, a missing required scope (especially write scope) or no access to that object;
+  it is not proof of an invalid token. Check the matching API key and token. If `workspace_find {}`
+  succeeds, the token is valid for that read; check object access or write scope. If renewal is needed,
+  CLI users rerun the printed absolute-path auth command privately and Desktop users update extension
+  settings, then reconnect or restart. During `auth` or `auth status` validation a 401 prints a
+  CLI-specific message and saves nothing.
+- Configured server with 403: check object access, granted permissions and token scopes; renewal is not
+  automatically required. Scope and access failures are not always 403. Network and rate-limit failures
+  are distinct from auth rejection.
 - Upstream JSON response exceeds 8 MiB: card snapshot filtering and paging happen after retrieval, so
   smaller `limit` or `nameFilter` cannot shrink that upstream response. A narrower `listId` or summary
   `includeDesc: false` may help but cannot guarantee recovery; omission is invalid with full detail.
@@ -223,7 +237,10 @@ through an agent). For Claude Desktop extensions, the human must enter credentia
 Then use the trello server's Reconnect action in /mcp or fully quit/restart the MCP client; restart the
 Desktop extension or fully quit/reopen Desktop. Never share keys, tokens or authorization URLs in chat or
 agent-captured commands. Only server_health is exposed until a fresh configured server starts."
-Invalid-token HTTP 401 errors include the same setup hint.
+That message appears only when credentials are missing. Every unconfigured health detail (basic,
+detailed, metadata, policy and performance) returns the same four-field setup response (`ok`,
+`message`, `credentialSource`, `enabledToolCount`); version, policy and performance fields exist only
+once credentials are present. Configured HTTP 401 and 403 errors never repeat it.
 
 Policy health returns `restricted`, `allowedWorkspaces` (each configured
 `selector`, plus resolved `id` and canonical `name` when available), `readOnly`,
@@ -286,7 +303,8 @@ round-trip evidence. These observations are not upstream maxima or Unicode evide
   access without exposing resolved parent ids. Only after the allowlist passes
   does a `boardId` mismatch identify the actual and supplied board ids.
   Genuine upstream HTTP failures use `trello API: HTTP <status>`; 401/403 explicitly
-  identify a token/permission issue. Do not change credentials to fix server policy.
+  identify a token/permission issue with possible causes, not a diagnosis, and are never confused with
+  missing setup. Do not change credentials to fix server policy.
 - Ownership checks, not caller claims. Every scoped read and write resolves
   the actual owning board. Moves and copies check source and destination;
   comments, checklist items, attachments, labels, custom fields and member

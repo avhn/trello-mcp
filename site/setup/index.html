@@ -23,7 +23,7 @@
 <link rel="icon" href="/trello-mcp/assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/trello-mcp/assets/style.css">
 <script src="/trello-mcp/assets/copy.js" defer></script>
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","@id":"https://avhn.github.io/trello-mcp/#software","name":"trello-mcp","url":"https://avhn.github.io/trello-mcp/","description":"A local Trello MCP server in Go with compact curated responses, workspace restrictions and read-only opt-in.","operatingSystem":"Linux, macOS, Windows","applicationCategory":"DeveloperApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://github.com/avhn/trello-mcp/blob/main/LICENSE","softwareVersion":"0.7.0","downloadUrl":"https://github.com/avhn/trello-mcp/releases","codeRepository":"https://github.com/avhn/trello-mcp","programmingLanguage":"Go"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","@id":"https://avhn.github.io/trello-mcp/#software","name":"trello-mcp","url":"https://avhn.github.io/trello-mcp/","description":"A local Trello MCP server in Go with compact curated responses, workspace restrictions and read-only opt-in.","operatingSystem":"Linux, macOS, Windows","applicationCategory":"DeveloperApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://github.com/avhn/trello-mcp/blob/main/LICENSE","softwareVersion":"0.8.0","downloadUrl":"https://github.com/avhn/trello-mcp/releases","codeRepository":"https://github.com/avhn/trello-mcp","programmingLanguage":"Go"}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://avhn.github.io/trello-mcp/"},{"@type":"ListItem","position":2,"name":"Setup","item":"https://avhn.github.io/trello-mcp/setup/"}]}</script>
 </head>
 <body>
@@ -97,7 +97,7 @@
 <tr><td>ChatGPT desktop</td><td>Local MCP only; user</td><td><code>~/.codex/config.toml</code></td><td>Restart</td></tr>
 <tr><td>OpenCode</td><td>Linux, macOS, Windows; user, project</td><td><code>opencode.json</code></td><td>Restart</td></tr>
 <tr><td>Cursor</td><td>Linux, macOS, Windows; user, project</td><td><code>mcp.json</code></td><td>MCP Logs panel</td></tr>
-<tr><td>VS Code</td><td>Linux, macOS, Windows; user profile, workspace</td><td><code>mcp.json</code></td><td>MCP: List Servers</td></tr>
+<tr><td>VS Code</td><td>Linux, macOS, Windows; personal, workspace</td><td><code>~/.copilot/mcp-config.json</code></td><td>MCP: List Servers</td></tr>
 </tbody></table></div>
 <p>Every snippet uses saved credentials and leaves writes enabled. Merge entries into existing files instead of overwriting them. ChatGPT in a browser cannot start a local stdio server.</p>
 <h3 id="claude-code">Claude Code</h3>
@@ -149,15 +149,13 @@ command = "/absolute/path/to/trello-mcp"</code></pre>
   }
 }</code></pre>
 <h3 id="vs-code">VS Code</h3>
-<p>For one workspace, merge into <code>.vscode/mcp.json</code>. For your user profile, run the command palette entry MCP: Open User Configuration and merge the same entry there; the profile file location is not fixed across platforms.</p>
-<pre><code class="language-json">{
-  "servers": {
-    "trello": {
-      "type": "stdio",
-      "command": "/absolute/path/to/trello-mcp"
-    }
-  }
-}</code></pre>
+<p>Prefer the personal file <code>~/.copilot/mcp-config.json</code> (<code>$COPILOT_HOME/mcp-config.json</code> when that variable is set); it keeps a machine-specific path out of repositories. Merge, do not overwrite:</p>
+<pre><code class="language-json">{"mcpServers":{"trello":{"command":"/absolute/path/to/trello-mcp"}}}</code></pre>
+<ul>
+<li>Copilot CLI shares this file when it uses the same configuration home.</li>
+<li>A workspace-root <code>.mcp.json</code> uses the same shape for intentionally shared configuration. Claude Code also reads it, so if trello is already registered through <code>claude mcp add</code>, check for duplicates instead of adding a second entry.</li>
+<li>Existing <code>.vscode/mcp.json</code> and user-profile files (MCP: Open User Configuration) remain supported for compatibility, with the older <code>servers</code> root; keep working entries.</li>
+</ul>
 <p>Use MCP: List Servers to start, stop, restart or show output.</p>
 </section>
 <section data-section="desktop">
@@ -204,15 +202,15 @@ command = "/absolute/path/to/trello-mcp"
 [mcp_servers.trello.env]
 TRELLO_TOOLS = "workspace_find,board_find,board_use,list_find,card_find,card_get,comment_find,checklist_get,checklist_items,server_health"</code></pre>
 <p><code>--env</code> is variadic: an option such as <code>--transport</code> must separate its values from the server name, or <code>trello</code> can be consumed as another environment value.</p>
-<p>For a token that cannot write at all, use the printed absolute-path auth command with <code>--read-only</code>, or set <code>TRELLO_READ_ONLY=1</code> to hide every write and transfer tool.</p>
+<p>For a read-only token, use the printed auth command with --read-only. TRELLO_READ_ONLY=1 only hides this server's write and transfer tools; token permissions stay unchanged.</p>
 </section>
 <section data-section="verify">
 <h2 id="verify">Verify</h2>
 <ol>
-<li>Call <code>server_health {}</code> for local configuration presence and credential source. <code>ok: true</code> does not validate authentication. Basic and detailed modes report <code>credentialSource</code> as <code>env</code>, <code>file</code> or <code>none</code>, never a path or secret. Configured responses include <code>access: "unverified; call workspace_find"</code>.</li>
-<li>Call <code>server_health</code> with <code>detail: "metadata"</code> for the installed version. CLI users may also use the printed absolute-path version and <code>trello-mcp auth status</code> commands; status describes that CLI invocation's credentials, not Desktop's environment.</li>
-<li>Call <code>server_health</code> with <code>detail: "policy"</code> for effective workspace restrictions, read-only state and tool availability. Its best-effort workspace labels do not validate authentication.</li>
-<li>Call <code>workspace_find {}</code> to verify a real Trello read. Success with empty <code>items</code> still proves the upstream read worked, not that a configured workspace selector matches. Authentication rejection differs from permission, network or rate-limit errors; use the scrubbed error rather than assuming every failure means a bad token.</li>
+<li>Credentials must be present before health metadata or policy fields exist; every unconfigured detail returns the same four-field setup response. Call <code>server_health {}</code> for local configuration presence and credential source. <code>ok: true</code> does not validate authentication. Basic and detailed modes report <code>credentialSource</code> as <code>env</code>, <code>file</code> or <code>none</code>, never a path or secret. Configured responses include <code>access: "unverified; call workspace_find"</code>.</li>
+<li>Call <code>server_health</code> with <code>detail: "metadata"</code> for the installed version (configured servers only). CLI users may also use the printed absolute-path version and <code>trello-mcp auth status</code> commands; status describes that CLI invocation's credentials, not Desktop's environment.</li>
+<li>Call <code>server_health</code> with <code>detail: "policy"</code> (configured servers only) for effective workspace restrictions, read-only state and tool availability. Its best-effort workspace labels do not validate authentication.</li>
+<li>Call <code>workspace_find {}</code> to verify a real Trello read. Success with empty <code>items</code> still proves the upstream read worked, not that a configured workspace selector matches. A configured server that gets 401 or 403 is not missing setup. A 401 can mean an expired or revoked token, a missing scope (especially write) or no access to that object, so it is not proof of an invalid token. If <code>workspace_find {}</code> succeeds, the token is valid for that read; check object access or write scope. A 403 points to object access, permissions or token scopes. Network and rate-limit errors differ. If renewal is needed, the human privately reruns the printed auth command or updates Desktop settings.</li>
 <li>If a custom profile omits <code>workspace_find</code>, use a permitted existing upstream read such as <code>board_find</code>. A health-only profile cannot verify access: change the profile and reconnect if appropriate, never bypass restrictions. Desktop extension users need no CLI auth/status or credential copying.</li>
 </ol>
 <p>Configured basic response (the source may instead be <code>file</code>):</p>
@@ -225,7 +223,7 @@ TRELLO_TOOLS = "workspace_find,board_find,board_use,list_find,card_find,card_get
 <ol>
 <li>Stop every client that runs trello-mcp.</li>
 <li>For CLI installs repeat your install method with the same destination: the installer command above, or the source install command. For Desktop extensions verify the newer bundle checksum, install it manually and check settings using supported controls.</li>
-<li>CLI users run the printed absolute-path version command, for example <code>"/absolute/path/to/trello-mcp" --version</code>; source users use <code>"$trello_mcp" --version</code> or <code>&amp; $trelloMcp --version</code>. Desktop users use health metadata.</li>
+<li>CLI users run the printed absolute-path version command, for example <code>"/absolute/path/to/trello-mcp" --version</code>; source users use <code>"$trello_mcp" --version</code> or <code>&amp; $trelloMcp --version</code>. Desktop users use health metadata, which needs configured credentials.</li>
 <li>Use the individual trello Reconnect action, restart the extension or fully restart the client, then repeat Verify, including the actual upstream read.</li>
 </ol>
 <p>Updating from v0.4.x? Read <a href="https://github.com/avhn/trello-mcp/releases/tag/v0.5.0#upgrading-from-v04x">upgrading from v0.4.x</a> for the summary URL migration and the explicit versioned <code>go install</code> fallback when release assets are missing.</p>
