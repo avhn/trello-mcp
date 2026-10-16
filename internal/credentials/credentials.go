@@ -259,7 +259,7 @@ func readFile(root *os.Root, name string) ([]byte, error) {
 	}
 	data, err := io.ReadAll(io.LimitReader(file, maxSize+1))
 	if err != nil || len(data) > maxSize {
-		return nil, fmt.Errorf("read credentials file: invalid size or unreadable file; rerun trello-mcp auth")
+		return nil, fmt.Errorf("read credentials file: invalid size or unreadable file; rerun the installer's absolute-path auth command")
 	}
 	return data, nil
 }
@@ -302,13 +302,13 @@ func loadSource(source Source) (File, error) {
 			continue
 		}
 		if !ok || (managed(strings.TrimSpace(key)) && !managed(key)) {
-			return File{}, fmt.Errorf("invalid credentials file; use unquoted KEY=VALUE lines and rerun trello-mcp auth")
+			return File{}, fmt.Errorf("invalid credentials file; use unquoted KEY=VALUE lines and rerun the installer's absolute-path auth command")
 		}
 		if !managed(key) {
 			continue
 		}
 		if seen[key] || !ValidValue(value) {
-			return File{}, fmt.Errorf("invalid credentials file; use unquoted KEY=VALUE lines and rerun trello-mcp auth")
+			return File{}, fmt.Errorf("invalid credentials file; use unquoted KEY=VALUE lines and rerun the installer's absolute-path auth command")
 		}
 		seen[key] = true
 		switch key {

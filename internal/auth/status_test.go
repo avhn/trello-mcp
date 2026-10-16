@@ -3,6 +3,7 @@ package auth
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/avhn/trello-mcp/internal/credentials"
@@ -17,7 +19,9 @@ import (
 )
 
 func TestStatusAndFileOverrides(t *testing.T) {
+	var requests atomic.Int32
 	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		requests.Add(1)
 		if req.URL.Path == "/members/me" {
 			_, _ = io.WriteString(w, `{"username":"synthetic-user"}`)
 		} else {
@@ -44,8 +48,12 @@ func TestStatusAndFileOverrides(t *testing.T) {
 			args = append(args, "--file", path)
 		}
 		out.Reset()
+		before := requests.Load()
 		if err := r.run(context.Background(), args); err != nil {
 			t.Fatal(err)
+		}
+		if requests.Load()-before != 2 {
+			t.Fatal("status must validate identity and read permission with two GETs")
 		}
 		want := "Credential source: file " + path + "\nConnected as synthetic-user, scope read,write\n"
 		if out.String() != want {
@@ -86,33 +94,91 @@ func TestStatusAndFileOverrides(t *testing.T) {
 		}
 	}
 	out.Reset()
+	before := requests.Load()
 	if err := r.run(context.Background(), []string{"status", "--file", paths[2]}); err != nil {
 		t.Fatal(err)
 	}
-	want := fmt.Sprintf("No credentials in this shell or %s. MCP clients may pass them through their own config; run `trello-mcp auth` to save them for all clients.\n", paths[2])
-	if out.String() != want {
+	if requests.Load() != before {
+		t.Fatal("missing credentials made an HTTP request")
+	}
+	want := fmt.Sprintf("No credentials in this shell or %s. MCP clients may pass them through their own config. To save CLI credentials, the human runs the installer's quoted absolute-path auth command in a private terminal, then reconnects or restarts clients.\n", paths[2])
+	if out.String() != want || strings.Contains(out.String(), "`trello-mcp auth`") {
 		t.Fatalf("missing status %q", out.String())
 	}
 }
 
 func TestStatusValidationFailure(t *testing.T) {
-	for _, status := range []int{401, 403, 200} {
-		t.Run(fmt.Sprint(status), func(t *testing.T) {
-			fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(status)
-				_, _ = io.WriteString(w, `{"permissions":[]}`)
+	for _, tc := range []struct {
+		name        string
+		failAt      int
+		status      int
+		identity    string
+		permissions string
+	}{
+		{"identity unauthorized", 1, 401, "synthetic-user", `{"permissions":[{"read":true}]}`},
+		{"identity forbidden", 1, 403, "synthetic-user", `{"permissions":[{"read":true}]}`},
+		{"grant unauthorized", 2, 401, "synthetic-user", `{"permissions":[{"read":true}]}`},
+		{"grant forbidden", 2, 403, "synthetic-user", `{"permissions":[{"read":true}]}`},
+		{"missing identity", 0, 200, "", `{"permissions":[{"read":true}]}`},
+		{"missing read grant", 0, 200, "synthetic-user", `{"permissions":[{"write":true}]}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var requests atomic.Int32
+			fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				request := int(requests.Add(1))
+				if req.Method != http.MethodGet {
+					t.Errorf("status sent %s", req.Method)
+				}
+				switch {
+				case request == tc.failAt:
+					w.WriteHeader(tc.status)
+					_, _ = io.WriteString(w, `{"message":"synthetic-key synthetic-token"}`)
+				case req.URL.Path == "/members/me":
+					_, _ = fmt.Fprintf(w, `{"username":%q}`, tc.identity)
+				default:
+					_, _ = io.WriteString(w, tc.permissions)
+				}
 			}))
 			defer fake.Close()
+			home := credentialTestDir(t)
+			// Save creates this subdirectory with a protected DACL on Windows.
+			path := filepath.Join(home, "status", "credentials.secret")
+			if err := credentials.Save(path, credentials.File{APIKey: "synthetic-key", Token: "synthetic-token"}); err != nil {
+				t.Fatal(err)
+			}
+			original, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
 			var out bytes.Buffer
-			r := runner{out: &out, env: func(key string) string {
-				if key == "TRELLO_API_KEY" || key == "TRELLO_TOKEN" {
-					return "synthetic-value"
+			r := runner{out: &out, env: func(string) string { return "" }, homeDir: func() (string, error) { return home, nil }, client: func(key, token string) *trello.Client { return trello.NewClient(fake.URL, key, token, fake.Client()) }}
+			err = r.run(context.Background(), []string{"status", "--file", path})
+			const recovery = "credential validation failed; check the token and its read permission. If renewal is needed, the human runs the installer's quoted absolute-path auth command with --file and the path above in a private terminal, then reconnects or restarts clients: "
+			if err == nil || !strings.HasPrefix(err.Error(), recovery) {
+				t.Fatalf("incomplete validation failure: %v", err)
+			}
+			for _, text := range []string{err.Error(), out.String()} {
+				if strings.Contains(text, "synthetic-key") || strings.Contains(text, "synthetic-token") || strings.Contains(text, "`trello-mcp auth`") {
+					t.Fatal("status leaked credentials or advised a bare auth command")
 				}
-				return ""
-			}, homeDir: func() (string, error) { return credentialTestDir(t), nil }, client: func(key, token string) *trello.Client { return trello.NewClient(fake.URL, key, token, fake.Client()) }}
-			err := r.run(context.Background(), []string{"status"})
-			if err == nil || !strings.Contains(err.Error(), "credential validation failed; check the token and its read permission") || strings.Contains(err.Error(), "synthetic-value") || strings.Contains(out.String(), "synthetic-value") {
-				t.Errorf("unsafe or incomplete validation failure: %v", err)
+			}
+			var cause *trello.HTTPError
+			if tc.failAt != 0 && (!errors.As(err, &cause) || cause.StatusCode != tc.status) {
+				t.Fatalf("HTTP cause not preserved: %v", err)
+			}
+			wantRequests := 2
+			if tc.failAt == 1 {
+				wantRequests = 1
+			}
+			if int(requests.Load()) != wantRequests {
+				t.Errorf("requests = %d, want %d", requests.Load(), wantRequests)
+			}
+			after, readErr := os.ReadFile(path)
+			if readErr != nil || !bytes.Equal(after, original) {
+				t.Fatal("status changed saved credentials")
+			}
+			if _, err := os.Stat(filepath.Join(home, ".secrets", ".trello-mcp.secret")); !os.IsNotExist(err) {
+				t.Fatal("status created default credentials")
 			}
 		})
 	}
@@ -308,5 +374,111 @@ func TestLogoutWithoutSavedKeys(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestStatusValidationFailureFromEnv(t *testing.T) {
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer fake.Close()
+	home := credentialTestDir(t)
+	env := map[string]string{"TRELLO_API_KEY": "synthetic-key", "TRELLO_TOKEN": "synthetic-token"}
+	var out bytes.Buffer
+	r := runner{out: &out, env: func(key string) string { return env[key] }, homeDir: func() (string, error) { return home, nil }, client: func(key, token string) *trello.Client { return trello.NewClient(fake.URL, key, token, fake.Client()) }}
+	err := r.run(context.Background(), []string{"status"})
+	// Renewing a saved file cannot replace environment credentials, which win.
+	const recovery = "credential validation failed; check the token and its read permission. If renewal is needed, the human updates or unsets TRELLO_API_KEY and TRELLO_TOKEN where they are set, then reconnects or restarts clients: "
+	if err == nil || !strings.HasPrefix(err.Error(), recovery) {
+		t.Fatalf("env recovery missing: %v", err)
+	}
+	if strings.Contains(err.Error()+out.String(), "synthetic-key") || strings.Contains(err.Error()+out.String(), "synthetic-token") {
+		t.Fatal("status leaked credentials")
+	}
+	if !strings.Contains(out.String(), "Credential source: env") {
+		t.Fatalf("source not reported: %q", out.String())
+	}
+}
+
+func TestStatusValidationFailureFromSharedStore(t *testing.T) {
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer fake.Close()
+	home := credentialTestDir(t)
+	staged := filepath.Join(home, "staging", "shared.secret")
+	if err := credentials.Save(staged, credentials.File{APIKey: "synthetic-key", Token: "synthetic-token"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(staged, filepath.Join(home, ".secrets.env")); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	r := runner{out: &out, env: func(string) string { return "" }, homeDir: func() (string, error) { return home, nil }, client: func(key, token string) *trello.Client { return trello.NewClient(fake.URL, key, token, fake.Client()) }}
+	err := r.run(context.Background(), []string{"status"})
+	// auth refuses to write the shared store, so recovery must not suggest --file for it.
+	const recovery = "credential validation failed; check the token and its read permission. If renewal is needed, the human runs the installer's quoted absolute-path auth command without --file in a private terminal (the dedicated file outranks the shared store) or updates the shared store privately, then reconnects or restarts clients: "
+	if err == nil || !strings.HasPrefix(err.Error(), recovery) {
+		t.Fatalf("shared-store recovery missing: %v", err)
+	}
+	if !strings.Contains(out.String(), "Credential source: file ~/.secrets.env (shared store)") {
+		t.Fatalf("source not reported: %q", out.String())
+	}
+}
+
+func TestStatusValidationFailureFromSharedStoreFile(t *testing.T) {
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer fake.Close()
+	home := credentialTestDir(t)
+	staged := filepath.Join(home, "staging", "shared.secret")
+	if err := credentials.Save(staged, credentials.File{APIKey: "synthetic-key", Token: "synthetic-token"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(staged, filepath.Join(home, ".secrets.env")); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	r := runner{out: &out, env: func(string) string { return "" }, homeDir: func() (string, error) { return home, nil }, client: func(key, token string) *trello.Client { return trello.NewClient(fake.URL, key, token, fake.Client()) }}
+	err := r.run(context.Background(), []string{"status", "--file", filepath.Join(home, ".secrets.env")})
+	// --file is not the environment override, so plain auth still outranks the shared store.
+	const recovery = "credential validation failed; check the token and its read permission. If renewal is needed, the human runs the installer's quoted absolute-path auth command without --file in a private terminal (the dedicated file outranks the shared store) or updates the shared store privately, then reconnects or restarts clients: "
+	if err == nil || !strings.HasPrefix(err.Error(), recovery) {
+		t.Fatalf("shared-store recovery missing: %v", err)
+	}
+	if !strings.Contains(out.String(), "Credential source: file ~/.secrets.env (shared store)") {
+		t.Fatalf("source not reported: %q", out.String())
+	}
+}
+
+func TestStatusValidationFailureFromSharedStoreOverride(t *testing.T) {
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer fake.Close()
+	home := credentialTestDir(t)
+	staged := filepath.Join(home, "staging", "shared.secret")
+	if err := credentials.Save(staged, credentials.File{APIKey: "synthetic-key", Token: "synthetic-token"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(staged, filepath.Join(home, ".secrets.env")); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	r := runner{out: &out, env: func(k string) string {
+		if k == "TRELLO_MCP_CREDENTIALS" {
+			return filepath.Join(home, ".secrets.env")
+		}
+		return ""
+	}, homeDir: func() (string, error) { return home, nil }, client: func(key, token string) *trello.Client { return trello.NewClient(fake.URL, key, token, fake.Client()) }}
+	err := r.run(context.Background(), []string{"status"})
+	// The override ranks the shared store first, so auth without --file cannot replace it.
+	const recovery = "credential validation failed; check the token and its read permission. If renewal is needed, the human updates the shared store privately, or points TRELLO_MCP_CREDENTIALS at a dedicated file, wherever it is set, and runs the installer's quoted absolute-path auth command in a private terminal, then reconnects or restarts clients: "
+	if err == nil || !strings.HasPrefix(err.Error(), recovery) {
+		t.Fatalf("shared-store recovery missing: %v", err)
+	}
+	if !strings.Contains(out.String(), "Credential source: file ~/.secrets.env (shared store)") {
+		t.Fatalf("source not reported: %q", out.String())
 	}
 }

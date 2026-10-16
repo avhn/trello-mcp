@@ -319,21 +319,30 @@ func (r runner) status(ctx context.Context, paths []credentials.Source) error {
 		return err
 	}
 	if source == "none" {
-		_, err = fmt.Fprintf(r.out, "No credentials in this shell or %s. MCP clients may pass them through their own config; run `trello-mcp auth` to save them for all clients.\n", paths[0].Path)
+		_, err = fmt.Fprintf(r.out, "No credentials in this shell or %s. MCP clients may pass them through their own config. To save CLI credentials, the human runs the installer's quoted absolute-path auth command in a private terminal, then reconnects or restarts clients.\n", paths[0].Path)
 		return err
 	}
 	label := "file " + path
+	// Environment credentials win over saved files, and auth never writes the shared
+	// store, so each source needs its own renewal path.
+	renew := "the human runs the installer's quoted absolute-path auth command with --file and the path above in a private terminal"
 	if source == "env" {
 		label = "env (TRELLO_API_KEY, TRELLO_TOKEN)"
+		renew = "the human updates or unsets TRELLO_API_KEY and TRELLO_TOKEN where they are set"
 	} else if home, err := r.homeDir(); err == nil && credentials.SamePath(path, filepath.Join(home, ".secrets.env")) {
 		label = "file ~/.secrets.env (shared store)"
+		renew = "the human runs the installer's quoted absolute-path auth command without --file in a private terminal (the dedicated file outranks the shared store) or updates the shared store privately"
+		if override := r.env("TRELLO_MCP_CREDENTIALS"); override != "" && credentials.SamePath(override, path) {
+			// The environment override names the shared store, so auth without --file would target it.
+			renew = "the human updates the shared store privately, or points TRELLO_MCP_CREDENTIALS at a dedicated file, wherever it is set, and runs the installer's quoted absolute-path auth command in a private terminal"
+		}
 	}
 	if _, err = fmt.Fprintln(r.out, "Credential source: "+label); err != nil {
 		return err
 	}
 	username, granted, err := validate(ctx, r.client(c.APIKey, c.Token), c.Token)
 	if err != nil {
-		return fmt.Errorf("credential validation failed; check the token and its read permission, then run `trello-mcp auth`: %w", err)
+		return fmt.Errorf("credential validation failed; check the token and its read permission. If renewal is needed, %s, then reconnects or restarts clients: %w", renew, err)
 	}
 	_, err = fmt.Fprintf(r.out, "Connected as %s, scope %s\n", username, granted)
 	return err

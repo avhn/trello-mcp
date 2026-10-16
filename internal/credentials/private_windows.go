@@ -15,7 +15,7 @@ import (
 const readFlags = os.O_RDONLY
 
 func privacyError() error {
-	return fmt.Errorf("credentials require a protected owner-only Windows DACL and ownership by the current user; remove access for other users in Properties > Security on the credentials directory and .trello-mcp.secret, then rerun trello-mcp auth")
+	return fmt.Errorf("credentials require a protected owner-only Windows DACL and ownership by the current user; remove access for other users in Properties > Security on the credentials directory and .trello-mcp.secret, then rerun the installer's absolute-path auth command")
 }
 
 func privateDescriptor() (*windows.SECURITY_DESCRIPTOR, error) {
