@@ -156,26 +156,76 @@ func TestAuthFlow(t *testing.T) {
 
 func TestAuthFailureDoesNotSave(t *testing.T) {
 	for _, status := range []int{401, 403, 200} {
-		t.Run(fmt.Sprint(status), func(t *testing.T) {
-			fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(status)
-				_, _ = io.WriteString(w, `{"username":"synthetic-user","permissions":[]}`)
-			}))
-			defer fake.Close()
-			dir := credentialTestDir(t)
-			var out bytes.Buffer
-			r := runner{in: strings.NewReader("synthetic-key\nsynthetic-token\n"), out: &out, env: func(string) string { return "" }, homeDir: func() (string, error) { return dir, nil }, client: func(key, token string) *trello.Client { return trello.NewClient(fake.URL, key, token, fake.Client()) }}
-			err := r.run(context.Background(), []string{"--read-only"})
-			if err == nil || strings.Contains(err.Error(), "synthetic-key") || strings.Contains(err.Error(), "synthetic-token") {
-				t.Errorf("unsafe or missing validation error: %v", err)
-			}
-			if status == 401 && !strings.Contains(err.Error(), credentials.Hint) {
-				t.Error("missing setup hint")
-			}
-			if _, err = os.Stat(filepath.Join(dir, ".secrets", ".trello-mcp.secret")); !errors.Is(err, os.ErrNotExist) {
-				t.Error("failed validation saved credentials")
-			}
-		})
+		for _, failAt := range []int{1, 2} {
+			t.Run(fmt.Sprintf("%d/get%d", status, failAt), func(t *testing.T) {
+				requests := 0
+				fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					requests++
+					if requests == failAt {
+						w.WriteHeader(status)
+						_, _ = io.WriteString(w, `{"username":"synthetic-user","permissions":[]}`)
+						return
+					}
+					_, _ = io.WriteString(w, `{"username":"synthetic-user"}`)
+				}))
+				defer fake.Close()
+				dir := credentialTestDir(t)
+				path := filepath.Join(dir, "credentials.secret")
+				var out bytes.Buffer
+				r := runner{in: strings.NewReader("synthetic-key\nsynthetic-token\n"), out: &out, env: func(string) string { return "" }, homeDir: func() (string, error) { return dir, nil }, client: func(key, token string) *trello.Client { return trello.NewClient(fake.URL, key, token, fake.Client()) }}
+				checkError := func(err error) {
+					t.Helper()
+					if err == nil {
+						t.Fatal("missing validation error")
+					}
+					for _, hidden := range []string{"synthetic-key", "synthetic-token", "not configured", "Only server_health", "workspace_find"} {
+						if strings.Contains(err.Error(), hidden) {
+							t.Errorf("unexpected %q in validation error: %v", hidden, err)
+						}
+					}
+					if status != 200 {
+						var upstream *trello.HTTPError
+						if !errors.As(err, &upstream) || upstream.StatusCode != status {
+							t.Errorf("HTTP status lost: %v", err)
+						}
+					}
+					if status == 401 {
+						for _, want := range []string{"token rejected during auth validation", "HTTP 401", "API key and token match", "expiry or revocation", "read permission", "nothing saved"} {
+							if !strings.Contains(err.Error(), want) {
+								t.Errorf("missing %q: %v", want, err)
+							}
+						}
+					} else if status == 403 && err.Error() != (&trello.HTTPError{StatusCode: status}).Error() && !strings.HasPrefix(err.Error(), "credential validation failed;") {
+						t.Errorf("non-401 validation error changed: %v", err)
+					}
+				}
+				checkError(r.run(context.Background(), []string{"--read-only", "--file", path}))
+				if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+					t.Fatal("failed validation saved credentials")
+				}
+				if err := credentials.Save(path, credentials.File{APIKey: "synthetic-key", Token: "synthetic-token", Scope: "read"}); err != nil {
+					t.Fatal(err)
+				}
+				before, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				requests = 0
+				out.Reset()
+				err = r.run(context.Background(), []string{"status", "--file", path})
+				checkError(err)
+				if !strings.HasPrefix(err.Error(), "credential validation failed;") {
+					t.Errorf("status context lost: %v", err)
+				}
+				if strings.Contains(out.String(), "synthetic-key") || strings.Contains(out.String(), "synthetic-token") {
+					t.Error("status echoed credentials")
+				}
+				after, err := os.ReadFile(path)
+				if err != nil || !bytes.Equal(before, after) {
+					t.Error("failed status changed saved credentials")
+				}
+			})
+		}
 	}
 }
 

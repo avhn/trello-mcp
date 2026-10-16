@@ -16,8 +16,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/avhn/trello-mcp/internal/credentials"
 )
 
 const maxResponseBytes = 8 << 20
@@ -251,10 +249,7 @@ type HTTPError struct{ StatusCode int }
 
 func (e *HTTPError) Error() string {
 	message := httpError(e.StatusCode).Error()
-	switch e.StatusCode {
-	case http.StatusForbidden:
-		message += ". " + credentials.Hint
-	case http.StatusTooManyRequests:
+	if e.StatusCode == http.StatusTooManyRequests {
 		message += "; rate limit exceeded; retry later"
 	}
 	return message

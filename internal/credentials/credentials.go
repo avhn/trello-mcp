@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// Hint is shared by initialize, health and upstream authentication errors.
+// Hint is shared by initialize and health when credentials are not configured.
 const Hint = "Trello credentials not configured. For CLI installs, the human must run the installer's quoted absolute-path auth command in a private terminal (not through an agent). For Claude Desktop extensions, the human must enter credentials in extension settings. Then use the trello server's Reconnect action in /mcp or fully quit/restart the MCP client; restart the Desktop extension or fully quit/reopen Desktop. Never share keys, tokens or authorization URLs in chat or agent-captured commands. Only server_health is exposed until a fresh configured server starts."
 
 // File is the private on-disk credential record. Never log or format it.

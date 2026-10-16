@@ -1,10 +1,6 @@
 package trello
 
-import (
-	"fmt"
-
-	"github.com/avhn/trello-mcp/internal/credentials"
-)
+import "fmt"
 
 // PolicyDenied distinguishes local safety refusals from upstream authentication errors.
 // Reasons may identify caller-supplied objects or configured selectors, never resolved denied scopes.
@@ -21,12 +17,11 @@ type ownershipDenial struct{ error }
 
 // httpError never includes upstream bodies, URLs or credentials.
 func httpError(status int) error {
-	if status == 401 || status == 403 {
-		message := fmt.Sprintf("trello API: HTTP %d; token/permission issue, not server policy; check the Trello token and object permissions", status)
-		if status == 401 {
-			message += ". " + credentials.Hint
-		}
-		return fmt.Errorf("%s", message)
+	if status == 401 {
+		return fmt.Errorf("trello API: HTTP 401; token/permission issue, not server policy; possible causes include an expired or revoked token, missing required scope (especially write scope), or no access to this object. If workspace_find {} succeeds, the token is valid for that read; check object access or write scope. If reads fail, check that the API key and token match, token expiry or revocation, and read permission. If renewal is needed, the human must privately run the installer's quoted absolute-path auth command or update Desktop extension settings, then reconnect or restart the MCP client. Never share keys, tokens or authorization URLs in chat or agent-captured commands")
+	}
+	if status == 403 {
+		return fmt.Errorf("trello API: HTTP 403; token/permission issue, not server policy; check object access, granted permissions and token scopes")
 	}
 	return fmt.Errorf("trello API: HTTP %d", status)
 }

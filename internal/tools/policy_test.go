@@ -11,6 +11,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
 	"github.com/avhn/trello-mcp/internal/trello"
 )
 
@@ -219,11 +221,61 @@ func TestToolUpstreamTokenError(t *testing.T) {
 			w.WriteHeader(status)
 			_, _ = w.Write([]byte("test-key test-token private-board"))
 		}))
+		t.Cleanup(fake.Close)
 		s := testService(t, fake, []string{"allowed"})
-		text, failed := callTool(t, s, "board_get", `{}`)
-		fake.Close()
-		if !failed || !strings.Contains(text, "trello API: HTTP") || !strings.Contains(text, "token/permission issue, not server policy") || strings.Contains(text, "test-token") || strings.Contains(text, "private-board") {
-			t.Errorf("wrong upstream error: %s", text)
+		server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "1"}, nil)
+		if err := s.Register(server); err != nil {
+			t.Fatal(err)
+		}
+		ctx := context.Background()
+		a, b := mcp.NewInMemoryTransports()
+		ss, err := server.Connect(ctx, a, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = ss.Close() })
+		cs, err := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "1"}, nil).Connect(ctx, b, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = cs.Close() })
+		before, err := cs.ListTools(ctx, nil)
+		if err != nil || len(before.Tools) <= 1 {
+			t.Fatalf("configured inventory unavailable: %v", err)
+		}
+		for _, name := range []string{"workspace_find", "board_get"} {
+			result, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: map[string]any{}})
+			if err != nil || !result.IsError || len(result.Content) != 1 || result.StructuredContent != nil {
+				t.Fatalf("upstream failure envelope changed: %v", err)
+			}
+			content, ok := result.Content[0].(*mcp.TextContent)
+			if !ok {
+				t.Fatal("upstream error is not text")
+			}
+			text := content.Text
+			if !strings.Contains(text, "trello API: HTTP") || !strings.Contains(text, "token/permission issue, not server policy") {
+				t.Errorf("wrong upstream error: %s", text)
+			}
+			for _, forbidden := range []string{"test-key", "test-token", "private-board", "not configured", "Only server_health"} {
+				if strings.Contains(text, forbidden) {
+					t.Errorf("unexpected %q in upstream error: %s", forbidden, text)
+				}
+			}
+			if status == 401 && !strings.Contains(text, "If workspace_find {} succeeds, the token is valid for that read; check object access or write scope.") {
+				t.Errorf("missing successful-read discriminator: %s", text)
+			}
+			after, err := cs.ListTools(ctx, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			beforeJSON, err := json.Marshal(before)
+			if err != nil {
+				t.Fatal(err)
+			}
+			afterJSON, err := json.Marshal(after)
+			if err != nil || string(beforeJSON) != string(afterJSON) {
+				t.Errorf("upstream failure changed configured tool inventory: %v", err)
+			}
 		}
 	}
 }

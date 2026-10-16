@@ -339,13 +339,30 @@ func (r runner) status(ctx context.Context, paths []credentials.Source) error {
 	return err
 }
 
+// validationFailure replaces MCP recovery guidance while preserving the HTTP cause.
+type validationFailure struct{ cause error }
+
+func (e validationFailure) Error() string {
+	return "token rejected during auth validation; trello API: HTTP 401; check that the API key and token match, token expiry or revocation, and read permission; nothing saved"
+}
+
+func (e validationFailure) Unwrap() error { return e.cause }
+
+func validationError(err error) error {
+	var status *trello.HTTPError
+	if errors.As(err, &status) && status.StatusCode == 401 {
+		return validationFailure{cause: err}
+	}
+	return err
+}
+
 // validate checks identity and actual permissions using two small, curated GETs.
 func validate(ctx context.Context, client *trello.Client, token string) (string, string, error) {
 	var member struct {
 		Username string `json:"username"`
 	}
 	if err := client.Get(ctx, "/members/me", url.Values{"fields": {"username,fullName"}}, &member); err != nil {
-		return "", "", err
+		return "", "", validationError(err)
 	}
 	var result struct {
 		Permissions []struct {
@@ -354,7 +371,7 @@ func validate(ctx context.Context, client *trello.Client, token string) (string,
 		} `json:"permissions"`
 	}
 	if err := client.Get(ctx, "/tokens/"+url.PathEscape(token), url.Values{"fields": {"permissions"}}, &result); err != nil {
-		return "", "", err
+		return "", "", validationError(err)
 	}
 	read, write := false, false
 	for _, p := range result.Permissions {

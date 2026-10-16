@@ -10,8 +10,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/avhn/trello-mcp/internal/credentials"
 )
 
 func TestOwnershipDenialsHideResolvedScopes(t *testing.T) {
@@ -134,9 +132,10 @@ func TestActionDeniesBoardBeforeCardConstraint(t *testing.T) {
 func TestScopeErrorDoesNotMisclassifyUpstreamFailures(t *testing.T) {
 	a := &Access{Allowed: []string{"team"}}
 	got := a.ScopeError(&HTTPError{StatusCode: http.StatusForbidden}, "card c1")
-	if errors.Is(got, ErrDenied) || !strings.Contains(got.Error(), "token/permission issue, not server policy") || !strings.Contains(got.Error(), credentials.Hint) {
+	if errors.Is(got, ErrDenied) || !strings.Contains(got.Error(), "token/permission issue, not server policy") {
 		t.Fatalf("upstream failure misclassified or exposed: %v", got)
 	}
+	assertConfiguredAuthError(t, got, http.StatusForbidden)
 }
 
 func TestNestedTransportFailuresHideResolvedScopes(t *testing.T) {
@@ -216,8 +215,8 @@ func TestNestedHTTPFailuresPreserveSafeDiagnosis(t *testing.T) {
 				if requests != 4 || !strings.Contains(err.Error(), "rate limit") {
 					t.Fatalf("retry exhaustion lost: requests=%d, %v", requests, err)
 				}
-			} else if !strings.Contains(err.Error(), "token/permission issue") || !strings.Contains(err.Error(), credentials.Hint) {
-				t.Fatalf("authentication diagnosis lost: %v", err)
+			} else {
+				assertConfiguredAuthError(t, err, status)
 			}
 			assertSafeScopeMessage(t, err)
 		})

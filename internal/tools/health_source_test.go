@@ -48,7 +48,11 @@ func TestHealthCredentialSource(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer func() { _ = cs.Close() }()
-			for _, detail := range []string{"", "basic", "detailed", "metadata", "performance"} {
+			details := []string{"", "basic", "detailed", "metadata", "performance"}
+			if source == "none" {
+				details = append(details, "policy")
+			}
+			for _, detail := range details {
 				args := map[string]any{}
 				if detail != "" {
 					args["detail"] = detail

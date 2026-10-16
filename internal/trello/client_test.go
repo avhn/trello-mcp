@@ -14,8 +14,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/avhn/trello-mcp/internal/credentials"
 )
 
 // TestHTTP covers compact decoding, status handling and the exact bounded retry budget.
@@ -25,7 +23,7 @@ func TestHTTP(t *testing.T) {
 		status, failures, wantRequests int
 		wantErr                        string
 	}{
-		{"success", 200, 0, 1, ""}, {"unauthorized", 401, 99, 1, "trello API: HTTP 401; token/permission issue, not server policy; check the Trello token and object permissions. " + credentials.Hint}, {"forbidden", 403, 99, 1, "trello API: HTTP 403; token/permission issue, not server policy; check the Trello token and object permissions. " + credentials.Hint}, {"429 then success", 429, 2, 3, ""}, {"retry exhausted", 429, 99, 4, "trello API: HTTP 429; rate limit exceeded; retry later"}, {"invalid json", 200, 99, 1, "invalid Trello JSON response"},
+		{"success", 200, 0, 1, ""}, {"unauthorized", 401, 99, 1, (&HTTPError{StatusCode: 401}).Error()}, {"forbidden", 403, 99, 1, (&HTTPError{StatusCode: 403}).Error()}, {"429 then success", 429, 2, 3, ""}, {"retry exhausted", 429, 99, 4, "trello API: HTTP 429; rate limit exceeded; retry later"}, {"invalid json", 200, 99, 1, "invalid Trello JSON response"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var requests atomic.Int32
@@ -55,6 +53,13 @@ func TestHTTP(t *testing.T) {
 				}
 			} else if err != nil || got.ID != "ok" {
 				t.Fatalf("got %+v, %v", got, err)
+			}
+			if tc.status == 401 || tc.status == 403 {
+				var status *HTTPError
+				if !errors.As(err, &status) || status.StatusCode != tc.status {
+					t.Fatalf("HTTP status lost: %v", err)
+				}
+				assertConfiguredAuthError(t, err, tc.status)
 			}
 			if got := int(requests.Load()); got != tc.wantRequests {
 				t.Errorf("requests %d, want %d", got, tc.wantRequests)
@@ -352,5 +357,29 @@ func TestWriteQueryTransportRedaction(t *testing.T) {
 	err := c.WriteQuery(context.Background(), http.MethodPut, "/cards/c1", url.Values{"due": {"null"}}, nil)
 	if err == nil || err.Error() != "trello API: request failed: network error" || c.Stats().Requests != 1 {
 		t.Fatalf("unsafe error or repeated write: %v", err)
+	}
+}
+
+// assertConfiguredAuthError distinguishes configured failures from missing setup.
+func assertConfiguredAuthError(t *testing.T, err error, status int) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("missing configured authentication error")
+	}
+	want := []string{"token/permission issue, not server policy"}
+	if status == http.StatusUnauthorized {
+		want = append(want, "possible causes include", "expired or revoked token", "missing required scope (especially write scope)", "or no access to this object", "If workspace_find {} succeeds, the token is valid for that read; check object access or write scope.", "API key and token match", "If renewal is needed", "quoted absolute-path auth command", "Desktop extension settings", "reconnect or restart", "Never share keys, tokens or authorization URLs")
+	} else {
+		want = append(want, "check object access, granted permissions and token scopes")
+	}
+	for _, text := range want {
+		if !strings.Contains(err.Error(), text) {
+			t.Errorf("missing %q in configured error: %v", text, err)
+		}
+	}
+	for _, text := range []string{"not configured", "Only server_health", "synthetic-key", "synthetic-token", "private-name"} {
+		if strings.Contains(err.Error(), text) {
+			t.Errorf("unexpected %q in configured error: %v", text, err)
+		}
 	}
 }
