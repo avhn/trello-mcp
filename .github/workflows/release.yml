@@ -5,10 +5,10 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
+  checks:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -29,38 +29,207 @@ jobs:
         run: |
           python3 -I scripts/site/validate.py --self-test
           python3 -I scripts/site/validate.py
-      - name: Build release archives
+          python3 -I scripts/release_manifest.py --tag "$RELEASE_TAG" version
+          python3 -I tests/release_manifest_test.py
+      - name: Validate metadata-only registry template with pinned publisher
+        run: python3 -I scripts/release_manifest.py publisher-validate
+
+  native:
+    needs: checks
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: linux, arch: amd64, runner: ubuntu-latest}
+          - {os: linux, arch: arm64, runner: ubuntu-24.04-arm}
+          - {os: darwin, arch: amd64, runner: macos-15-intel}
+          - {os: darwin, arch: arm64, runner: macos-latest}
+          - {os: windows, arch: amd64, runner: windows-latest}
+          - {os: windows, arch: arm64, runner: windows-11-arm}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+      TARGET_OS: ${{ matrix.os }}
+      TARGET_ARCH: ${{ matrix.arch }}
+    defaults:
+      run:
         shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Build and archive matching native binary
         run: |
-          mkdir -p dist
-          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
-            export GOOS=${target%/*} GOARCH=${target#*/} CGO_ENABLED=0
-            directory="$RUNNER_TEMP/trello-mcp_${GOOS}_${GOARCH}"
-            mkdir -p "$directory"
-            binary=trello-mcp
-            if [ "$GOOS" = windows ]; then
-              binary=trello-mcp.exe
-            fi
-            go build -trimpath -ldflags "-s -w -X main.version=$RELEASE_TAG" \
-              -o "$directory/$binary" ./cmd/trello-mcp
-            archive="dist/trello-mcp_${GOOS}_${GOARCH}"
-            if [ "$GOOS" = windows ]; then
-              zip -j "$archive.zip" "$directory/$binary"
-            else
-              tar -czf "$archive.tar.gz" -C "$directory" "$binary"
-            fi
+          test "$(go env GOOS)" = "$TARGET_OS"
+          test "$(go env GOARCH)" = "$TARGET_ARCH"
+          mkdir -p payload archives extracted
+          binary=trello-mcp
+          if [ "$TARGET_OS" = windows ]; then binary=trello-mcp.exe; fi
+          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$RELEASE_TAG" \
+            -o "payload/$binary" ./cmd/trello-mcp
+          python -I - <<'PY'
+          import os
+          from pathlib import Path
+          import tarfile
+          import zipfile
+          system, arch = os.environ['TARGET_OS'], os.environ['TARGET_ARCH']
+          name = 'trello-mcp.exe' if system == 'windows' else 'trello-mcp'
+          binary = Path('payload') / name
+          binary.chmod(0o755)
+          stem = Path('archives') / f'trello-mcp_{system}_{arch}'
+          if system == 'windows':
+              with zipfile.ZipFile(str(stem) + '.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
+                  archive.write(binary, name)
+              with zipfile.ZipFile(str(stem) + '.zip') as archive:
+                  archive.extractall('extracted')
+          else:
+              with tarfile.open(str(stem) + '.tar.gz', 'w:gz') as archive:
+                  archive.add(binary, arcname=name)
+              with tarfile.open(str(stem) + '.tar.gz') as archive:
+                  archive.extractall('extracted', filter='data')
+          PY
+          python -I scripts/package_mcpb.py --version "$RELEASE_TAG" \
+            --smoke-binary "$PWD/extracted/$binary"
+      - name: Upload CLI archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: cli-${{ matrix.os }}-${{ matrix.arch }}
+          path: archives/*
+          if-no-files-found: error
+      - name: Upload Desktop input
+        if: matrix.os == 'darwin' || (matrix.os == 'windows' && matrix.arch == 'amd64')
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-${{ matrix.os }}-${{ matrix.arch }}
+          path: payload/*
+          if-no-files-found: error
+      - uses: actions/setup-node@v6
+        if: matrix.os == 'linux'
+        with:
+          node-version: '22'
+      - name: Build and smoke Linux preview bundle
+        if: matrix.os == 'linux'
+        run: |
+          npm ci --prefix packaging/mcpb --ignore-scripts --no-audit --no-fund
+          python -I scripts/package_mcpb.py --version "$RELEASE_TAG" \
+            --target "linux-$TARGET_ARCH" --linux-binary "$PWD/payload/trello-mcp" \
+            --output-dir "$PWD/bundles" --require-smoke
+      - name: Upload Linux preview input
+        if: matrix.os == 'linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: mcpb-linux-${{ matrix.arch }}
+          path: bundles/*.mcpb
+          if-no-files-found: error
+
+  desktop:
+    needs: native
+    runs-on: macos-latest
+    timeout-minutes: 15
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: native-*
+          path: native
+      - name: Build universal Desktop preview and smoke extracted macOS payload
+        run: |
+          npm ci --prefix packaging/mcpb --ignore-scripts --no-audit --no-fund
+          python -I scripts/package_mcpb.py --version "$RELEASE_TAG" --target desktop \
+            --darwin-amd64 "$PWD/native/native-darwin-amd64/trello-mcp" \
+            --darwin-arm64 "$PWD/native/native-darwin-arm64/trello-mcp" \
+            --windows-amd64 "$PWD/native/native-windows-amd64/trello-mcp.exe" \
+            --output-dir "$PWD/bundles" --require-smoke
+      - uses: actions/upload-artifact@v7
+        with:
+          name: mcpb-desktop
+          path: bundles/*.mcpb
+          if-no-files-found: error
+
+  desktop-windows:
+    needs: desktop
+    runs-on: windows-latest
+    timeout-minutes: 10
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - uses: actions/download-artifact@v8
+        with:
+          name: mcpb-desktop
+          path: bundles
+      - name: Inspect ZIP before extraction and smoke Windows payload
+        run: |
+          mkdir extracted
+          python -I scripts/release_manifest.py --tag "$RELEASE_TAG" inspect-bundle \
+            "$PWD/bundles/trello-mcp_desktop.mcpb" --extract "$PWD/extracted"
+          python -I scripts/package_mcpb.py --version "$RELEASE_TAG" \
+            --smoke-binary "$PWD/extracted/server/trello-mcp.exe"
+
+  release:
+    needs: [checks, native, desktop, desktop-windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: cli-*
+          merge-multiple: true
+          path: dist
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: mcpb-*
+          merge-multiple: true
+          path: preview
+      - name: Inspect final preview bytes and create separate checksum lists
+        run: |
+          for bundle in preview/*.mcpb; do
+            python3 -I scripts/release_manifest.py --tag "$RELEASE_TAG" inspect-bundle "$bundle"
           done
-          (cd dist && sha256sum *.tar.gz *.zip > checksums.txt)
-      - name: Publish GitHub release
+          python3 -I scripts/release_manifest.py --tag "$RELEASE_TAG" checksums --directory dist --kind cli
+          python3 -I scripts/release_manifest.py --tag "$RELEASE_TAG" checksums --directory dist --kind cli --verify
+          python3 -I scripts/release_manifest.py --tag "$RELEASE_TAG" checksums --directory preview --kind mcpb
+          python3 -I scripts/release_manifest.py --tag "$RELEASE_TAG" checksums --directory preview --kind mcpb --verify
+      - name: Retain preview bundles for owner-tested separate pre-release
+        uses: actions/upload-artifact@v7
+        with:
+          name: mcpb-bundles
+          path: preview/*
+          if-no-files-found: error
+      - name: Extract signed tag release notes
+        run: |
+          # Preserve owner-written signed tag subject/body; fail without prose.
+          git fetch --force origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          python3 -I scripts/release_manifest.py --tag "$RELEASE_TAG" notes --output notes.md
+      - name: Publish CLI-only GitHub release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Release notes come from the signed tag message: subject line plus body, without the signature.
-          git fetch --force origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
-          git for-each-ref --format='%(contents:subject)%0a%0a%(contents:body)' "refs/tags/$RELEASE_TAG" > notes.md
-          if [ "$(grep -c . notes.md)" -lt 3 ]; then
-            echo "tag $RELEASE_TAG needs a release description in its message" >&2
-            exit 1
-          fi
+          # Desktop preview publication and registry submission remain owner actions.
           gh release create "$RELEASE_TAG" dist/*.tar.gz dist/*.zip dist/checksums.txt \
             --verify-tag --notes-file notes.md --title "$RELEASE_TAG"

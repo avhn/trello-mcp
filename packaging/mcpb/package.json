@@ -1,0 +1,8 @@
+{
+  "name": "trello-mcp-bundle-tools",
+  "private": true,
+  "description": "Pinned build-time tooling for trello-mcp Desktop bundles.",
+  "devDependencies": {
+    "@anthropic-ai/mcpb": "2.1.2"
+  }
+}

@@ -8,6 +8,23 @@ permissions:
   contents: read
 
 jobs:
+  release-metadata:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Install pinned MCPB tooling
+        run: npm ci --prefix packaging/mcpb --ignore-scripts --no-audit --no-fund
+      - name: Test bundle and future registry assembly
+        run: |
+          python3 -I tests/package_mcpb_test.py
+          python3 -I tests/release_manifest_test.py
+      - name: Validate metadata-only template with checksum-pinned publisher v1.8.1
+        run: python3 -I scripts/release_manifest.py publisher-validate
+
   site:
     runs-on: ubuntu-latest
     timeout-minutes: 10
