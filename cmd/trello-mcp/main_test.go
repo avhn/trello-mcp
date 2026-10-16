@@ -16,6 +16,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/avhn/trello-mcp/internal/credentials"
+	"github.com/avhn/trello-mcp/internal/tools"
 )
 
 func TestReleaseVersion(t *testing.T) {
@@ -339,5 +340,14 @@ func checkCredentialRecovery(t *testing.T, ctx context.Context, binary string) {
 	listed, err = configured.ListTools(ctx, nil)
 	if err != nil || len(listed.Tools) != 48 {
 		t.Fatalf("fresh configured server must expose 48 tools: %v", err)
+	}
+}
+
+func TestUnstampedBuildsReportReleaseTagFormat(t *testing.T) {
+	if got := releaseVersion(""); got != "v"+tools.Version {
+		t.Fatalf("unstamped version = %q", got)
+	}
+	if got := releaseVersion("v1.2.3-test"); got != "v1.2.3-test" {
+		t.Fatalf("stamped version = %q", got)
 	}
 }

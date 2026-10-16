@@ -23,11 +23,17 @@ import (
 // version is overridden by release builds using -X main.version.
 var version string
 
+// releaseVersion reports the release tag format (vX.Y.Z) for unstamped builds such as go install.
+func releaseVersion(stamped string) string {
+	if stamped != "" {
+		return stamped
+	}
+	return "v" + tools.Version
+}
+
 // main keeps stdout available for MCP protocol messages unless --version is requested.
 func main() {
-	if version == "" {
-		version = tools.Version
-	}
+	version = releaseVersion(version)
 	if len(os.Args) > 1 && os.Args[1] == "auth" {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		err := auth.Run(ctx, os.Args[2:], os.Stdin, os.Stdout)
