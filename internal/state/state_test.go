@@ -136,3 +136,41 @@ func TestMemoryOnlyState(t *testing.T) {
 		t.Fatal("cancelled update changed memory-only state")
 	}
 }
+
+// TestHistoricalSelectionReadCompatibility uses fixed historical bytes, not today's writer.
+func TestHistoricalSelectionReadCompatibility(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		data string
+		want Selection
+	}{
+		{"board and workspace", `{"boardId":"b1","workspaceId":"w1"}`, Selection{BoardID: "b1", WorkspaceID: "w1"}},
+		{"board only", `{"boardId":"b1"}`, Selection{BoardID: "b1"}},
+		{"workspace only", `{"workspaceId":"w1"}`, Selection{WorkspaceID: "w1"}},
+		{"empty", `{}`, Selection{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "state.json")
+			if err := os.WriteFile(path, []byte(tc.data), 0600); err != nil {
+				t.Fatal(err)
+			}
+			for _, override := range []string{"", "b1", "b2"} {
+				want := tc.want
+				if override != "" && override != want.BoardID {
+					want = Selection{BoardID: override}
+				}
+				store, err := Open(context.Background(), path, override)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := store.Get(); got != want {
+					t.Errorf("override %q: got %+v, want %+v", override, got, want)
+				}
+				data, err := os.ReadFile(path)
+				if err != nil || string(data) != tc.data {
+					t.Fatal("reader changed historical bytes")
+				}
+			}
+		})
+	}
+}
