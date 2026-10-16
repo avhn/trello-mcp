@@ -109,31 +109,48 @@ Setup: https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md
             $newPath = $installDir
             if ($userPath) { $newPath = $userPath.TrimEnd(';') + ';' + $installDir }
             New-ItemProperty -LiteralPath 'HKCU:\Environment' -Name Path -Value $newPath -PropertyType ExpandString -Force | Out-Null
-            Write-Output 'Added the install directory to your user PATH.'
+            $pathNote = 'Added to your user PATH. Open a new terminal to use it by name.'
+        } else {
+            $pathNote = 'Already on your user PATH.'
         }
-        Write-Output "Installed $exe"
-        Write-Output 'Open a new terminal to use the updated user PATH. MCP clients can use the full path below.'
-        Write-Output 'Windows refuses path uploads and attachment downloads (fail closed). Base64 uploads remain available.'
 
         # PowerShell also ends single-quoted strings at U+2018-U+201B; double each quote character.
         $quotedExe = "'" + ($exe -replace "['\u2018\u2019\u201A\u201B]", '$0$0') + "'"
+        # Style only PowerShell 7.2+ terminals; NO_COLOR and redirected output keep plain text.
+        $bold = ''; $dim = ''; $cmd = ''; $reset = ''
+        if ($PSVersionTable.PSVersion -ge [version]'7.2' -and -not $env:NO_COLOR -and -not [Console]::IsOutputRedirected) {
+            $bold = $PSStyle.Bold; $dim = $PSStyle.Dim; $cmd = $PSStyle.Foreground.Cyan; $reset = $PSStyle.Reset
+        }
         Write-Output @"
 
-Run the printed absolute-path auth command yourself in a private terminal (not through an agent), then use trello Reconnect in /mcp or fully quit/restart the MCP client.
-Installed executable: $exe
-Auth: & $quotedExe auth
-Read-only auth: & $quotedExe auth --read-only
-Status: & $quotedExe auth status
-Logout: & $quotedExe auth logout
-Version: & $quotedExe --version
-Credentials: %USERPROFILE%\.secrets\.trello-mcp.secret; override with absolute TRELLO_MCP_CREDENTIALS or auth --file PATH.
-Read-only opt-in: TRELLO_READ_ONLY=1 or the read-only auth command above.
+${bold}trello-mcp $tag installed to $exe$reset
+  $pathNote
+  Windows refuses path uploads and attachment downloads (fail closed). Base64 uploads remain available.
 
-Register with Claude Code (user scope, in PowerShell):
-claude mcp add --scope user --transport stdio trello -- $quotedExe
+${bold}Next steps$reset
 
-Setup, other clients and explicit local/project scope alternatives:
-https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md
+  1. Save your Trello API key and token. Run this yourself in a private
+     terminal, not through an agent:
+
+       $cmd& $quotedExe auth$reset
+
+     ${dim}For a read-only token, add the --read-only flag.$reset
+
+  2. Register with Claude Code (user scope, in PowerShell):
+
+       ${cmd}claude mcp add --scope user --transport stdio trello -- $quotedExe$reset
+
+     ${dim}Other clients: https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md$reset
+
+  3. Reconnect: use trello Reconnect in /mcp, or fully quit and restart your MCP client.
+
+${bold}Other commands$reset
+  Status    $cmd& $quotedExe auth status$reset
+  Logout    $cmd& $quotedExe auth logout$reset
+  Version   $cmd& $quotedExe --version$reset
+
+${dim}Credentials: %USERPROFILE%\.secrets\.trello-mcp.secret (override with absolute TRELLO_MCP_CREDENTIALS
+or auth --file PATH). TRELLO_READ_ONLY=1 hides write and transfer tools.$reset
 "@
     } catch {
         $sourceVersion = 'latest'

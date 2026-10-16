@@ -77,7 +77,7 @@ $bin = go env GOBIN; if (-not $bin) { $gopath = (go env GOPATH) -split [IO.Path]
 
 Substitute the printed absolute path into client configuration, not the shell variable or a different PATH executable. Source users run human-only auth privately with the same resolved executable, and use it for lifecycle commands below. Installer users do not need Go and should prefer the installer's printed commands.
 
-The installer prints quoted, concrete absolute-path commands for auth, read-only auth, status, logout, version and Claude Code registration; PowerShell prefixes the auth, status, logout and version commands with `&`, passes the quoted path as an argument in the registration line, and doubles every single-quote character in the path (including typographic quotes). Hand them to the human as printed. Use the printed path if the command is not on PATH. In the snippets below, replace `/absolute/path/to/trello-mcp` with that path. In JSON and TOML double every backslash on Windows, for example `C:\\Users\\you\\AppData\\Local\\Programs\\trello-mcp\\trello-mcp.exe`.
+The installer prints quoted, concrete absolute-path commands for auth (optionally --read-only), status, logout, version and Claude Code registration; PowerShell prefixes the auth, status, logout and version commands with `&`, passes the quoted path as an argument in the registration line, and doubles every single-quote character in the path (including typographic quotes). Hand them to the human as printed. Use the printed path if the command is not on PATH. In the snippets below, replace `/absolute/path/to/trello-mcp` with that path. In JSON and TOML double every backslash on Windows, for example `C:\\Users\\you\\AppData\\Local\\Programs\\trello-mcp\\trello-mcp.exe`.
 <!-- /section:install -->
 
 <!-- section:auth -->
@@ -326,7 +326,7 @@ Then check the version with the resolved absolute path and reconnect. For Deskto
 
 For a CLI install:
 
-1. Optionally run the printed quoted absolute-path `Logout:` command first, or the resolved source command below. It removes only the three Trello keys from the saved file, not environment credentials and not the token at Trello.
+1. Optionally run the printed quoted absolute-path logout command first, or the resolved source command below. It removes only the three Trello keys from the saved file, not environment credentials and not the token at Trello.
 2. Remove the registration using the command below, or delete the `trello` entry from each client file above and restart that client.
 3. Delete the exact binary you installed, for example `rm "$HOME/.local/bin/trello-mcp"`, or `trello-mcp.exe` in the Windows install directory.
 4. On Windows remove only the PATH entry the installer added, in your user environment variables. Leave the machine PATH alone.

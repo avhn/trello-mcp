@@ -162,14 +162,24 @@ run_case() {
     [ -z "$(ls -A "$run/temp")" ] || { printf 'FAIL %s: temporary files remain\n' "$name"; exit 1; }
     if [ "$expected" = pass ]; then
         [ -x "$destination/$binary" ]
-        grep -Fq 'Run the printed absolute-path auth command yourself in a private terminal (not through an agent), then use trello Reconnect in /mcp or fully quit/restart the MCP client.' "$run/out"
-        grep -Fq 'TRELLO_READ_ONLY=1 or the read-only auth command above' "$run/out"
+        grep -Fq 'Run this yourself in a private' "$run/out"
+        grep -Fq 'terminal, not through an agent:' "$run/out"
+        grep -Fq 'use trello Reconnect in /mcp, or fully quit and restart your MCP client.' "$run/out"
+        grep -Fq 'For a read-only token, add the --read-only flag.' "$run/out"
+        grep -Fq 'TRELLO_READ_ONLY=1' "$run/out"
+        grep -Fq "trello-mcp $( [ -n "$version" ] && printf 'v%s' "${version#v}" || printf 'v1.2.3') installed to " "$run/out"
+        # Captured output is not a terminal, so it must carry no styling.
+        if grep -q "$(printf '\033')" "$run/out" "$run/err"; then
+            printf 'FAIL %s: escape sequences in captured output\n' "$name" >&2
+            exit 1
+        fi
         grep -Fq 'TRELLO_MCP_CREDENTIALS' "$run/out"
         grep -Fq 'https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md' "$run/out"
         grep -Fq 'claude mcp add --scope user --transport stdio trello -- ' "$run/out"
         assert_not_logged 'YOUR_API_KEY\|YOUR_TOKEN\|--env\|"mcpServers"\|\[mcp_servers' "$run/out"
-        grep -q 'not on PATH' "$run/err"
-        sed -n '/^claude mcp add /p' "$run/out" > "$run/registration.sh"
+        grep -q 'is not on your PATH' "$run/err"
+        grep -Fq 'The commands below use the full path' "$run/err"
+        sed -n 's/^       \(claude mcp add \)/\1/p' "$run/out" > "$run/registration.sh"
         sh -n "$run/registration.sh"
         # Parse and execute only the printed registration with a synthetic function.
         if [ "$os" = MINGW64_NT ]; then
@@ -184,19 +194,18 @@ run_case() {
             . "$1"
         ' sh "$run/registration.sh"
         # Parse auth without executing it. Lifecycle commands use only the synthetic binary.
-        sed -n 's/^Auth: /set -- /p; s/^Read-only auth: /set -- /p' "$run/out" > "$run/auth.sh"
+        sed -n '/^       claude /d; s/^       \(.* auth\)$/set -- \1/p' "$run/out" > "$run/auth.sh"
         EXPECTED_BINARY="$expected_binary" sh -c '
             count=0
             while IFS= read -r command; do
                 eval "$command"
-                [ "$1" = "$EXPECTED_BINARY" ] && [ "$2" = auth ] || exit 1
-                case "$count" in 0) [ "$#" -eq 2 ] ;; 1) [ "$#" -eq 3 ] && [ "$3" = --read-only ] ;; esac || exit 1
+                [ "$#" -eq 2 ] && [ "$1" = "$EXPECTED_BINARY" ] && [ "$2" = auth ] || exit 1
                 count=$((count + 1))
             done < "$1"
-            [ "$count" -eq 2 ]
+            [ "$count" -eq 1 ]
         ' sh "$run/auth.sh"
         if [ "$os" != MINGW64_NT ]; then
-            sed -n 's/^Status: //p; s/^Version: //p; s/^Logout: //p' "$run/out" > "$run/lifecycle.sh"
+            sed -n 's/^  Status    //p; s/^  Version   //p; s/^  Logout    //p' "$run/out" > "$run/lifecycle.sh"
             env -i PATH="$tmp/bin:/usr/bin:/bin" HOME="$run/home" sh "$run/lifecycle.sh" > "$run/lifecycle.out"
             grep -Fxq 'synthetic status' "$run/lifecycle.out"
             grep -Fxq 'synthetic version' "$run/lifecycle.out"

@@ -143,12 +143,6 @@ case "$os/$arch" in
     linux/amd64|linux/arm64|darwin/amd64|darwin/arm64|windows/amd64) download_release ;;
     *) unavailable 'no release asset is available for this platform' ;;
 esac
-printf 'Installed %s\n' "$install_dir/$binary"
-case ":${PATH:-}:" in
-    *:"$install_dir":*) ;;
-    *) printf 'Warning: %s is not on PATH. Add it to your shell and MCP client PATH.\n' "$install_dir" >&2 ;;
-esac
-
 client_binary="$install_dir/$binary"
 # Windows desktop clients need a native path, not Git Bash/MSYS/Cygwin notation.
 if [ "$os" = windows ] && command -v cygpath >/dev/null 2>&1; then
@@ -161,16 +155,60 @@ quote_argument() {
     printf "'"
 }
 quoted_binary=$(quote_argument "$client_binary")
-printf '\nRun the printed absolute-path auth command yourself in a private terminal (not through an agent), then use trello Reconnect in /mcp or fully quit/restart the MCP client.\n'
-printf 'Installed executable: %s\n' "$client_binary"
-printf 'Auth: %s auth\n' "$quoted_binary"
-printf 'Read-only auth: %s auth --read-only\n' "$quoted_binary"
-printf 'Status: %s auth status\n' "$quoted_binary"
-printf 'Logout: %s auth logout\n' "$quoted_binary"
-printf 'Version: %s --version\n' "$quoted_binary"
-printf 'Credentials: ~/.secrets/.trello-mcp.secret; override with absolute TRELLO_MCP_CREDENTIALS or auth --file PATH.\n'
-printf 'Read-only opt-in: TRELLO_READ_ONLY=1 or the read-only auth command above.\n'
-printf '\nRegister with Claude Code (user scope):\n'
-printf 'claude mcp add --scope user --transport stdio trello -- %s\n' "$quoted_binary"
-printf '\nSetup, other clients and explicit local/project scope alternatives:\n'
-printf 'https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md\n'
+
+# Style only interactive terminals; NO_COLOR and TERM=dumb keep plain text.
+style() {
+    if [ -t "$1" ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-dumb}" != dumb ]; then
+        printf '\033[%sm' "$2"
+    fi
+}
+bold=$(style 1 1) dim=$(style 1 2) cmd=$(style 1 36) reset=$(style 1 0)
+warn=$(style 2 33) warn_reset=$(style 2 0) warn_cmd=$(style 2 36)
+
+printf '\n%strello-mcp %s installed to %s%s\n' "$bold" "$tag" "$client_binary" "$reset"
+case ":${PATH:-}:" in
+    *:"$install_dir":*) ;;
+    *)
+        # Suggest a profile line only for paths every supported shell reads unquoted.
+        path_line='' profile=''
+        case "$install_dir" in
+            *[!a-zA-Z0-9._/-]*) ;;
+            *)
+                display_dir=$install_dir
+                case "$install_dir" in "$HOME"/*) display_dir="\$HOME/${install_dir#"$HOME"/}" ;; esac
+                case "${SHELL:-}" in
+                    */bash) profile=.bashrc path_line="export PATH=\"$display_dir:\$PATH\"" ;;
+                    */zsh) profile=.zshrc path_line="export PATH=\"$display_dir:\$PATH\"" ;;
+                    */fish) path_line="fish_add_path $display_dir" ;;
+                esac ;;
+        esac
+        {
+            printf '\n  %sWarning: %s is not on your PATH.%s\n' "$warn" "$install_dir" "$warn_reset"
+            if [ -n "$path_line" ] && [ -n "$profile" ]; then
+                printf '  To run trello-mcp by name, add this to ~/%s and open a new terminal:\n\n' "$profile"
+                printf '    %s%s%s\n\n' "$warn_cmd" "$path_line" "$warn_reset"
+            elif [ -n "$path_line" ]; then
+                printf '  To run trello-mcp by name, run this once and open a new terminal:\n\n'
+                printf '    %s%s%s\n\n' "$warn_cmd" "$path_line" "$warn_reset"
+            else
+                printf '  To run trello-mcp by name, add that directory to PATH in your shell profile.\n'
+            fi
+            printf '  The commands below use the full path, so they work either way.\n'
+        } >&2 ;;
+esac
+
+printf '\n%sNext steps%s\n\n' "$bold" "$reset"
+printf '  1. Save your Trello API key and token. Run this yourself in a private\n'
+printf '     terminal, not through an agent:\n\n'
+printf '       %s%s auth%s\n\n' "$cmd" "$quoted_binary" "$reset"
+printf '     %sFor a read-only token, add the --read-only flag.%s\n\n' "$dim" "$reset"
+printf '  2. Register with Claude Code (user scope):\n\n'
+printf '       %sclaude mcp add --scope user --transport stdio trello -- %s%s\n\n' "$cmd" "$quoted_binary" "$reset"
+printf '     %sOther clients: https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md%s\n\n' "$dim" "$reset"
+printf '  3. Reconnect: use trello Reconnect in /mcp, or fully quit and restart your MCP client.\n'
+printf '\n%sOther commands%s\n' "$bold" "$reset"
+printf '  Status    %s%s auth status%s\n' "$cmd" "$quoted_binary" "$reset"
+printf '  Logout    %s%s auth logout%s\n' "$cmd" "$quoted_binary" "$reset"
+printf '  Version   %s%s --version%s\n' "$cmd" "$quoted_binary" "$reset"
+printf '\n%sCredentials: ~/.secrets/.trello-mcp.secret (override with absolute TRELLO_MCP_CREDENTIALS\n' "$dim"
+printf 'or auth --file PATH). TRELLO_READ_ONLY=1 hides write and transfer tools.%s\n' "$reset"

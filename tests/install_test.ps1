@@ -181,6 +181,8 @@ Write-Output 'CALLER_ALIVE'
     Assert-True ($lines.Count -eq 10) 'unified checksum fixture needs exactly ten entries'
     Set-Content -LiteralPath $manifest -Value $lines -Encoding ASCII
     $env:TRELLO_MCP_RELEASE_BASE_URL = $fixtures
+    # Styling must stay off for NO_COLOR even in an interactive PowerShell 7.2+ host.
+    $env:NO_COLOR = '1'
     $env:TRELLO_MCP_VERSION = '1.2.3'
     $env:PROCESSOR_ARCHITECTURE = 'AMD64'
     $env:PROCESSOR_ARCHITEW6432 = ''
@@ -195,10 +197,13 @@ Write-Output 'CALLER_ALIVE'
     Assert-True ((Get-Content -LiteralPath $exe -Raw).Trim() -eq $synthetic) 'wrong installed binary'
     Assert-True ($script:pathWrites -eq 1) 'success did not add user PATH once'
     Assert-True ($script:fakeUserPath -eq ('%LOCALAPPDATA%\Existing;C:\Other;' + $env:INSTALL_DIR)) 'existing PATH was not preserved'
-    Assert-True ($output.Contains('Run the printed absolute-path auth command yourself in a private terminal (not through an agent), then use trello Reconnect in /mcp or fully quit/restart the MCP client.')) 'missing private-human-terminal auth handoff'
+    Assert-True ($output.Contains('Run this yourself in a private') -and $output.Contains('terminal, not through an agent:')) 'missing private-human-terminal auth handoff'
+    Assert-True ($output.Contains('use trello Reconnect in /mcp, or fully quit and restart your MCP client.')) 'missing reconnect step'
+    Assert-True ($output.Contains("trello-mcp v1.2.3 installed to $exe")) 'missing installed version header'
+    Assert-True (-not $output.Contains([string][char]27)) 'captured output must carry no styling'
     Assert-True ($output.Contains('TRELLO_MCP_CREDENTIALS')) 'missing credential path guidance'
     Assert-True ($output.Contains('%USERPROFILE%\.secrets\.trello-mcp.secret')) 'missing default credential path'
-    Assert-True ($output.Contains('TRELLO_READ_ONLY=1 or the read-only auth command above')) 'missing read-only opt-in'
+    Assert-True ($output.Contains('For a read-only token, add the --read-only flag.') -and $output.Contains('TRELLO_READ_ONLY=1')) 'missing read-only opt-in'
     Assert-True (-not ($output.Contains('YOUR_API_KEY') -or $output.Contains('YOUR_TOKEN') -or $output.Contains('--env') -or $output.Contains('mcpServers'))) 'installer must link canonical client setup, not duplicate it'
     $quotedExe = "'" + ($exe -replace "['\u2018\u2019\u201A\u201B]", '$0$0') + "'"
     $registration = "claude mcp add --scope user --transport stdio trello -- $quotedExe"
@@ -213,15 +218,18 @@ Write-Output 'CALLER_ALIVE'
         Assert-True ($received[7] -eq $exe) 'registration executable did not round trip'
     }
     Invoke-Expression $registration
-    foreach ($command in @("Auth: & $quotedExe auth", "Read-only auth: & $quotedExe auth --read-only", "Status: & $quotedExe auth status", "Logout: & $quotedExe auth logout", "Version: & $quotedExe --version")) {
-        Assert-True ($output.Contains($command)) "missing absolute handoff: $command"
+    $printed = @{ "       & $quotedExe auth" = 2; "  Status    & $quotedExe auth status" = 3; "  Logout    & $quotedExe auth logout" = 3; "  Version   & $quotedExe --version" = 2 }
+    $outputLines = @($output -split "\r?\n")
+    foreach ($line in $printed.Keys) {
+        Assert-True ($outputLines -ccontains $line) "missing absolute handoff: $line"
         $parseErrors = $null
         $tokens = $null
-        $ast = [Management.Automation.Language.Parser]::ParseInput(($command -split ': ', 2)[1], [ref]$tokens, [ref]$parseErrors)
+        $ast = [Management.Automation.Language.Parser]::ParseInput($line.Substring($line.IndexOf('&')), [ref]$tokens, [ref]$parseErrors)
         Assert-True ($parseErrors.Count -eq 0) 'printed command did not parse'
         $call = $ast.EndBlock.Statements[0].PipelineElements[0]
         Assert-True ($call.InvocationOperator -eq [Management.Automation.Language.TokenKind]::Ampersand) 'missing PowerShell call operator'
         Assert-True ($call.CommandElements[0].Value -eq $exe) 'absolute executable did not round trip'
+        Assert-True ($call.CommandElements.Count -eq $printed[$line]) 'unexpected printed command arguments'
     }
     # Execute lifecycle commands through a synthetic function at the printed path.
     # Interactive auth is parsed above but never run; logout never touches credentials.
