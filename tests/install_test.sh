@@ -11,18 +11,31 @@ cat > "$tmp/source/trello-mcp" <<'EOF'
 case "$*" in
     --version) printf 'synthetic version\n' ;;
     'auth status') printf 'synthetic status\n' ;;
+    'auth logout') printf 'synthetic logout\n' ;;
     *) printf 'FAIL: unexpected synthetic command\n' >&2; exit 1 ;;
 esac
 EOF
-for platform in linux_amd64 darwin_arm64; do
+for platform in linux_amd64 linux_arm64 darwin_amd64 darwin_arm64; do
     tar -czf "$tmp/archives/trello-mcp_$platform.tar.gz" -C "$tmp/source" trello-mcp
 done
 windows=false
 if command -v zip >/dev/null 2>&1 && command -v unzip >/dev/null 2>&1; then
     windows=true
     cp "$tmp/source/trello-mcp" "$tmp/source/trello-mcp.exe"
-    zip -jq "$tmp/archives/trello-mcp_windows_amd64.zip" "$tmp/source/trello-mcp.exe"
+    for arch in amd64 arm64; do
+        zip -jq "$tmp/archives/trello-mcp_windows_$arch.zip" "$tmp/source/trello-mcp.exe"
+    done
+else
+    # Unselected Windows archives still belong to the unified checksum fixture.
+    for arch in amd64 arm64; do
+        printf 'synthetic unselected archive\n' > "$tmp/archives/trello-mcp_windows_$arch.zip"
+    done
 fi
+# Installers select one archive from the normal release's ten-entry checksum list.
+for bundle in desktop linux_amd64 linux_arm64; do
+    printf 'synthetic unselected bundle\n' > "$tmp/archives/trello-mcp_$bundle.mcpb"
+done
+printf '{"synthetic":"metadata"}\n' > "$tmp/archives/server.json"
 if command -v sha256sum >/dev/null 2>&1; then
     (cd "$tmp/archives" && sha256sum ./*) > "$tmp/checksums/checksums.txt"
 else
@@ -30,6 +43,7 @@ else
 fi
 # Match the release manifest's bare archive names.
 sed 's|  \./|  |' "$tmp/checksums/checksums.txt" > "$tmp/checksums/manifest"
+[ "$(wc -l < "$tmp/checksums/manifest" | tr -d ' ')" -eq 10 ]
 cat > "$tmp/bin/curl" <<'EOF'
 #!/bin/sh
 set -eu
@@ -169,7 +183,7 @@ run_case() {
             }
             . "$1"
         ' sh "$run/registration.sh"
-        # Parse auth without executing it. Only status/version use the synthetic binary.
+        # Parse auth without executing it. Lifecycle commands use only the synthetic binary.
         sed -n 's/^Auth: /set -- /p; s/^Read-only auth: /set -- /p' "$run/out" > "$run/auth.sh"
         EXPECTED_BINARY="$expected_binary" sh -c '
             count=0
@@ -182,10 +196,11 @@ run_case() {
             [ "$count" -eq 2 ]
         ' sh "$run/auth.sh"
         if [ "$os" != MINGW64_NT ]; then
-            sed -n 's/^Status: //p; s/^Version: //p' "$run/out" > "$run/lifecycle.sh"
+            sed -n 's/^Status: //p; s/^Version: //p; s/^Logout: //p' "$run/out" > "$run/lifecycle.sh"
             env -i PATH="$tmp/bin:/usr/bin:/bin" HOME="$run/home" sh "$run/lifecycle.sh" > "$run/lifecycle.out"
             grep -Fxq 'synthetic status' "$run/lifecycle.out"
             grep -Fxq 'synthetic version' "$run/lifecycle.out"
+            grep -Fxq 'synthetic logout' "$run/lifecycle.out"
         fi
         cmp "$tmp/source/$binary" "$destination/$binary"
         assert_not_logged '^go ' "$run/log"

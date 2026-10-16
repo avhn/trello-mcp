@@ -54,7 +54,8 @@ Setup: https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md
             if (-not $env:LOCALAPPDATA) { throw 'LOCALAPPDATA is not set; specify INSTALL_DIR.' }
             $installDir = Join-Path $env:LOCALAPPDATA 'Programs\trello-mcp'
         }
-        $installDir = [IO.Path]::GetFullPath($installDir)
+        # Resolve relative paths against the PowerShell location, not the process directory.
+        $installDir = [IO.Path]::GetFullPath($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($installDir))
         $exe = Join-Path $installDir 'trello-mcp.exe'
         $asset = "trello-mcp_windows_$arch.zip"
         # Override the download root with HTTPS or an absolute fixture directory.
@@ -123,6 +124,7 @@ Installed executable: $exe
 Auth: & $quotedExe auth
 Read-only auth: & $quotedExe auth --read-only
 Status: & $quotedExe auth status
+Logout: & $quotedExe auth logout
 Version: & $quotedExe --version
 Credentials: %USERPROFILE%\.secrets\.trello-mcp.secret; override with absolute TRELLO_MCP_CREDENTIALS or auth --file PATH.
 Read-only opt-in: TRELLO_READ_ONLY=1 or the read-only auth command above.

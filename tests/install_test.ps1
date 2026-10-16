@@ -168,6 +168,17 @@ Write-Output 'CALLER_ALIVE'
         Compress-Archive -LiteralPath $sourceExe -DestinationPath $zip
         $lines += (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() + '  ' + $asset
     }
+    # The normal release combines six CLI archives, three bundles and metadata.
+    foreach ($asset in @('trello-mcp_linux_amd64.tar.gz', 'trello-mcp_linux_arm64.tar.gz',
+                         'trello-mcp_darwin_amd64.tar.gz', 'trello-mcp_darwin_arm64.tar.gz',
+                         'trello-mcp_desktop.mcpb', 'trello-mcp_linux_amd64.mcpb',
+                         'trello-mcp_linux_arm64.mcpb', 'server.json')) {
+        $unselected = Join-Path $release $asset
+        Set-Content -LiteralPath $unselected -Value 'synthetic unselected asset' -Encoding ASCII
+        $lines += (Get-FileHash -LiteralPath $unselected -Algorithm SHA256).Hash.ToLowerInvariant() + '  ' + $asset
+    }
+    $lines = @($lines | Sort-Object { ($_ -split '  ', 2)[1] })
+    Assert-True ($lines.Count -eq 10) 'unified checksum fixture needs exactly ten entries'
     Set-Content -LiteralPath $manifest -Value $lines -Encoding ASCII
     $env:TRELLO_MCP_RELEASE_BASE_URL = $fixtures
     $env:TRELLO_MCP_VERSION = '1.2.3'
@@ -202,7 +213,7 @@ Write-Output 'CALLER_ALIVE'
         Assert-True ($received[7] -eq $exe) 'registration executable did not round trip'
     }
     Invoke-Expression $registration
-    foreach ($command in @("Auth: & $quotedExe auth", "Read-only auth: & $quotedExe auth --read-only", "Status: & $quotedExe auth status", "Version: & $quotedExe --version")) {
+    foreach ($command in @("Auth: & $quotedExe auth", "Read-only auth: & $quotedExe auth --read-only", "Status: & $quotedExe auth status", "Logout: & $quotedExe auth logout", "Version: & $quotedExe --version")) {
         Assert-True ($output.Contains($command)) "missing absolute handoff: $command"
         $parseErrors = $null
         $tokens = $null
@@ -212,17 +223,19 @@ Write-Output 'CALLER_ALIVE'
         Assert-True ($call.InvocationOperator -eq [Management.Automation.Language.TokenKind]::Ampersand) 'missing PowerShell call operator'
         Assert-True ($call.CommandElements[0].Value -eq $exe) 'absolute executable did not round trip'
     }
-    # Execute only status/version through a synthetic function at the printed path.
-    # Auth is parsed above but never run.
+    # Execute lifecycle commands through a synthetic function at the printed path.
+    # Interactive auth is parsed above but never run; logout never touches credentials.
     $stubPath = 'Function:\' + $exe
     Set-Item -LiteralPath $stubPath -Value {
         if (($args -join ' ') -eq 'auth status') { return 'synthetic status' }
+        if (($args -join ' ') -eq 'auth logout') { return 'synthetic logout' }
         if (($args -join ' ') -eq '--version') { return 'synthetic version' }
         throw 'unexpected synthetic lifecycle command'
     }
     try {
         Assert-True ((Invoke-Expression "& $quotedExe auth status") -eq 'synthetic status') 'status handoff did not run'
         Assert-True ((Invoke-Expression "& $quotedExe --version") -eq 'synthetic version') 'version handoff did not run'
+        Assert-True ((Invoke-Expression "& $quotedExe auth logout") -eq 'synthetic logout') 'logout handoff did not run'
     } finally {
         Remove-Item -LiteralPath $stubPath
     }

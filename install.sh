@@ -166,6 +166,7 @@ printf 'Installed executable: %s\n' "$client_binary"
 printf 'Auth: %s auth\n' "$quoted_binary"
 printf 'Read-only auth: %s auth --read-only\n' "$quoted_binary"
 printf 'Status: %s auth status\n' "$quoted_binary"
+printf 'Logout: %s auth logout\n' "$quoted_binary"
 printf 'Version: %s --version\n' "$quoted_binary"
 printf 'Credentials: ~/.secrets/.trello-mcp.secret; override with absolute TRELLO_MCP_CREDENTIALS or auth --file PATH.\n'
 printf 'Read-only opt-in: TRELLO_READ_ONLY=1 or the read-only auth command above.\n'
