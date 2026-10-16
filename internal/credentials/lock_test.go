@@ -9,7 +9,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -88,6 +90,67 @@ func TestConcurrentSavesPreserveKeys(t *testing.T) {
 		t.Fatal("concurrent updates lost managed credentials")
 	}
 	assertLockReleased(t, path)
+}
+
+func TestWriteLockContention(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// Sixteen 1 ms updates need at most 16 * (20 + 1) ms with short polls,
+		// but exceed 1 s with a synchronized 100 ms convoy. Model mkdir so real
+		// filesystem delays cannot consume the fake deadline on Windows.
+		const writers = 16
+		var held atomic.Bool
+		mkdir := func() error {
+			if !held.CompareAndSwap(false, true) {
+				return os.ErrExist
+			}
+			return nil
+		}
+		var active, completed atomic.Int32
+		var wg sync.WaitGroup
+		start := make(chan struct{})
+		for range writers {
+			wg.Go(func() {
+				<-start
+				if err := waitForWriteLock(writeLockName, time.Second, mkdir); err != nil {
+					t.Error(err)
+					return
+				}
+				defer held.Store(false)
+				if active.Add(1) != 1 {
+					t.Error("concurrent writers entered the critical section")
+				}
+				defer active.Add(-1)
+				time.Sleep(time.Millisecond)
+				completed.Add(1)
+			})
+		}
+		close(start)
+		wg.Wait()
+		if got := completed.Load(); got != writers {
+			t.Fatalf("completed %d updates, want %d", got, writers)
+		}
+	})
+}
+
+func TestWriteLockRetryDeadline(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		const timeout = 25 * time.Millisecond
+		start := time.Now()
+		attempts := 0
+		err := waitForWriteLock(writeLockName, timeout, func() error {
+			attempts++
+			return os.ErrExist
+		})
+		if err == nil || !strings.Contains(err.Error(), "never auto-stolen") {
+			t.Fatalf("missing held-lock timeout: %v", err)
+		}
+		if elapsed := time.Since(start); elapsed != timeout {
+			t.Fatalf("retry elapsed %s, want %s", elapsed, timeout)
+		}
+		if attempts < 2 {
+			t.Fatal("held lock was not retried")
+		}
+	})
 }
 
 func TestHeldWriteLock(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	mathrand "math/rand/v2"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -13,7 +14,7 @@ import (
 
 const (
 	writeLockTimeout = 3 * time.Second
-	writeLockRetry   = 100 * time.Millisecond
+	writeLockRetry   = 20 * time.Millisecond
 	writeLockName    = ".write-lock"
 )
 
@@ -31,26 +32,10 @@ func withWriteLock(root *os.Root, path string, timeout time.Duration, update fun
 func acquireWriteLock(root *os.Root, path string, timeout time.Duration) (func(), error) {
 	lockPath := filepath.Join(filepath.Dir(path), writeLockName)
 	token := strconv.Itoa(os.Getpid()) + "." + rand.Text() + "\n"
-	deadline := time.Now().Add(timeout)
-	for {
-		err := root.Mkdir(writeLockName, 0700)
-		if err == nil {
-			break
-		}
-		// A Windows permission denial may be transient, so retry it until the
-		// deadline before reporting directory permission guidance.
-		retry, permission := lockRetry(runtime.GOOS, err)
-		if !retry {
-			return nil, fmt.Errorf("create credentials write lock %s; check directory permissions", lockPath)
-		}
-		remaining := time.Until(deadline)
-		if remaining <= 0 {
-			if permission {
-				return nil, fmt.Errorf("create credentials write lock %s; check directory permissions", lockPath)
-			}
-			return nil, fmt.Errorf("credentials write lock timed out after %s; verify its PID is stopped, then manually remove %s (never auto-stolen)", timeout, lockPath)
-		}
-		time.Sleep(min(writeLockRetry, remaining))
+	if err := waitForWriteLock(lockPath, timeout, func() error {
+		return root.Mkdir(writeLockName, 0700)
+	}); err != nil {
+		return nil, err
 	}
 	lock, err := root.OpenRoot(writeLockName)
 	if err != nil {
@@ -91,6 +76,36 @@ func acquireWriteLock(root *os.Root, path string, timeout time.Duration) (func()
 	}
 	initialized = true
 	return release, nil
+}
+
+// waitForWriteLock retries the atomic mkdir operation. The callback lets tests
+// isolate polling from real filesystem delays when using fake time.
+func waitForWriteLock(lockPath string, timeout time.Duration, mkdir func() error) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		err := mkdir()
+		if err == nil {
+			return nil
+		}
+		// A Windows permission denial may be transient, so retry it until the
+		// deadline before reporting directory permission guidance.
+		retry, permission := lockRetry(runtime.GOOS, err)
+		if !retry {
+			return fmt.Errorf("create credentials write lock %s; check directory permissions", lockPath)
+		}
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			if permission {
+				return fmt.Errorf("create credentials write lock %s; check directory permissions", lockPath)
+			}
+			return fmt.Errorf("credentials write lock timed out after %s; verify its PID is stopped, then manually remove %s (never auto-stolen)", timeout, lockPath)
+		}
+		// Jitter separates contenders instead of waking them in a convoy. A
+		// 10-20 ms delay budgets at most 300 ms of polling gaps for 16 writers
+		// instead of 1.5 s, leaving more of the 3 s timeout for filesystem work.
+		delay := writeLockRetry/2 + time.Duration(mathrand.Int64N(int64(writeLockRetry/2)))
+		time.Sleep(min(delay, remaining))
+	}
 }
 
 func lockRetry(goos string, err error) (retry, permission bool) {
