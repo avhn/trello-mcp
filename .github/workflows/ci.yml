@@ -67,6 +67,8 @@ jobs:
           cache: true
       - name: Test credentials and auth with Windows DACLs
         run: go test ./internal/credentials/... ./internal/auth/...
+      - name: Repeat credential lock and concurrent-save tests
+        run: go test -run 'Lock|ConcurrentSaves' -count=20 ./internal/credentials/
 
   check:
     strategy:

@@ -54,6 +54,22 @@ jobs:
           powershell -NoProfile -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE/tests/setup_commands_test.ps1"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+  windows-auth:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test credentials and auth with Windows DACLs
+        run: go test ./internal/credentials/... ./internal/auth/...
+      - name: Repeat credential lock and concurrent-save tests
+        run: go test -run 'Lock|ConcurrentSaves' -count=20 ./internal/credentials/
+
   native:
     needs: checks
     strategy:
@@ -207,7 +223,7 @@ jobs:
             --smoke-binary "$GITHUB_WORKSPACE/extracted/server/trello-mcp.exe"
 
   release:
-    needs: [checks, native, desktop, desktop-windows, windows-installer]
+    needs: [checks, native, desktop, desktop-windows, windows-installer, windows-auth]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

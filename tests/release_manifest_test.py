@@ -101,7 +101,8 @@ class ReleaseTests(unittest.TestCase):
         self.assertCountEqual(assets, expected)
         self.assertEqual(len(assets), 11)
         needs = re.search(r'needs: \[([^\]]+)\]', job).group(1).split(', ')
-        self.assertTrue({'checks', 'native', 'desktop', 'desktop-windows', 'windows-installer'} <= set(needs))
+        self.assertTrue({'checks', 'native', 'desktop', 'desktop-windows', 'windows-installer',
+                         'windows-auth'} <= set(needs))
         self.assertIn('notes --output "$GITHUB_WORKSPACE/notes.md"', job)
         self.assertIn('--notes-file "$GITHUB_WORKSPACE/notes.md"', publication)
         self.assertIn('--verify-tag', publication)
@@ -115,6 +116,29 @@ class ReleaseTests(unittest.TestCase):
             self.assertNotRegex(text, r'\bmcp-publisher\s+(?:login|publish)\b')
             self.assertNotRegex(text, r'(?i)secrets\.[^ }]*(?:registry|publisher)')
         self.assertNotIn('preview', workflow.lower())
+
+    def test_workflows_require_native_windows_auth_and_repeated_lock_checks(self):
+        commands = ['go test ./internal/credentials/... ./internal/auth/...',
+                    "go test -run 'Lock|ConcurrentSaves' -count=20 ./internal/credentials/"]
+        for name in ('ci.yml', 'release.yml'):
+            with self.subTest(workflow=name):
+                workflow = (ROOT / '.github/workflows' / name).read_text()
+                match = re.search(r'^  windows-auth:\n((?:    [^\n]*\n|\n)+)', workflow, re.MULTILINE)
+                self.assertIsNotNone(match)
+                job = match.group(1)
+                self.assertIn('    runs-on: windows-latest\n', job)
+                self.assertIn('    timeout-minutes: 10\n', job)
+                self.assertIn('      - uses: actions/setup-go@v7\n        with:\n'
+                              '          go-version-file: go.mod\n          cache: true\n', job)
+                self.assertEqual(re.findall(r'^        run: (.+)$', job, re.MULTILINE), commands)
+                self.assertEqual(len(re.findall(r'^\s+run:', job, re.MULTILINE)), 2)
+                self.assertEqual(re.findall(r'^      - uses: (.+)$', job, re.MULTILINE),
+                                 ['actions/checkout@v7', 'actions/setup-go@v7'])
+                self.assertNotRegex(job, r'(?m)^\s*(?:if|continue-on-error|shell|permissions):')
+                self.assertNotIn('always(', job)
+                if name == 'release.yml':
+                    self.assertIn('      - uses: actions/checkout@v7\n        with:\n'
+                                  '          ref: ${{ github.sha }}\n', job)
 
     def test_workflow_paths_resolve_from_workspace_and_initialize_dist_per_step(self):
         job = self.release_workflow()
