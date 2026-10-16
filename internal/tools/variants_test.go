@@ -260,7 +260,8 @@ func TestCardCursorRejectedBeforeHTTP(t *testing.T) {
 	defer fake.Close()
 	s := testService(t, fake, nil)
 	for _, raw := range []string{
-		`{"before":"2026-10-15T12:00:00Z"}`, `{"before":"../bad"}`, `{"before":""}`, `{"before":"c1?key=x"}`,
+		`{"before":"2026-10-15T12:00:00Z"}`, `{"before":"2026-10-15"}`, `{"before":"20261015"}`, `{"before":"../bad"}`, `{"before":"` + strings.Repeat("a", 65) + `"}`,
+		`{"before":""}`, `{"before":"c1?key=x"}`,
 		`{"mine":true,"boardId":"b1"}`, `{"mine":true,"listId":"l1"}`,
 	} {
 		result, err := s.handler(toolDefinition(t, "card_find"))(context.Background(), &mcp.CallToolRequest{Params: &mcp.CallToolParamsRaw{Arguments: json.RawMessage(raw)}})

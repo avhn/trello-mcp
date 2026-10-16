@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"regexp"
 	"slices"
 	"strconv"
@@ -43,8 +44,8 @@ const (
 	// Trello Object Definitions documents card desc as "Up to 16384 chars".
 	// Its Unicode counting unit is unspecified; our bound counts code points.
 	cardDescriptionLimit = 16384
-	// Trello documents no limit for the other human text fields below. This
-	// provisional local ceiling is not an observed or documented Trello maximum.
+	// Other human text fields share this local ceiling. Some have documented upstream
+	// figures (see docs/tools.md#text-limits), such as 256 for attachment names.
 	localTextLimit = 16384
 )
 
@@ -109,6 +110,20 @@ func maxLimit(name string) (int, int) {
 const actionFilterPattern = `^(all|[A-Za-z][A-Za-z0-9_]*(,[A-Za-z][A-Za-z0-9_]*)*)$`
 
 var actionFilter = regexp.MustCompile(actionFilterPattern)
+
+// dateCursor reports ID-shaped YYYY-MM-DD or YYYYMMDD dates; Trello card ids are never calendar dates.
+func dateCursor(v string) bool {
+	for _, layout := range []string{"2006-01-02", "20060102"} {
+		if _, err := time.Parse(layout, v); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// decimalPosition matches JSON number syntax, so strings Trello may parse
+// differently (hex, digit separators, a sign or bare dot) never reach it.
+var decimalPosition = regexp.MustCompile(`^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$`)
 
 // validate rejects unknown fields, nulls, duplicate keys, bad types and unsafe path components.
 func validate(raw json.RawMessage, d definition) (arguments, error) {
@@ -232,8 +247,13 @@ func validateAt(raw json.RawMessage, d definition, location string) (arguments, 
 				}
 				v = n.String()
 			}
-			if n, e := strconv.ParseFloat(v, 64); v != "top" && v != "bottom" && (e != nil || !(n > 0 && n <= 1e20)) {
-				return a, fmt.Errorf("%s must be top, bottom or a positive number", path)
+			if v != "top" && v != "bottom" {
+				n, e := strconv.ParseFloat(v, 64)
+				if e != nil || !decimalPosition.MatchString(v) || !(n > 0 && n <= 1e20) {
+					return a, fmt.Errorf("%s must be top, bottom or a number with 0 < pos <= 1e20", path)
+				}
+				// Send the checked double as a plain decimal, so the bound holds for what Trello receives.
+				v = strconv.FormatFloat(n, 'f', -1, 64)
 			}
 			a.values[key] = v
 		case "idMembers", "idLabels":
@@ -298,13 +318,16 @@ func validateAt(raw json.RawMessage, d definition, location string) (arguments, 
 			}
 			a.items = items
 		case "limit":
-			if err = json.Unmarshal(value, &a.limit); err != nil {
+			// JSON Schema integers include integral forms such as 20.0 and 2e1.
+			var n float64
+			if err = json.Unmarshal(value, &n); err != nil || n != math.Trunc(n) {
 				return a, fmt.Errorf("%s must be an integer", path)
 			}
 			_, max := maxLimit(d.name)
-			if a.limit < 1 || a.limit > max {
+			if n < 1 || n > float64(max) {
 				return a, fmt.Errorf("%s must be between 1 and %d", path, max)
 			}
+			a.limit = int(n)
 		case "mine":
 			if err = json.Unmarshal(value, &a.mine); err != nil {
 				return a, fmt.Errorf("%s must be a boolean", path)
@@ -390,7 +413,7 @@ func validateAt(raw json.RawMessage, d definition, location string) (arguments, 
 			continue
 		}
 		if d.name == "card_find" {
-			if !trello.ValidID(v) {
+			if !trello.ValidID(v) || dateCursor(v) {
 				return a, fmt.Errorf("before must be a previously returned card id in the same filtered snapshot")
 			}
 			continue
@@ -462,7 +485,7 @@ func boardDescription(name string) string {
 	case "card_find":
 		return "With listId: expected owner; otherwise active board, unless mine."
 	default:
-		return "Optional expected owner; actual board verified."
+		return "Expected board; actual board verified."
 	}
 }
 
