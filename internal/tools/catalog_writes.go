@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -72,6 +73,15 @@ func (s *Service) labelDelete(ctx context.Context, a arguments) (any, error) {
 	return s.mutateOK(ctx, http.MethodDelete, "/labels/"+a.str("labelId"), nil)
 }
 
+// customfieldResolutionError adds recovery context only to unavailable definition lookups.
+func customfieldResolutionError(err error) error {
+	var status *trello.HTTPError
+	if errors.As(err, &status) && status.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("custom field unavailable or not accessible; refresh customfield_find on the card's authorized board and verify access: %w", err)
+	}
+	return err
+}
+
 // customfieldSet derives the type and valid option ids from the authorized definition.
 func (s *Service) customfieldSet(ctx context.Context, a arguments) (any, error) {
 	board, err := s.access.ObjectBoard(ctx, "cards", a.str("cardId"), a.str("boardId"))
@@ -80,7 +90,7 @@ func (s *Service) customfieldSet(ctx context.Context, a arguments) (any, error) 
 	}
 	id := a.str("customFieldId")
 	if _, err = s.access.ObjectBoard(ctx, "customFields", id, board); err != nil {
-		return nil, err
+		return nil, customfieldResolutionError(err)
 	}
 	var field struct {
 		view.CustomField
@@ -88,7 +98,7 @@ func (s *Service) customfieldSet(ctx context.Context, a arguments) (any, error) 
 		ModelType string `json:"modelType"`
 	}
 	if err = s.access.Client.Get(ctx, "/customFields/"+id, url.Values{"fields": {"id,name,type,options,idModel,modelType"}}, &field); err != nil {
-		return nil, err
+		return nil, customfieldResolutionError(err)
 	}
 	if field.ID != id || field.ModelID != board || field.ModelType != "board" {
 		return nil, trello.OwnershipDenied("custom field")

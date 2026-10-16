@@ -2,6 +2,7 @@ package view
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -31,6 +32,53 @@ func TestProjection(t *testing.T) {
 	}
 	if _, err = Encode(make(chan int)); err == nil {
 		t.Error("unsupported value encoded")
+	}
+}
+
+// TestCardSerializationOmission scopes zero-value omission to the requested card projection.
+func TestCardSerializationOmission(t *testing.T) {
+	for _, raw := range []string{
+		`{"id":"c1","name":"Example"}`,
+		`{"id":"c1","name":"Example","url":"","idBoard":"","idList":"","desc":"","descTruncated":false,"due":"","dueComplete":false,"closed":false,"labels":[],"idMembers":[],"start":"","dateLastActivity":"","checklists":[],"members":[],"stickers":[],"pluginData":[],"idMembersVoted":[],"customFieldItems":[]}`,
+		`{"id":"c1","name":"Example","desc":null,"due":null,"dueComplete":null,"closed":null,"labels":null,"idMembers":null,"start":null,"checklists":null,"members":null,"stickers":null,"pluginData":null,"idMembersVoted":null,"customFieldItems":null}`,
+	} {
+		var card Card
+		if err := json.Unmarshal([]byte(raw), &card); err != nil {
+			t.Fatal(err)
+		}
+		for _, full := range []bool{false, true} {
+			got, err := Encode(ProjectCard(card, full, false))
+			if err != nil || got != `{"id":"c1","name":"Example"}` {
+				t.Errorf("empty requested card fields (full=%v): %s, %v", full, got, err)
+			}
+		}
+	}
+
+	const populated = `{"id":"c1","name":"Example","url":"https://example.invalid/card","idBoard":"b1","idList":"l1","desc":"Description","descTruncated":true,"due":"2027-02-03T12:00:00Z","dueComplete":true,"closed":true,"labels":[{"id":"lb1","name":"Ready","color":"green"}],"idMembers":["m1"],"start":"2027-02-02T12:00:00Z","dateLastActivity":"2027-02-01T12:00:00Z","checklists":[{"id":"cl1","name":"Checks","checkItems":null}],"members":[{"id":"m1","username":"synthetic"}],"stickers":[{"id":"s1","image":"star"}],"pluginData":[{"id":"p1","idPlugin":"plugin1","value":"synthetic"}],"idMembersVoted":["m1"],"customFieldItems":[{"idCustomField":"f1","value":{"text":"Ready"}}]}`
+	var card Card
+	if err := json.Unmarshal([]byte(populated), &card); err != nil {
+		t.Fatal(err)
+	}
+	for _, full := range []bool{false, true} {
+		got, err := Encode(ProjectCard(card, full, false))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var actual, want map[string]any
+		if err = json.Unmarshal([]byte(got), &actual); err != nil {
+			t.Fatal(err)
+		}
+		if err = json.Unmarshal([]byte(populated), &want); err != nil {
+			t.Fatal(err)
+		}
+		if !full {
+			for _, key := range []string{"start", "dateLastActivity", "checklists", "members"} {
+				delete(want, key)
+			}
+		}
+		if !reflect.DeepEqual(actual, want) {
+			t.Errorf("populated requested card fields (full=%v): got %s, want %v", full, got, want)
+		}
 	}
 }
 

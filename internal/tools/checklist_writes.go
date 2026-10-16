@@ -171,7 +171,12 @@ func (s *Service) mutateChecklistItem(ctx context.Context, method, path string, 
 		}
 		return response, err
 	}
-	return s.mutateVerified(ctx, method, path, body, target, fields, fallback)
+	result, err := s.mutateVerified(ctx, method, path, body, target, fields, fallback)
+	if partial, ok := result.(mutationPartialResult); ok {
+		partial.Error = "requested checklist fields not confirmed as applied: " + strings.Join(partial.Unconfirmed, ", ") + "; inspect before retrying. Check advanced checklist availability and permissions."
+		result = partial
+	}
+	return result, err
 }
 
 func (s *Service) checklistItemDelete(ctx context.Context, a arguments) (any, error) {

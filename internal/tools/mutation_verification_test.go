@@ -306,7 +306,10 @@ func TestClearSetReadStateful(t *testing.T) {
 func TestChecklistMetadataVerification(t *testing.T) {
 	for _, operation := range []string{"create", "update"} {
 		for _, mode := range []string{"due", "member", "both"} {
-			for _, variant := range []string{"complete", "timezone", "null", "mismatch", "missing", "unavailable", "fallback error", "fallback foreign", "denied"} {
+			for _, variant := range []string{"complete", "timezone", "null", "mismatch", "due mismatch", "member mismatch", "missing", "unavailable", "fallback mismatch", "fallback error", "fallback foreign", "denied"} {
+				if mode != "both" && (variant == "due mismatch" || variant == "member mismatch") {
+					continue
+				}
 				t.Run(operation+"/"+mode+"/"+variant, func(t *testing.T) {
 					args := map[string]any{"checklistId": "cl1"}
 					if operation == "create" {
@@ -338,12 +341,21 @@ func TestChecklistMetadataVerification(t *testing.T) {
 							response[key] = nil
 						case "mismatch":
 							response[key] = "retained"
-						case "missing", "unavailable", "fallback error", "fallback foreign", "denied":
+						case "missing", "unavailable", "fallback mismatch", "fallback error", "fallback foreign", "denied":
 							delete(response, key)
 						}
 						if variant == "unavailable" {
 							delete(fallback, key)
 						}
+						if variant == "fallback mismatch" {
+							fallback[key] = "retained"
+						}
+					}
+					if variant == "due mismatch" {
+						response["due"], wantNames = "retained", []string{"due"}
+					}
+					if variant == "member mismatch" {
+						response["idMember"], wantNames = "retained", []string{"memberId"}
 					}
 					if variant == "fallback foreign" {
 						fallback["idChecklist"] = "foreign"
@@ -366,11 +378,16 @@ func TestChecklistMetadataVerification(t *testing.T) {
 					if err := json.Unmarshal([]byte(text), &out); err != nil || out.ID != "i1" {
 						t.Fatalf("confirmed item lost: %s", text)
 					}
-					if wantFailure && (!reflect.DeepEqual(out.Unconfirmed, wantNames) || !strings.Contains(out.Error, "inspect before retrying")) {
-						t.Fatalf("partial %s", text)
+					if wantFailure {
+						wantError := "requested checklist fields not confirmed as applied: " + strings.Join(wantNames, ", ") + "; inspect before retrying. Check advanced checklist availability and permissions."
+						if !reflect.DeepEqual(out.Unconfirmed, wantNames) || out.Error != wantError || strings.Contains(text, "idMember") {
+							t.Fatalf("partial %s, want fields %v and error %q", text, wantNames, wantError)
+						}
+					} else if out.Error != "" || len(out.Unconfirmed) != 0 {
+						t.Fatalf("success decorated as partial: %s", text)
 					}
 					wantReads := int32(0)
-					if variant == "missing" || variant == "unavailable" || variant == "fallback error" || variant == "fallback foreign" {
+					if variant == "missing" || variant == "unavailable" || variant == "fallback mismatch" || variant == "fallback error" || variant == "fallback foreign" {
 						wantReads = 1
 					}
 					if fixture.writes.Load() != 1 || fixture.dataReads.Load() != wantReads {
@@ -402,6 +419,101 @@ func TestVerificationDoesNotMaskPopulatedMismatch(t *testing.T) {
 	}
 	if got := <-fixture.dataQueries; !reflect.DeepEqual(got, query("fields", "id,idChecklist,idMember")) {
 		t.Fatalf("fallback must select only missing metadata: %v", got)
+	}
+}
+
+func TestBatchClearMutationPartialEntries(t *testing.T) {
+	for _, tc := range []struct {
+		name, cards string
+		responses   []string
+		unconfirmed [][]string
+	}{
+		{"due", `[{"name":"First","due":""},{"name":"Second","due":""}]`, []string{`{"id":"c1","due":"retained"}`, `{"id":"c2","due":"retained"}`}, [][]string{{"due"}, {"due"}}},
+		{"start", `[{"name":"First","start":""},{"name":"Second","start":""}]`, []string{`{"id":"c1","start":"retained"}`, `{"id":"c2","start":"retained"}`}, [][]string{{"start"}, {"start"}}},
+		{"both", `[{"name":"First","due":"","start":""},{"name":"Second","due":"","start":""}]`, []string{`{"id":"c1","due":"retained","start":"retained"}`, `{"id":"c2","due":"retained","start":"retained"}`}, [][]string{{"due", "start"}, {"due", "start"}}},
+		{"success then partial", `[{"name":"First","due":""},{"name":"Second","start":""}]`, []string{`{"id":"c1","due":null}`, `{"id":"c2","start":"retained"}`}, [][]string{nil, {"start"}}},
+		{"partial then success", `[{"name":"First","due":""},{"name":"Second","start":""}]`, []string{`{"id":"c1","due":"retained"}`, `{"id":"c2","start":null}`}, [][]string{{"due"}, nil}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var writes, dataReads atomic.Int32
+			queries := make(chan url.Values, 4)
+			fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPost && r.URL.Path == "/cards" {
+					writes.Add(1)
+					q := r.URL.Query()
+					queries <- q
+					switch q.Get("name") {
+					case "First":
+						_, _ = w.Write([]byte(tc.responses[0]))
+					case "Second":
+						_, _ = w.Write([]byte(tc.responses[1]))
+					default:
+						t.Errorf("unexpected card create query %v", q)
+						w.WriteHeader(http.StatusInternalServerError)
+					}
+					return
+				}
+				if r.Method == http.MethodGet {
+					switch r.URL.Path {
+					case "/lists/l1":
+						_, _ = w.Write([]byte(`{"idBoard":"b1"}`))
+						return
+					case "/boards/b1":
+						_, _ = w.Write([]byte(boardJSON))
+						return
+					case "/organizations/w1":
+						_, _ = w.Write([]byte(workspaceJSON))
+						return
+					}
+					dataReads.Add(1)
+				}
+				t.Errorf("unexpected batch request %s %s", r.Method, r.URL.Path)
+				w.WriteHeader(http.StatusInternalServerError)
+			}))
+			defer fake.Close()
+			text, failed := callTool(t, testService(t, fake, []string{"w1"}), "card_create_batch", `{"listId":"l1","cards":`+tc.cards+`}`)
+			var out view.Page[struct {
+				Index       int      `json:"index"`
+				ID          string   `json:"id"`
+				Error       string   `json:"error"`
+				Unconfirmed []string `json:"unconfirmed"`
+			}]
+			if err := json.Unmarshal([]byte(text), &out); err != nil || failed || len(out.Items) != 2 {
+				t.Fatalf("batch envelope must not set isError for partial entries: %s (failed=%v, err=%v)", text, failed, err)
+			}
+			for i, item := range out.Items {
+				if item.Index != i || item.ID != fmt.Sprintf("c%d", i+1) || !reflect.DeepEqual(item.Unconfirmed, tc.unconfirmed[i]) {
+					t.Fatalf("entry progress lost: %s", text)
+				}
+				if (item.Error != "") != (len(tc.unconfirmed[i]) > 0) || (item.Error != "" && !strings.Contains(item.Error, "inspect before retrying")) {
+					t.Fatalf("entry error lost or successful entry marked partial: %s", text)
+				}
+			}
+			if writes.Load() != 2 || dataReads.Load() != 0 {
+				t.Fatalf("batch requests: writes=%d data GETs=%d", writes.Load(), dataReads.Load())
+			}
+			var requested []map[string]any
+			if err := json.Unmarshal([]byte(tc.cards), &requested); err != nil {
+				t.Fatal(err)
+			}
+			seen := map[string]int{}
+			for range 2 {
+				q := <-queries
+				seen[q.Get("name")]++
+				for _, card := range requested {
+					if card["name"] == q.Get("name") {
+						for _, field := range []string{"due", "start"} {
+							if _, present := card[field]; present && q.Get(field) != "null" {
+								t.Errorf("clear query %s=%q, want null", field, q.Get(field))
+							}
+						}
+					}
+				}
+			}
+			if !reflect.DeepEqual(seen, map[string]int{"First": 1, "Second": 1}) {
+				t.Fatalf("duplicate or skipped create: %v", seen)
+			}
+		})
 	}
 }
 
@@ -548,7 +660,7 @@ func TestChecklistMetadataIdentityAndRejection(t *testing.T) {
 					args = `{"checklistId":"cl1","itemId":"i1","due":"2027-02-03T12:00:00Z"}`
 				}
 				text, failed := callTool(t, testService(t, fake, nil), "checklist_item_"+operation, args)
-				if !failed || !strings.Contains(text, "inspect before retrying") || strings.Contains(text, "subscription") || strings.Contains(text, "upstream-private-marker") || strings.Contains(text, "test-key") || strings.Contains(text, "test-token") {
+				if !failed || !strings.Contains(text, "inspect before retrying") || strings.Contains(text, "advanced checklist") || strings.Contains(text, "subscription") || strings.Contains(text, "upstream-private-marker") || strings.Contains(text, "test-key") || strings.Contains(text, "test-token") {
 					t.Fatalf("unsafe mutation result %s", text)
 				}
 				if fixture.writes.Load() != 1 || fixture.dataReads.Load() != 0 {
