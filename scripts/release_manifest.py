@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 """Generate and validate normal-release metadata and bytes. Run with python3 -I.
 
-Root server.json stays metadata-only. For v0.7.0, inspect final MCPBs, generate
-metadata and unified checksums, verify them, and publisher-validate the generated
-server.json before approved GitHub publication. Independently verify public bytes
+Root server.json stays metadata-only. For each approved normal vX.Y.Z tag, inspect
+final MCPBs, generate metadata and unified checksums, verify them, and
+publisher-validate the generated server.json before approved GitHub publication. Independently verify public bytes
 and validate downloaded metadata afterward. Stop there: no registry submission.
+
+Inspect all three MCPBs and include all in the unified checksums. Registry
+installation metadata lists only trello-mcp_desktop.mcpb (macOS universal and
+Windows amd64). Linux MCPBs remain owner-untested beta downloads, excluded until
+support is explicitly promoted with owner evidence. This is our discovery/support
+policy, not a Registry format limitation.
 
 Only for separately authorized v1.0.0 registry publication: recheck the official
 format and publisher pin, regenerate from final bytes, verify public URL/hash and
@@ -12,7 +18,8 @@ checksums, then mcp-publisher validate /absolute/path/to/downloaded/server.json.
 A human privately runs mcp-publisher login github for io.github.avhn/trello-mcp,
 then mcp-publisher publish /absolute/path/to/downloaded/server.json. Verify the
 returned name/version through the Registry API. Never inspect token files, add
-automated registry auth secrets, or retroactively submit v0.7.0. See AGENTS.md.
+automated registry auth secrets, or retroactively submit pre-1.0 releases.
+See AGENTS.md.
 """
 
 import argparse

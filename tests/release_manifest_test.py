@@ -312,6 +312,24 @@ class ReleaseTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             release.validate_generated(altered, self.metadata, self.directory)
 
+    def test_generated_excludes_otherwise_valid_linux_packages(self):
+        self.all_assets()
+        value = release.generate(self.metadata, self.directory)
+        for name in release.BUNDLES:
+            if name == "trello-mcp_desktop.mcpb":
+                continue
+            release.inspect_bundle(self.directory / name, self.version)
+            package = {"registryType": "mcpb",
+                       "identifier": f"{release.REPOSITORY}/releases/download/v{self.version}/{name}",
+                       "version": self.version,
+                       "fileSha256": release.digest(self.directory / name),
+                       "transport": {"type": "stdio"}}
+            for packages in ([package], value["packages"] + [package]):
+                altered = copy.deepcopy(value)
+                altered["packages"] = packages
+                with self.subTest(name=name, count=len(packages)), self.assertRaisesRegex(ValueError, "invalid generated package"):
+                    release.validate_generated(altered, self.metadata, self.directory)
+
     def test_generated_stale_bundle_hash(self):
         self.all_assets()
         value = release.generate(self.metadata, self.directory)
