@@ -121,7 +121,7 @@ class BundleTests(unittest.TestCase):
         for target in packaging.TARGETS:
             with self.subTest(target=target):
                 manifest = packaging.manifest("6.7.8", target)
-                self.assertIn("macOS and Windows are supported.", manifest["long_description"])
+                self.assertIn("macOS and Windows amd64 are supported; Windows on Arm is not claimed.", manifest["long_description"])
                 for field in ("display_name", "description", "long_description"):
                     self.assertNotIn("preview", manifest[field].lower())
                     self.assertNotIn("pending", manifest[field].lower())
@@ -137,6 +137,24 @@ class BundleTests(unittest.TestCase):
                         f"Linux {arch} beta: manual, architecture-specific download. "))
                     self.assertIn("compatible Claude Desktop Linux beta host and secure storage",
                                   manifest["long_description"])
+
+    def test_generated_help_qualifies_health_and_manual_updates(self):
+        for target in packaging.TARGETS:
+            with self.subTest(target=target):
+                help_text = packaging.manifest("6.7.8", target)["long_description"]
+                for required in ("credentials must be present before health metadata or policy fields exist",
+                                 "every unconfigured detail returns the same four-field setup response",
+                                 "Health does not verify Trello access", "workspace_find {} for a real Trello read",
+                                 "A 401 can mean", "missing scope (especially write)",
+                                 "not proof of an invalid token", "A 403 can mean",
+                                 "checksums.txt from the same release", "install it manually",
+                                 "extension identity trello-mcp", "Check settings through supported controls",
+                                 "settings retention or migration is not guaranteed",
+                                 "Restart the extension", "repeat the verification above"):
+                    self.assertIn(required, help_text)
+                self.assertNotIn("retain your settings", help_text)
+                self.assertLess(help_text.index("verify the downloaded bundle"),
+                                help_text.index("then install it manually"))
 
     def test_windows_transfer_warnings_cannot_be_enabled_by_settings(self):
         for target in packaging.TARGETS:
@@ -201,8 +219,9 @@ class BundleTests(unittest.TestCase):
                          "metadata shows the installed version", "policy shows effective restrictions",
                          "Health does not verify Trello access", "workspace_find {} for a real Trello read",
                          "successful empty items result proves that upstream read worked",
-                         "not that a workspace selector matches", "Authentication rejection differs",
-                         "permission, network or rate-limit failures", "permitted existing upstream read such as board_find",
+                         "not that a workspace selector matches", "A 401 can mean",
+                         "not proof of an invalid token", "A 403 can mean",
+                         "Network and rate-limit failures are separate", "permitted existing upstream read such as board_find",
                          "health-only profile cannot verify access", "change the profile and reconnect",
                          "never bypass restrictions", "No CLI auth/status or credential copying is required",
                          "CLI status describes only that CLI invocation, not Desktop credentials",
