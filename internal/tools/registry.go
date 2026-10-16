@@ -49,12 +49,12 @@ func (s *Service) definitions() []definition {
 	return append([]definition{
 		{name: "workspace_find", description: "Find accessible workspaces.", params: "nameFilter", call: s.workspaceFind},
 		{name: "workspace_use", description: "Set active workspace; clear active board.", params: "workspaceId", required: "workspaceId", call: s.workspaceUse},
-		{name: "board_find", description: "Find all accessible boards, including guest boards.", params: "workspaceId nameFilter", call: s.boardFind},
+		{name: "board_find", description: "Find all accessible open boards, including guest boards.", params: "workspaceId nameFilter", call: s.boardFind},
 		{name: "board_use", description: "Set active board.", params: "boardId", required: "boardId", call: s.boardUse},
 		{name: "board_get", description: "Get board details.", params: "boardId detail", call: s.boardGet},
 		{name: "board_activity", description: "Page board actions, newest first; omitted card/list names inherit per page.", params: "boardId limit since before filter", call: s.boardActivity},
 		{name: "list_find", description: "Find board lists.", params: "boardId nameFilter", call: s.listFind},
-		{name: "card_find", description: "Find cards; filter names before snapshot paging; includeDesc:false omits previews.", params: "boardId listId mine nameFilter detail limit before includeDesc", call: s.cardFind},
+		{name: "card_find", description: "Find open cards; filter names before snapshot paging; includeDesc:false omits previews.", params: "boardId listId mine nameFilter detail limit before includeDesc", call: s.cardFind},
 		{name: "card_get", description: "Get a card; full adds checklists/members; optional extras or markdown.", params: "boardId cardId detail view extraFields", required: "cardId", call: s.cardGet},
 		{name: "card_history", description: "Page filtered card actions; omitted card/list names inherit per page.", params: "boardId cardId limit before since filter", required: "cardId", call: s.cardHistory},
 		{name: "attachment_find", description: "Find card attachment metadata and link URLs.", params: "boardId cardId", required: "cardId", call: s.attachmentFind},
@@ -64,7 +64,7 @@ func (s *Service) definitions() []definition {
 		{name: "member_find", description: "Find board members.", params: "boardId nameFilter", call: s.memberFind},
 		{name: "label_find", description: "Find board labels.", params: "boardId nameFilter", call: s.labelFind},
 		{name: "customfield_find", description: "Get custom-field types and dropdown option ids.", params: "boardId", call: s.customfieldFind},
-		{name: "server_health", description: "Health: basic, detailed, metadata, performance or policy (access restrictions).", params: "detail", call: s.serverHealth},
+		{name: "server_health", description: "Local config health, not Trello auth; verify with workspace_find. Policy shows access restrictions.", params: "detail", call: s.serverHealth},
 	}, s.deliveryDefinitions()...)
 }
 

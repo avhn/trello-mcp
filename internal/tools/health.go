@@ -26,11 +26,12 @@ func (s *Service) serverHealth(ctx context.Context, a arguments) (any, error) {
 		return struct {
 			OK               bool   `json:"ok"`
 			CredentialSource string `json:"credentialSource"`
+			Access           string `json:"access"`
 			ReadOnly         bool   `json:"readOnly"`
 			Restricted       bool   `json:"restricted"`
 			ActiveBoard      bool   `json:"activeBoard"`
 			ActiveWorkspace  bool   `json:"activeWorkspace"`
-		}{true, s.config.CredentialSource, s.config.ReadOnly, len(s.config.AllowedWorkspaces) > 0, selection.BoardID != "", selection.WorkspaceID != ""}, nil
+		}{true, s.config.CredentialSource, "unverified; call workspace_find", s.config.ReadOnly, len(s.config.AllowedWorkspaces) > 0, selection.BoardID != "", selection.WorkspaceID != ""}, nil
 	case "metadata":
 		return struct {
 			Name      string `json:"name"`
@@ -49,9 +50,10 @@ func (s *Service) serverHealth(ctx context.Context, a arguments) (any, error) {
 		return struct {
 			OK               bool   `json:"ok"`
 			CredentialSource string `json:"credentialSource"`
-		}{true, s.config.CredentialSource}, nil
+			Access           string `json:"access"`
+		}{true, s.config.CredentialSource, "unverified; call workspace_find"}, nil
 	}
 }
 
 // Version is the server implementation version, set by the command at startup.
-var Version = "0.6.0"
+var Version = "0.7.0"

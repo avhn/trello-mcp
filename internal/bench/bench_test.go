@@ -250,7 +250,7 @@ func TestSizes(t *testing.T) {
 		if tool["name"] != "card_find" {
 			continue
 		}
-		tool["description"] = "Find cards; filter names before paging a snapshot."
+		tool["description"] = "Find open cards; filter names before paging a snapshot."
 		input := tool["inputSchema"].(map[string]any)
 		delete(input["properties"].(map[string]any), "includeDesc")
 		delete(input, "not")
