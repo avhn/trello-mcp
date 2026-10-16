@@ -2,6 +2,7 @@
 """Synthetic release assembly regressions; no credentials or external calls."""
 
 import copy
+from contextlib import contextmanager
 import hashlib
 import importlib.util
 import io
@@ -90,13 +91,13 @@ class ReleaseTests(unittest.TestCase):
             release.source_metadata(tag="v99.0.0")
 
     def release_workflow(self):
-        return (ROOT / ".github/workflows/release.yml").read_text().split('\n  release:\n', 1)[1]
+        return (ROOT / ".github/workflows/release.yml").read_text().split('\n  release:\n', 1)[1].split('\n  registry:\n', 1)[0]
 
     def run_blocks(self, workflow):
         return [textwrap.dedent(block) for block in
                 re.findall(r'^        run: \|\n((?:          [^\n]*\n|\n)+)', workflow, re.MULTILINE)]
 
-    def test_workflow_publishes_normal_release_asset_set_without_registry_submission(self):
+    def test_workflow_publishes_normal_release_asset_set_before_registry_publication(self):
         workflow = (ROOT / ".github/workflows/release.yml").read_text()
         job = self.release_workflow()
         publication = job.split('gh release create "$RELEASE_TAG"', 1)[1]
@@ -120,6 +121,37 @@ class ReleaseTests(unittest.TestCase):
             self.assertNotRegex(text, r'\bmcp-publisher\s+(?:login|publish)\b')
             self.assertNotRegex(text, r'(?i)secrets\.[^ }]*(?:registry|publisher)')
         self.assertNotIn('preview', workflow.lower())
+
+    def test_registry_workflow_permissions_inputs_and_unconditional_release_dependency(self):
+        workflow = (ROOT / '.github/workflows/registry.yml').read_text()
+        for trigger in ('workflow_call', 'workflow_dispatch'):
+            block = workflow.split('  ' + trigger + ':\n', 1)[1].split('\n\n', 1)[0]
+            self.assertRegex(block, r'inputs:\n      tag:\n(?:        [^\n]*\n)*        required: true\n        type: string')
+        self.assertIn('group: registry-${{ inputs.tag }}', workflow)
+        self.assertIn('cancel-in-progress: false', workflow)
+        self.assertIn('timeout-minutes: 15', workflow)
+        self.assertNotIn('ref:', workflow.split('actions/checkout', 1)[1].split('- uses:', 1)[0])
+        self.assertIn('GH_TOKEN: ${{ github.token }}', workflow)
+        self.assertIn('TAG: ${{ inputs.tag }}', workflow)
+        self.assertEqual(workflow.count('id-token:'), 1)
+        self.assertRegex(workflow, r'(?m)^    permissions:\n      contents: read\n      id-token: write$')
+        self.assertNotIn('permissions:', workflow.split('jobs:', 1)[0])
+        self.assertNotIn('secrets.', workflow)
+        self.assertNotRegex(workflow, r'(?m)^\s*(?:if|continue-on-error):')
+        commands = re.findall(r'^        run: (.+)$', workflow, re.MULTILINE)
+        self.assertEqual(commands, ['python3 -I "$GITHUB_WORKSPACE/scripts/release_manifest.py" '
+                                    '--tag "$TAG" registry-publish'])
+        for command in commands:
+            self.assertNotIn('${{ inputs.tag }}', command)
+        release_workflow = (ROOT / '.github/workflows/release.yml').read_text()
+        registry = release_workflow.split('\n  registry:\n', 1)[1]
+        self.assertIn('    needs: release\n', registry)
+        self.assertIn('    uses: ./.github/workflows/registry.yml\n', registry)
+        self.assertIn('      tag: ${{ github.ref_name }}\n', registry)
+        self.assertIn('    permissions:\n      contents: read\n      id-token: write\n', registry)
+        self.assertNotRegex(registry, r'(?m)^\s*(?:if|continue-on-error|secrets):')
+        self.assertNotIn('id-token:', release_workflow.split('\n  registry:\n', 1)[0])
+        self.assertNotIn('id-token:', (ROOT / '.github/workflows/ci.yml').read_text())
 
     def test_workflows_require_native_windows_auth_and_repeated_lock_checks(self):
         commands = ['go test ./internal/credentials/... ./internal/auth/...',
@@ -463,6 +495,233 @@ class ReleaseTests(unittest.TestCase):
         output.side_effect = ["commit\n"]
         with self.assertRaisesRegex(ValueError, "annotated"):
             release.tag_notes("v" + self.version)
+
+    def registry_response(self, value=None, status=200):
+        if status != 200:
+            error = release.HTTPError('https://registry.example.invalid', status, 'synthetic', {}, io.BytesIO())
+            self.addCleanup(error.close)
+            return error
+        response = mock.MagicMock()
+        response.__enter__.return_value = response
+        response.status = status
+        response.read.return_value = json.dumps(value).encode()
+        return response
+
+    @contextmanager
+    def registry_environment(self, responses, details=None, tamper=None):
+        self.all_assets()
+        expected = release.generate(self.metadata, self.directory)
+        if details is None:
+            details = {'tagName': 'v' + self.version, 'isDraft': False, 'isPrerelease': False,
+                       'assets': [{'name': path.name} for path in self.directory.iterdir()]}
+        actual_digest = release.digest
+
+        def digest(path):
+            if path.name == 'publisher.tar.gz':
+                return 'a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc'
+            return actual_digest(path)
+
+        def execute(args, **kwargs):
+            if args[:3] == ['gh', 'release', 'download']:
+                target = Path(args[args.index('--dir') + 1])
+                self.assertFalse(any(target.iterdir()))
+                for path in self.directory.iterdir():
+                    (target / path.name).write_bytes(path.read_bytes())
+                if tamper:
+                    tamper(target)
+            elif args[0] == 'curl':
+                path = Path(args[args.index('--output') + 1])
+                with tarfile.open(path, 'w:gz') as archive:
+                    for name in ('LICENSE', 'README.md', 'mcp-publisher'):
+                        info = tarfile.TarInfo(name)
+                        info.size = 4
+                        archive.addfile(info, io.BytesIO(b'test'))
+            elif args[1] == 'publish':
+                self.assertTrue(Path(args[2]).is_absolute())
+                self.assertEqual(release.read_json(Path(args[2]).read_text()), expected)
+
+        with mock.patch.object(release.platform, 'system', return_value='Linux'), \
+                mock.patch.object(release.platform, 'machine', return_value='x86_64'), \
+                mock.patch.object(release.subprocess, 'check_output', return_value=json.dumps(details)) as view, \
+                mock.patch.object(release.subprocess, 'run', side_effect=execute) as run, \
+                mock.patch.object(release, 'digest', side_effect=digest), \
+                mock.patch.object(release, 'urlopen', side_effect=responses) as request, \
+                mock.patch.object(release.time, 'sleep') as sleep, \
+                mock.patch('sys.stdout', new_callable=io.StringIO) as output:
+            yield run, request, sleep, output, view
+
+    def registry_value(self, status='active'):
+        # The fixture's exact desktop bytes determine the expected Registry package.
+        self.bundle()
+        value = dict(self.metadata, packages=[{
+            'registryType': 'mcpb',
+            'identifier': f'{release.REPOSITORY}/releases/download/v{self.version}/trello-mcp_desktop.mcpb',
+            'version': self.version, 'fileSha256': release.digest(self.directory / 'trello-mcp_desktop.mcpb'),
+            'transport': {'type': 'stdio'}}])
+        return {'server': value, '_meta': {'io.modelcontextprotocol.registry/official': {'status': status}}}
+
+    def test_registry_already_published_does_not_login(self):
+        response = self.registry_response(self.registry_value())
+        with self.registry_environment([response]) as (run, request, sleep, output, view):
+            with mock.patch.object(sys, 'argv', ['release_manifest.py', '--tag', 'v' + self.version, 'registry-publish']):
+                release.main()
+            self.assertIn('already published', output.getvalue())
+            self.assertFalse(any(call.args[0][1] in ('login', 'publish') for call in run.call_args_list))
+            self.assertTrue(any(call.args[0][1] == 'validate' for call in run.call_args_list))
+            self.assertIn('tagName,isDraft,isPrerelease,assets', view.call_args.args[0])
+            request.assert_called_once_with(
+                f'https://registry.modelcontextprotocol.io/v0.1/servers/io.github.avhn%2Ftrello-mcp/versions/{self.version}',
+                timeout=30)
+            sleep.assert_not_called()
+
+    def test_registry_existing_mismatch_fails_without_login(self):
+        for field in ('name', 'version', 'packages'):
+            value = self.registry_value()
+            value['server'][field] = [] if field == 'packages' else 'wrong'
+            # Each scenario needs its own fresh generated asset set.
+            with self.subTest(field=field), self.registry_environment([self.registry_response(value)]) as mocks:
+                with self.assertRaisesRegex(ValueError, 'name/version/packages mismatch'):
+                    release.registry_publish('v' + self.version, self.metadata)
+                self.assertFalse(any(call.args[0][1] in ('login', 'publish') for call in mocks[0].call_args_list))
+            (self.directory / 'server.json').unlink()
+            (self.directory / 'checksums.txt').unlink()
+
+    def test_registry_missing_publishes_absolute_downloaded_path_with_isolated_oidc_env(self):
+        response = self.registry_response(self.registry_value())
+        oidc = {'ACTIONS_ID_TOKEN_REQUEST_URL': 'https://oidc.example.invalid/request',
+                'ACTIONS_ID_TOKEN_REQUEST_TOKEN': 'synthetic-oidc-token'}
+        with mock.patch.dict(os.environ, oidc), \
+                self.registry_environment([self.registry_response(status=404), self.registry_response(status=404), response]) as mocks:
+            run, request, sleep, output, _view = mocks
+            release.registry_publish('v' + self.version, self.metadata)
+            publisher_calls = [call for call in run.call_args_list if Path(call.args[0][0]).name == 'mcp-publisher']
+            self.assertEqual([call.args[0][1] for call in publisher_calls], ['--help', 'validate', 'login', 'publish'])
+            validate, login, publish = publisher_calls[1:]
+            self.assertEqual(login.args[0][1:], ['login', 'github-oidc'])
+            path = Path(publish.args[0][2])
+            self.assertTrue(path.is_absolute())
+            self.assertEqual(path.name, 'server.json')
+            self.assertNotEqual(path.parent, self.directory)
+            self.assertEqual(validate.args[0][2], str(path))
+            self.assertEqual(len({call.args[0][0] for call in publisher_calls}), 1)
+            self.assertIs(validate.kwargs['env'], login.kwargs['env'])
+            self.assertIs(login.kwargs['env'], publish.kwargs['env'])
+            env = publish.kwargs['env']
+            for key, value in oidc.items():
+                self.assertEqual(env[key], value)
+                self.assertNotIn(value, output.getvalue())
+            for key in ('HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'XDG_DATA_HOME', 'XDG_STATE_HOME',
+                        'XDG_RUNTIME_DIR', 'APPDATA', 'LOCALAPPDATA', 'USERPROFILE'):
+                self.assertNotEqual(env[key], os.environ.get(key))
+                self.assertIn('publisher-home-', env[key])
+                self.assertFalse(Path(env[key]).exists())
+            self.assertEqual(request.call_count, 3)
+            sleep.assert_called_once_with(6)
+            self.assertIn('verified active', output.getvalue())
+
+    def test_registry_unexpected_http_status_fails_without_login(self):
+        with self.registry_environment([self.registry_response(status=503)]) as mocks:
+            with self.assertRaisesRegex(ValueError, 'HTTP 503'):
+                release.registry_publish('v' + self.version, self.metadata)
+            self.assertFalse(any(call.args[0][1] in ('login', 'publish') for call in mocks[0].call_args_list))
+
+    def test_registry_rejects_pre_one_and_unstable_tags_before_external_calls(self):
+        with mock.patch.object(release.subprocess, 'check_output') as view:
+            for tag in (None, 'v0.9.0', 'v1.2.3-beta', 'v01.2.3', '1.2.3', 'v1.2.3;echo bad'):
+                with self.subTest(tag=tag), self.assertRaisesRegex(ValueError, 'stable vX.Y.Z'):
+                    release.registry_publish(tag, self.metadata)
+            view.assert_not_called()
+
+    def test_registry_rejects_draft_and_prerelease(self):
+        for field in ('isDraft', 'isPrerelease'):
+            details = {'tagName': 'v' + self.version, 'isDraft': False, 'isPrerelease': False}
+            details[field] = True
+            with mock.patch.object(release.subprocess, 'check_output', return_value=json.dumps(details)), \
+                    mock.patch.object(release.subprocess, 'run') as run, \
+                    self.subTest(field=field), self.assertRaisesRegex(ValueError, 'draft or prerelease'):
+                release.registry_publish('v' + self.version, self.metadata)
+            run.assert_not_called()
+
+    def test_registry_release_view_failure_stops_before_download(self):
+        with mock.patch.object(release.subprocess, 'check_output', side_effect=subprocess.CalledProcessError(1, ['gh'])), \
+                mock.patch.object(release.subprocess, 'run') as run, self.assertRaises(subprocess.CalledProcessError):
+            release.registry_publish('v' + self.version, self.metadata)
+        run.assert_not_called()
+
+    def test_registry_rejects_unexpected_release_asset_names(self):
+        details = {'tagName': 'v' + self.version, 'isDraft': False, 'isPrerelease': False, 'assets': []}
+        with mock.patch.object(release.subprocess, 'check_output', return_value=json.dumps(details)), \
+                mock.patch.object(release.subprocess, 'run') as run, self.assertRaisesRegex(ValueError, '11 expected assets'):
+            release.registry_publish('v' + self.version, self.metadata)
+        run.assert_not_called()
+
+    def test_registry_tampered_public_bytes_stop_before_publisher_or_api(self):
+        def tamper(directory):
+            (directory / release.CLI_ASSETS[0]).write_bytes(b'tampered')
+        with self.registry_environment([], tamper=tamper) as mocks:
+            with self.assertRaisesRegex(ValueError, 'stale or invalid checksums'):
+                release.registry_publish('v' + self.version, self.metadata)
+            self.assertEqual(len(mocks[0].call_args_list), 1)
+            mocks[1].assert_not_called()
+
+    def test_registry_metadata_and_checksums_must_match_regenerated_bytes(self):
+        def tamper(directory):
+            path = directory / 'server.json'
+            path.write_text(path.read_text() + ' ')
+            release.checksums(directory, 'registry')
+        with self.registry_environment([], tamper=tamper) as mocks:
+            with self.assertRaisesRegex(ValueError, 'server.json differs from regenerated'):
+                release.registry_publish('v' + self.version, self.metadata)
+            self.assertEqual(len(mocks[0].call_args_list), 1)
+            mocks[1].assert_not_called()
+
+    def test_registry_checksums_must_match_regenerated_exact_bytes(self):
+        def tamper(directory):
+            path = directory / 'checksums.txt'
+            path.write_bytes(path.read_bytes().replace(b'\n', b'\r\n'))
+        with self.registry_environment([], tamper=tamper) as mocks:
+            with self.assertRaisesRegex(ValueError, 'checksums.txt differs from regenerated'):
+                release.registry_publish('v' + self.version, self.metadata)
+            self.assertEqual(len(mocks[0].call_args_list), 1)
+            mocks[1].assert_not_called()
+
+    def test_registry_publisher_failure_stops_subsequent_actions(self):
+        for stage in ('validate', 'login', 'publish'):
+            with self.subTest(stage=stage), self.registry_environment([self.registry_response(status=404)]) as mocks:
+                run, request, _sleep, _output, _view = mocks
+                execute = run.side_effect
+
+                def fail(args, **kwargs):
+                    execute(args, **kwargs)
+                    if len(args) > 1 and args[1] == stage:
+                        raise subprocess.CalledProcessError(1, args)
+                run.side_effect = fail
+                with self.assertRaises(subprocess.CalledProcessError):
+                    release.registry_publish('v' + self.version, self.metadata)
+                self.assertEqual(request.call_count, 0 if stage == 'validate' else 1)
+                commands = [call.args[0][1] for call in run.call_args_list]
+                if stage == 'validate':
+                    self.assertNotIn('login', commands)
+                if stage in ('validate', 'login'):
+                    self.assertNotIn('publish', commands)
+            (self.directory / 'server.json').unlink()
+            (self.directory / 'checksums.txt').unlink()
+
+    def test_registry_post_publish_requires_active_status_with_bounded_polling(self):
+        inactive = self.registry_response(self.registry_value(status='deprecated'))
+        responses = [self.registry_response(status=404)] + [inactive] * 10
+        with self.registry_environment(responses) as (_run, request, sleep, _output, _view):
+            with self.assertRaisesRegex(ValueError, 'did not become active after 10 checks'):
+                release.registry_publish('v' + self.version, self.metadata)
+            self.assertEqual(request.call_count, 11)
+            self.assertEqual(sleep.call_args_list, [mock.call(6)] * 9)
+
+    def test_registry_post_publish_mismatch_fails(self):
+        value = self.registry_value()
+        value['server']['packages'] = []
+        with self.registry_environment([self.registry_response(status=404), self.registry_response(value)]):
+            with self.assertRaisesRegex(ValueError, 'name/version/packages mismatch'):
+                release.registry_publish('v' + self.version, self.metadata)
 
     @mock.patch.object(release.platform, "machine", return_value="x86_64")
     @mock.patch.object(release.platform, "system", return_value="Linux")

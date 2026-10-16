@@ -268,7 +268,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           DIST="${GITHUB_WORKSPACE:?GITHUB_WORKSPACE must be set}/dist"
-          # Registry publication is a separate, owner-authorized human step; this workflow never logs in.
+          # The registry job verifies public bytes and publishes afterward using GitHub OIDC.
           gh release create "$RELEASE_TAG" \
             "$DIST/trello-mcp_linux_amd64.tar.gz" "$DIST/trello-mcp_linux_arm64.tar.gz" \
             "$DIST/trello-mcp_darwin_amd64.tar.gz" "$DIST/trello-mcp_darwin_arm64.tar.gz" \
@@ -276,3 +276,12 @@ jobs:
             "$DIST/trello-mcp_desktop.mcpb" "$DIST/trello-mcp_linux_amd64.mcpb" "$DIST/trello-mcp_linux_arm64.mcpb" \
             "$DIST/server.json" "$DIST/checksums.txt" \
             --verify-tag --notes-file "$GITHUB_WORKSPACE/notes.md" --title "$RELEASE_TAG"
+
+  registry:
+    needs: release
+    uses: ./.github/workflows/registry.yml
+    with:
+      tag: ${{ github.ref_name }}
+    permissions:
+      contents: read
+      id-token: write

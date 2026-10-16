@@ -1,0 +1,39 @@
+name: registry
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Stable release tag to verify and publish (vX.Y.Z, major >= 1)
+        required: true
+        type: string
+
+concurrency:
+  group: registry-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      # The triggering ref: the tag when called by release.yml, main for a manual rerun.
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Verify public release bytes and publish to the official registry
+        env:
+          TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -I "$GITHUB_WORKSPACE/scripts/release_manifest.py" --tag "$TAG" registry-publish

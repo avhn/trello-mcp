@@ -23,9 +23,11 @@
   the checksum-pinned publisher via `publisher-validate
   --input /absolute/path/to/dist/server.json` before approved GitHub publication.
   The normal v-tag has six CLI archives, three MCPBs, generated `server.json` and
-  `checksums.txt`. Independently download the public assets, verify all ten hashes
-  and the generated identifier's exact bytes, and validate downloaded metadata.
-  Stop there: no registry login, publication or other directory submissions.
+  `checksums.txt`. The registry job runs right after the GitHub release and verifies
+  the public bytes itself; the human download of the public assets, check of all ten
+  hashes and the generated identifier's exact bytes, and validation of downloaded
+  metadata is a post-publication audit, not a gate. Other directory submissions are
+  not part of the release workflow.
 - Always pass the absolute path of the downloaded generated `server.json` to
   `mcp-publisher publish`; there is deliberately no `server.json` in the repository root.
 - Generated registry metadata lists only `trello-mcp_desktop.mcpb` (macOS universal and
@@ -33,15 +35,12 @@
   include them in the unified checksums, but keep them out of registry packages until
   the owner promotes them with test evidence. This is a support policy, not a registry
   format limit.
-- Registry publication happens only for a release the owner separately authorizes
-  (v1.0.0 published without packages by mistake; v1.0.1 corrects it). Recheck the
-  official format and publisher pin, then verify the downloaded generated
-  `server.json` against the public bytes with `publisher-validate --input
-  /absolute/path/to/downloaded/server.json`. A human runs `mcp-publisher login
-  github` privately for `io.github.avhn/trello-mcp`, then `mcp-publisher publish
-  /absolute/path/to/downloaded/server.json`. Verify the exact name, version and
-  package through the Registry API. To retire a version, the human runs
-  `mcp-publisher status --status deprecated --message "Use X.Y.Z"
-  io.github.avhn/trello-mcp VERSION` and the result is checked the same way. Do
-  not inspect token files, add automated registry auth secrets or retroactively
-  submit pre-1.0 releases. This procedure grants no publication permission.
+- Releases with a vX.Y.Z tag (major >= 1) publish `io.github.avhn/trello-mcp` to the
+  official registry automatically after the GitHub release via `registry.yml`.
+  This uses GitHub OIDC, no stored secrets, the checksum-pinned publisher, public-byte
+  verification, idempotent publication and a Registry API name/version/packages check.
+  The owner-authorized rerun is `gh workflow run registry.yml -f tag=vX.Y.Z`; it runs
+  from main and fails safely unless main's template version still equals the tag.
+  Deprecation stays a human step: `mcp-publisher status --status deprecated
+  --message "Use X.Y.Z" io.github.avhn/trello-mcp VERSION`, then verify the Registry API.
+  Never inspect token files, add registry secrets or PATs, or submit pre-1.0 releases.

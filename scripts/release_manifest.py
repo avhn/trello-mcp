@@ -4,8 +4,8 @@
 The metadata-only template is packaging/registry/server.template.json. For each
 approved normal vX.Y.Z tag, inspect final MCPBs, generate metadata and unified
 checksums, verify them, and publisher-validate the generated server.json before
-approved GitHub publication. Independently verify public bytes and validate
-downloaded metadata afterward. Stop there: no registry submission.
+approved GitHub publication. The registry-publish command independently verifies
+public release bytes and validates downloaded metadata before registry submission.
 
 Inspect all three MCPBs and include all in the unified checksums. Registry
 installation metadata lists only trello-mcp_desktop.mcpb (macOS universal and
@@ -13,29 +13,33 @@ Windows amd64). Linux MCPBs remain owner-untested beta downloads, excluded until
 support is explicitly promoted with owner evidence. This is our discovery/support
 policy, not a Registry format limitation.
 
-Only for a release the owner separately authorizes for the registry: recheck the
-official format and publisher pin, publisher-validate the downloaded generated
-server.json, then a human privately runs mcp-publisher login github for
-io.github.avhn/trello-mcp and mcp-publisher publish with the absolute path of that
-downloaded file. Verify the name, version and package through the Registry API.
-Never inspect token files, add automated registry auth secrets, or retroactively
-submit pre-1.0 releases.
+Normal vX.Y.Z releases with major >= 1 publish automatically through registry.yml
+using GitHub OIDC, no stored secrets, and the checksum-pinned publisher. Publication
+is idempotent and verifies the exact name, version and packages through the official
+Registry API. Always publish the absolute path of the downloaded server.json.
+Deprecation remains a human step. Never inspect token files, add registry secrets
+or PATs, or retroactively submit pre-1.0 releases.
 See AGENTS.md.
 """
 
 import argparse
+from contextlib import contextmanager
 import hashlib
 import json
 import os
 import platform
 from pathlib import Path
 import re
+import shutil
 import stat
 import struct
 import subprocess
 import sys
 import tarfile
 import tempfile
+import time
+from urllib.error import HTTPError, URLError
+from urllib.request import urlopen
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -213,8 +217,9 @@ def tag_notes(tag, repository=ROOT):
     return notes
 
 
-def publisher_validate(path):
-    """Pinned Linux CI tool, public validation only, never login or publish."""
+@contextmanager
+def verified_publisher():
+    """Yield the pinned Linux CI binary and an isolated, temporary auth environment."""
     require(platform.system() == "Linux" and platform.machine().lower() in ("amd64", "x86_64"),
             "publisher validation requires Linux amd64")
     url = "https://github.com/modelcontextprotocol/registry/releases/download/v1.8.1/mcp-publisher_linux_amd64.tar.gz"
@@ -235,12 +240,94 @@ def publisher_validate(path):
                 destination.write(source.read())
         binary.chmod(0o755)
         env = os.environ.copy()
-        for variable in ("HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "APPDATA", "LOCALAPPDATA", "USERPROFILE"):
+        for variable in ("HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME",
+                         "XDG_RUNTIME_DIR", "APPDATA", "LOCALAPPDATA", "USERPROFILE"):
             directory = Path(home) / variable.lower()
-            directory.mkdir()
+            directory.mkdir(mode=0o700)
             env[variable] = str(directory)
         subprocess.run([str(binary), "--help"], cwd=ROOT, env=env, check=True, timeout=30)
-        subprocess.run([str(binary), "validate", str(path.resolve())], cwd=ROOT, env=env, check=True, timeout=120)
+        yield binary, env
+
+
+def publisher_validate(path, publisher=None):
+    """Public validation only, optionally sharing an already verified publisher."""
+    if publisher is None:
+        with verified_publisher() as publisher:
+            publisher_validate(path, publisher)
+        return
+    binary, env = publisher
+    subprocess.run([str(binary), "validate", str(path.resolve())], cwd=ROOT, env=env, check=True, timeout=120)
+
+
+def registry_record(version):
+    url = f"https://registry.modelcontextprotocol.io/v0.1/servers/io.github.avhn%2Ftrello-mcp/versions/{version}"
+    try:
+        with urlopen(url, timeout=30) as response:
+            require(response.status == 200, f"Registry API returned HTTP {response.status}")
+            return read_json(response.read())
+    except HTTPError as error:
+        error.close()
+        if error.code == 404:
+            return None
+        raise ValueError(f"Registry API returned HTTP {error.code}") from error
+    except URLError as error:
+        raise ValueError("Registry API request failed") from error
+
+
+def require_registry_match(record, expected):
+    server = record.get("server")
+    require(isinstance(server, dict) and all(server.get(key) == expected[key]
+            for key in ("name", "version", "packages")), "Registry name/version/packages mismatch")
+
+
+def registry_publish(tag, metadata):
+    """Verify public bytes before idempotent OIDC publication of stable v1+ releases."""
+    require(isinstance(tag, str) and re.fullmatch(r"v[1-9][0-9]*\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", tag),
+            "registry publication requires a stable vX.Y.Z tag with major >= 1")
+    require(tag == "v" + metadata["version"], "release tag/version mismatch")
+    details = read_json(subprocess.check_output(
+        ["gh", "release", "view", tag, "--repo", REPOSITORY, "--json", "tagName,isDraft,isPrerelease,assets"],
+        cwd=ROOT, text=True, timeout=60))
+    require(details.get("tagName") == tag and details.get("isDraft") is False
+            and details.get("isPrerelease") is False, "release must exist and not be draft or prerelease")
+    names = [asset["name"] for asset in details["assets"]]
+    expected_names = set(expected_assets("registry")) | {"checksums.txt"}
+    require(len(names) == len(expected_names) and set(names) == expected_names,
+            "release requires exactly the 11 expected assets")
+    with tempfile.TemporaryDirectory(prefix="registry-download-") as download, \
+            tempfile.TemporaryDirectory(prefix="registry-regenerated-") as regenerated:
+        directory = Path(download)
+        subprocess.run(["gh", "release", "download", tag, "--repo", REPOSITORY, "--dir", str(directory)],
+                       cwd=ROOT, check=True, timeout=180)
+        checksums(directory, "registry", verify=True)
+        for name in CLI_ASSETS + tuple(BUNDLES):
+            shutil.copyfile(directory / name, Path(regenerated) / name)
+        expected = generate(metadata, Path(regenerated))
+        for name in ("server.json", "checksums.txt"):
+            require((directory / name).read_bytes() == (Path(regenerated) / name).read_bytes(),
+                    f"downloaded {name} differs from regenerated public bytes")
+        path = (directory / "server.json").resolve()
+        with verified_publisher() as publisher:
+            publisher_validate(path, publisher)
+            record = registry_record(metadata["version"])
+            if record is not None:
+                require_registry_match(record, expected)
+                print(f"Registry {metadata['version']} already published")
+                return
+            binary, env = publisher
+            subprocess.run([str(binary), "login", "github-oidc"], cwd=ROOT, env=env, check=True, timeout=120)
+            subprocess.run([str(binary), "publish", str(path)], cwd=ROOT, env=env, check=True, timeout=180)
+            for attempt in range(10):
+                record = registry_record(metadata["version"])
+                if record is not None:
+                    require_registry_match(record, expected)
+                    official = record.get("_meta", {}).get("io.modelcontextprotocol.registry/official", {})
+                    if official.get("status") == "active":
+                        print(f"Registry {metadata['version']} published and verified active")
+                        return
+                if attempt < 9:
+                    time.sleep(6)
+            raise ValueError("Registry publication did not become active after 10 checks")
 
 
 def main():
@@ -249,6 +336,7 @@ def main():
     parser.add_argument("--tag")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("version")
+    commands.add_parser("registry-publish")
     command = commands.add_parser("publisher-validate")
     command.add_argument("--input", type=Path, help="Generated metadata beside final assets and unified checksums; defaults to the metadata-only source")
     for name in ("checksums", "generate"):
@@ -266,6 +354,8 @@ def main():
     metadata = source_metadata(args.metadata, args.tag)
     if args.command == "version":
         print(metadata["version"])
+    elif args.command == "registry-publish":
+        registry_publish(args.tag, metadata)
     elif args.command == "publisher-validate":
         if args.input is not None:
             validate_generated(read_json(args.input.read_text()), metadata, args.input.parent)
