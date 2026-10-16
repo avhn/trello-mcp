@@ -170,7 +170,8 @@ func TestAuthFailureDoesNotSave(t *testing.T) {
 				}))
 				defer fake.Close()
 				dir := credentialTestDir(t)
-				path := filepath.Join(dir, "credentials.secret")
+				// Save creates the parent with an owner-only DACL on Windows.
+				path := filepath.Join(dir, ".secrets", "credentials.secret")
 				var out bytes.Buffer
 				r := runner{in: strings.NewReader("synthetic-key\nsynthetic-token\n"), out: &out, env: func(string) string { return "" }, homeDir: func() (string, error) { return dir, nil }, client: func(key, token string) *trello.Client { return trello.NewClient(fake.URL, key, token, fake.Client()) }}
 				checkError := func(err error) {
