@@ -5,7 +5,7 @@
 This file is an entrypoint index. The linked documents are the references.
 
 - [Setup, one fetch for agents](https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md): install, register with seven clients, verify, update, roll back, uninstall.
-- [Tools](https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/tools.md): tool behavior, parameters and synthetic examples.
+- [Tools](https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/tools.md): tool behavior, parameters and synthetic examples; [compatibility policy](https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/tools.md#compatibility-and-versioning).
 - [Configuration](https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/configuration.md): variables, credential precedence, permissions, troubleshooting, security model.
 
 Humans run the installer's quoted absolute-path auth command themselves in a private terminal, then reconnect or restart clients; Claude Desktop extension users enter the key and token in extension settings instead. Agents must never capture authentication output or request keys, tokens or authorization links.

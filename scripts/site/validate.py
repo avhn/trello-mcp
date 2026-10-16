@@ -453,6 +453,17 @@ def check_versions(site, health, manifest, tag=None):
     return health
 
 
+def check_compatibility_status(markdown, version):
+    if int(version.split('.')[0]) < 1:
+        return
+    section = re.search(r'^## Compatibility and versioning\n(.*?)(?=^#{1,2} |\Z)', markdown, re.S | re.M)
+    require(section is not None, 'tools.md: missing Compatibility and versioning section')
+    status = re.search(r'^Status: ([^\n]+)$', section.group(1), re.M | re.I)
+    require(status is not None, 'tools.md: missing Compatibility and versioning status line')
+    require(not re.search(r'for review|binding from', status.group(1), re.I),
+            'tools.md: Compatibility and versioning status must be binding for version 1.0.0 or later')
+
+
 def check_manifest(manifest):
     require(manifest.get('$schema', '').startswith('https://static.modelcontextprotocol.io/schemas/'), 'server.json schema URL')
     require(re.fullmatch(r'[a-zA-Z0-9.-]+/[a-zA-Z0-9._-]+', manifest.get('name', '')), 'server.json name format')
@@ -1055,6 +1066,7 @@ def validate():
     check_manifest(manifest)
     tag = os.environ.get('RELEASE_TAG', '')
     version = check_versions(site_versions, health.group(1), manifest['version'], tag)
+    check_compatibility_status(tools_doc, version)
 
     print(f'PASS: {len(pages)} HTML pages (four routes plus 404), {link_count} links/assets, {schema_count} JSON-LD blocks, titles and descriptions')
     print(f'PASS: sitemap lists {len(urls)} canonical routes; robots, noindex 404, favicon, 1200x630 PNG, llms.txt and {len(names)} tools')
@@ -1498,6 +1510,35 @@ class MutationParameterTests(unittest.TestCase):
     def test_rules_cannot_hide_an_input(self):
         with self.assertRaisesRegex(ValueError, 'parameter drift for card_create'):
             self.check(self.markdown.replace('`boardId`, `desc`, `checklist`', '`boardId`, `desc`'))
+
+
+class CompatibilityStatusTests(unittest.TestCase):
+    heading = '## Compatibility and versioning\n\n'
+    binding = 'Status: Binding since v1.0.0 (published in v0.8.0).\n'
+
+    def test_binding_status(self):
+        for version in ('1.0.0', '1.0.0-rc.1', '2.0.0'):
+            with self.subTest(version=version):
+                check_compatibility_status(self.heading + self.binding, version)
+
+    def test_transition_status_rejected_case_insensitively(self):
+        for phrase in ('for review', 'FOR REVIEW', 'binding from', 'Binding From'):
+            for version in ('1.0.0', '2.0.0'):
+                with self.subTest(phrase=phrase, version=version), self.assertRaisesRegex(ValueError, 'must be binding'):
+                    check_compatibility_status(self.heading + f'Status: {phrase} v1.0.0.\n', version)
+
+    def test_pre_1_review_status_allowed(self):
+        check_compatibility_status(self.heading + 'Status: For review; binding from v1.0.0.\n', '0.9.0')
+
+    def test_only_canonical_status_checked(self):
+        markdown = ('## Other section\n\nStatus: For review.\n\n' + self.heading + self.binding
+                    + '\nPublished for review before v1.0.0.\n\n## Later section\n\nStatus: Binding from v1.0.0.\n')
+        check_compatibility_status(markdown, '1.0.0')
+
+    def test_missing_canonical_status_rejected(self):
+        for markdown in (self.binding, self.heading + '\n## Other section\n\n' + self.binding):
+            with self.subTest(markdown=markdown), self.assertRaisesRegex(ValueError, 'missing Compatibility and versioning'):
+                check_compatibility_status(markdown, '1.0.0')
 
 
 class VersionTests(unittest.TestCase):

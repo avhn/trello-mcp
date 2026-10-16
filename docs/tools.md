@@ -522,7 +522,7 @@ currently Unix-only (including Linux and macOS); other platforms fail closed.
    detail returns only the setup response:
    configured `basic` returns `ok`, `credentialSource` and the unverified `access` pointer;
    `detailed` adds booleans `readOnly`, `restricted`, `activeBoard` and `activeWorkspace`;
-   `metadata` returns strings `name`, `version` (the release tag, such as `v0.9.0`), `transport`
+   `metadata` returns strings `name`, `version` (the release tag, such as `v1.0.0`), `transport`
    and `go`; `performance` returns integers `uptimeSeconds`, `requests` (upstream HTTP attempts
    admitted by the local limiter, including 429 retries and attachment transfers) and `retries`
    (429 retries only), all per process since start. `policy` reports configured/effective access
@@ -533,11 +533,7 @@ currently Unix-only (including Linux and macOS); other platforms fail closed.
 
 ## Compatibility and versioning
 
-Status: published for review; binding from v1.0.0.
-
-Published in v0.8.0. For releases before v1.0.0, the v0.7.0 stability intent covers tool names,
-TRELLO_TOOLS syntax, local-health semantics and configured basic/detailed health fields;
-incompatibilities require explicit review before promotion.
+Status: Binding since v1.0.0 (published in v0.8.0).
 
 ### Covered
 
@@ -559,6 +555,7 @@ incompatibilities require explicit review before promotion.
   and benchmark counts (such as 48 tools or tools/list sizes), descriptions and human error wording.
   Numeric response fields keep their documented meaning and type.
 - Local rate limits, quotas and call deadlines (their values may change).
+- Supported MCP protocol revisions and minimum OS versions, which follow the MCP Go SDK and Go toolchain.
 - Upstream Trello availability, data, permissions and plans, external client formats, Desktop settings or
   secure-storage migration, and the Linux Desktop beta.
 - Tools may fail or degrade when Trello withdraws an upstream capability; such upstream-driven loss may
@@ -567,7 +564,7 @@ incompatibilities require explicit review before promotion.
 
 ### How changes are signalled
 
-- From 1.0, compatible fixes use patch versions, additive tools or optional fields use minor versions,
+- Compatible fixes use patch versions, additive tools or optional fields use minor versions,
   and incompatible documented changes require a major version.
 - Exception: urgent security fixes may introduce an incompatibility in a patch or minor release, with a
   **breaking-change notice** and concrete migration guidance. This is an explicit project exception to
@@ -575,5 +572,3 @@ incompatibilities require explicit review before promotion.
 - Deprecations appear in documentation and minor-release notes with migration guidance; removal waits for
   a later major version.
 - GitHub release notes and signed tag messages are the changelog; there is no separate CHANGELOG file.
-- Before 1.0, any unavoidable reviewed incompatibility needs a bold breaking-change notice and a migration;
-  security incompatibilities are explicit too.

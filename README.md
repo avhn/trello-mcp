@@ -95,7 +95,7 @@ and the reference-name mapping are in [docs/tools.md](docs/tools.md).
 
 Responses are compact text JSON with curated projections, no output schemas, structured content, `fields=all` or inline attachment bodies. Collections return `{"items":[...],"next":"cursor"}`; `next` appears only when another page may exist, and that page can be empty. Zero-value omission has activity-name and redaction exceptions; single-call unconfirmed writes retain progress and set `isError`, while batches report per entry. Inspect before retrying. See [paging](docs/tools.md#profiles-and-common-parameters), [activity](docs/tools.md#activity-and-comments) and [projection](docs/tools.md#response-conventions) details.
 
-The [compatibility and versioning policy](docs/tools.md#compatibility-and-versioning) defines covered interfaces and versioning; it is binding for releases from v1.0.0.
+The [compatibility and versioning policy](docs/tools.md#compatibility-and-versioning) defines covered interfaces and versioning; it has been binding since v1.0.0.
 
 ## How it compares
 
