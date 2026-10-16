@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/avhn/trello-mcp/internal/trello"
 )
@@ -31,6 +32,67 @@ func (a arguments) str(name string) string { return a.strings[name] }
 
 // full distinguishes curated full projections from the default summary.
 func (a arguments) full() bool { return a.str("detail") == "full" }
+
+// includeDescriptions preserves previews unless explicitly disabled.
+func (a arguments) includeDescriptions() bool {
+	include, set := a.values["includeDesc"].(bool)
+	return !set || include
+}
+
+const (
+	// Trello Object Definitions documents card desc as "Up to 16384 chars".
+	// Its Unicode counting unit is unspecified; our bound counts code points.
+	cardDescriptionLimit = 16384
+	// Trello documents no limit for the other human text fields below. This
+	// provisional local ceiling is not an observed or documented Trello maximum.
+	localTextLimit = 16384
+)
+
+// textLimit names semantic contexts for runtime text bounds. Zero
+// leaves specialized protocol strings under their existing byte/type guards.
+func textLimit(tool, key string) int {
+	switch key {
+	case "desc":
+		switch tool {
+		case "card_create", "card_update", "batch_item":
+			return cardDescriptionLimit
+		case "board_create":
+			return localTextLimit
+		}
+	case "text":
+		switch tool {
+		case "comment_create", "comment_update", "field_value":
+			return localTextLimit
+		}
+	case "nameFilter":
+		return localTextLimit
+	case "items":
+		if tool == "card_checklist" {
+			return localTextLimit
+		}
+	case "name":
+		switch tool {
+		case "board_create", "list_create", "list_update", "card_create", "card_update", "card_copy", "batch_item",
+			"checklist_get", "checklist_create", "checklist_copy", "card_checklist", "checklist_item_create", "checklist_item_update",
+			"label_create", "label_update", "attachment_add", "attachment_upload":
+			return localTextLimit
+		}
+	}
+	return 0
+}
+
+// argumentBytes keeps aggregate JSON bytes independent of text code points.
+func argumentBytes(d definition) int {
+	if d.name == "attachment_upload" {
+		return 14 << 20
+	}
+	for _, key := range strings.Fields(d.params) {
+		if textLimit(d.name, key) > 0 || key == "cards" || key == "checklist" || key == "value" {
+			return 1 << 20
+		}
+	}
+	return 16384
+}
 
 // maxLimit selects collection-specific defaults and hard ceilings.
 func maxLimit(name string) (int, int) {
@@ -68,7 +130,7 @@ func argumentType(key string, d definition) string {
 			return "a string"
 		}
 		fallthrough
-	case "closed", "subscribed", "dueComplete", "defaultLists", "mine":
+	case "closed", "subscribed", "dueComplete", "defaultLists", "mine", "includeDesc":
 		return "a boolean"
 	case "pos":
 		return "a string or number"
@@ -107,14 +169,7 @@ func validateAt(raw json.RawMessage, d definition, location string) (arguments, 
 	if len(raw) == 0 {
 		raw = []byte("{}")
 	}
-	maxBytes := 16384
-	switch d.name {
-	case "attachment_upload":
-		maxBytes = 14 << 20
-	case "card_create", "card_create_batch", "batch_item", "card_checklist":
-		maxBytes = 1 << 20
-	}
-	if len(raw) > maxBytes {
+	if len(raw) > argumentBytes(d) {
 		return a, fmt.Errorf("arguments exceed size limit")
 	}
 	dec := json.NewDecoder(bytes.NewReader(raw))
@@ -162,7 +217,7 @@ func validateAt(raw json.RawMessage, d definition, location string) (arguments, 
 				break
 			}
 			fallthrough
-		case "closed", "subscribed", "dueComplete", "defaultLists":
+		case "closed", "subscribed", "dueComplete", "defaultLists", "includeDesc":
 			var v bool
 			if err = json.Unmarshal(value, &v); err != nil {
 				return a, fmt.Errorf("%s must be a boolean", path)
@@ -236,8 +291,9 @@ func validateAt(raw json.RawMessage, d definition, location string) (arguments, 
 				return a, fmt.Errorf("%s must contain 1 to 100 strings", path)
 			}
 			for i, name := range items {
-				if strings.TrimSpace(name) == "" || len(name) > 4096 {
-					return a, fmt.Errorf("%s[%d] must be a nonblank string of at most 4096 bytes", path, i)
+				max := textLimit(d.name, key)
+				if strings.TrimSpace(name) == "" || utf8.RuneCountInString(name) > max {
+					return a, fmt.Errorf("%s[%d] must be a nonblank string of at most %d code points", path, i, max)
 				}
 			}
 			a.items = items
@@ -277,7 +333,11 @@ func validateAt(raw json.RawMessage, d definition, location string) (arguments, 
 			if err = json.Unmarshal(value, &v); err != nil {
 				return a, fmt.Errorf("%s must be a string", path)
 			}
-			if len(v) > maxString {
+			if max := textLimit(d.name, key); max > 0 {
+				if utf8.RuneCountInString(v) > max {
+					return a, fmt.Errorf("%s must be at most %d code points", path, max)
+				}
+			} else if len(v) > maxString {
 				return a, fmt.Errorf("%s must be at most %d bytes", path, maxString)
 			}
 			if d.name == "card_checklist" && key == "name" && strings.TrimSpace(v) == "" {
@@ -312,6 +372,9 @@ func validateAt(raw json.RawMessage, d definition, location string) (arguments, 
 		if !valid {
 			return a, fmt.Errorf("invalid detail")
 		}
+	}
+	if d.name == "card_find" && a.full() && !a.includeDescriptions() {
+		return a, fmt.Errorf("includeDesc:false cannot be combined with detail:full")
 	}
 	if v := a.str("view"); seen["view"] && v != "json" && v != "markdown" {
 		return a, fmt.Errorf("view must be json or markdown")
@@ -429,6 +492,8 @@ func schema(d definition) map[string]any {
 			p = map[string]any{"type": "integer", "minimum": 1, "maximum": max, "default": def}
 		case "mine":
 			p = map[string]any{"type": "boolean", "description": "My authorized cards; excludes boardId/listId."}
+		case "includeDesc":
+			p = map[string]any{"type": "boolean", "default": true}
 		case "closed", "subscribed", "dueComplete", "checked", "defaultLists":
 			p = map[string]any{"type": "boolean"}
 		case "pos":
@@ -438,9 +503,9 @@ func schema(d definition) map[string]any {
 		case "checklist":
 			p = schema(definition{name: "card_checklist", params: "name items", required: "items"})
 		case "items":
-			p = map[string]any{"type": "array", "minItems": 1, "maxItems": 100, "items": map[string]any{"type": "string", "minLength": 1, "maxLength": 4096}}
+			p = map[string]any{"type": "array", "minItems": 1, "maxItems": 100, "items": map[string]any{"type": "string", "minLength": 1}}
 		case "cards":
-			p = map[string]any{"type": "array", "minItems": 1, "maxItems": 100, "items": schema(definition{params: cardCreateParams, required: "name"})}
+			p = map[string]any{"type": "array", "minItems": 1, "maxItems": 100, "items": schema(definition{name: "batch_item", params: cardCreateParams, required: "name"})}
 		case "value":
 			props := map[string]any{}
 			for _, name := range []string{"text", "number", "date", "checked"} {

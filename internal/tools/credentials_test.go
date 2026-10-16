@@ -122,9 +122,18 @@ func credentialTestDir(t *testing.T) string {
 
 func TestCredentialHintHumanHandoff(t *testing.T) {
 	hint := credentials.Hint
-	for _, want := range []string{"human must run `trello-mcp auth`", "private terminal", "restart/reconnect", "Never share keys, tokens or authorization URLs", "chat or agent-captured commands", "Only server_health", "fresh configured server"} {
+	for _, want := range []string{"human must run the installer's quoted absolute-path auth command", "private terminal (not through an agent)", "extension settings", "Reconnect action in /mcp", "fully quit/restart", "Never share keys, tokens or authorization URLs", "chat or agent-captured commands", "Only server_health", "fresh configured server"} {
 		if !strings.Contains(hint, want) {
 			t.Errorf("credential recovery hint missing %q", want)
+		}
+	}
+}
+
+func TestCredentialHintNoPathOrSecretAssumptions(t *testing.T) {
+	hint := credentials.Hint
+	for _, forbidden := range []string{"`trello-mcp auth`", "/mcp reconnect all", "https://", "YOUR_KEY", "YOUR_TOKEN", "TRELLO_API_KEY="} {
+		if strings.Contains(hint, forbidden) {
+			t.Errorf("credential recovery hint contains %q", forbidden)
 		}
 	}
 }

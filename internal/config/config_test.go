@@ -18,7 +18,7 @@ func TestParse(t *testing.T) {
 		values map[string]string
 		fail   bool
 	}{
-		{"defaults", nil, false}, {"profiles", map[string]string{"TRELLO_TOOLS": "card, board_get", "TRELLO_READ_ONLY": "1", "TRELLO_ALLOWED_WORKSPACES": "w1, allowed"}, false}, {"missing key", map[string]string{"TRELLO_API_KEY": ""}, true}, {"missing token", map[string]string{"TRELLO_TOKEN": ""}, true}, {"empty allowlist entry", map[string]string{"TRELLO_ALLOWED_WORKSPACES": "w1,"}, true}, {"empty tools entry", map[string]string{"TRELLO_TOOLS": ",card"}, true}, {"bad boolean", map[string]string{"TRELLO_READ_ONLY": "true"}, true},
+		{"defaults", nil, false}, {"profiles", map[string]string{"TRELLO_TOOLS": "card, board_get", "TRELLO_READ_ONLY": "1", "TRELLO_ALLOWED_WORKSPACES": "w1, allowed"}, false}, {"missing key", map[string]string{"TRELLO_API_KEY": ""}, true}, {"missing token", map[string]string{"TRELLO_TOKEN": ""}, true}, {"empty allowlist entry", map[string]string{"TRELLO_ALLOWED_WORKSPACES": "w1,"}, true}, {"empty tools entry", map[string]string{"TRELLO_TOOLS": ",card"}, true}, {"bad boolean", map[string]string{"TRELLO_READ_ONLY": "TRUE"}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			values := map[string]string{"TRELLO_API_KEY": "synthetic-key", "TRELLO_TOKEN": "synthetic-token"}
@@ -150,6 +150,7 @@ func TestCredentialSources(t *testing.T) {
 		{name: "missing", missingFile: true, source: "none"},
 		{name: "saved read", scope: "read", source: "file", wantReadOnly: true},
 		{name: "saved read cannot opt out", scope: "read", readOnly: "0", source: "file", wantReadOnly: true},
+		{name: "saved read cannot opt out with false", scope: "read", readOnly: "false", source: "file", wantReadOnly: true},
 		{name: "saved write", scope: "read,write", source: "file"},
 		{name: "saved unknown scope is writable", source: "file"},
 		{name: "env overrides read file", scope: "read", key: "env-key", token: "env-token", source: "env"},
@@ -291,5 +292,50 @@ func TestInvalidStateDirectoryWithoutEnvironment(t *testing.T) {
 	}, func() (string, error) { return home, nil }, func() (string, error) { return home, nil })
 	if err == nil || !strings.Contains(err.Error(), "XDG_CONFIG_HOME") {
 		t.Fatalf("invalid state directory accepted without env pair: %v", err)
+	}
+}
+
+// TestReadOnlyLiterals accepts only the documented CLI and Desktop forms.
+func TestReadOnlyLiterals(t *testing.T) {
+	for _, value := range []string{"", "0", "1", "false", "true", "TRUE", "False", "yes", "2", " true", "false ", "null"} {
+		t.Run("value="+value, func(t *testing.T) {
+			values := map[string]string{"TRELLO_API_KEY": "synthetic-key", "TRELLO_TOKEN": "synthetic-token", "TRELLO_READ_ONLY": value}
+			c, err := Parse(func(key string) string { return values[key] }, func() (string, error) { return "", fmt.Errorf("unavailable config") }, func() (string, error) {
+				t.Fatal("environment pair must not resolve credential paths")
+				return "", nil
+			})
+			valid := value == "" || value == "0" || value == "1" || value == "false" || value == "true"
+			if !valid {
+				if err == nil || !strings.Contains(err.Error(), "TRELLO_READ_ONLY must be 0, 1, false or true") {
+					t.Fatalf("invalid boolean was not rejected: %v", err)
+				}
+				return
+			}
+			if err != nil || c.ReadOnly != (value == "1" || value == "true") || c.CredentialScope != "" {
+				t.Fatalf("incorrect environment boolean or inferred scope: %v", err)
+			}
+		})
+	}
+}
+
+func TestPartialEnvironmentSkipsCredentialPaths(t *testing.T) {
+	for _, key := range []string{"TRELLO_API_KEY", "TRELLO_TOKEN"} {
+		t.Run(key, func(t *testing.T) {
+			_, err := Parse(func(name string) string {
+				if name == key {
+					return "synthetic"
+				}
+				if name == "TRELLO_MCP_CREDENTIALS" {
+					return "relative/inaccessible"
+				}
+				return ""
+			}, func() (string, error) { t.Fatal("partial pair must fail before state resolution"); return "", nil }, func() (string, error) {
+				t.Fatal("partial pair must not fall back to credential files")
+				return "", nil
+			})
+			if err == nil || !strings.Contains(err.Error(), "must be set together") {
+				t.Fatalf("partial pair: %v", err)
+			}
+		})
 	}
 }

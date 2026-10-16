@@ -94,14 +94,14 @@ func TestCardChecklistBounds(t *testing.T) {
 		}{
 			{"one", `{"items":["SND01"]}`, true},
 			{"hundred", `{"items":[` + strings.Repeat(`"SND01",`, 99) + `"SND100"]}`, true},
-			{"maximum names", `{"items":[` + strings.Repeat(`"`+strings.Repeat("x", 4096)+`",`, 99) + `"last"]}`, true},
+			{"many large names", `{"items":[` + strings.Repeat(`"`+strings.Repeat("x", 4096)+`",`, 99) + `"last"]}`, true},
 			{"empty", `{"items":[]}`, false},
 			{"too many", `{"items":[` + strings.Repeat(`"x",`, 100) + `"x"]}`, false},
 			{"null", `{"items":null}`, false},
 			{"blank item", `{"items":["  "]}`, false},
-			{"oversized item", `{"items":["` + strings.Repeat("x", 4097) + `"]}`, false},
+			{"oversized item", `{"items":["` + strings.Repeat("x", localTextLimit+1) + `"]}`, false},
 			{"blank name", `{"name":" ","items":["x"]}`, false},
-			{"oversized name", `{"name":"` + strings.Repeat("x", 4097) + `","items":["x"]}`, false},
+			{"oversized name", `{"name":"` + strings.Repeat("x", localTextLimit+1) + `","items":["x"]}`, false},
 		} {
 			t.Run(tool+"/"+tc.name, func(t *testing.T) {
 				card := `"name":"Test","checklist":` + tc.checklist
@@ -136,6 +136,10 @@ func TestCardChecklistSchema(t *testing.T) {
 		checklist := props["checklist"].(map[string]any)
 		props = checklist["properties"].(map[string]any)
 		items := props["items"].(map[string]any)
+		item := items["items"].(map[string]any)
+		if _, present := item["maxLength"]; present || item["type"] != "string" || item["minLength"] != 1 {
+			t.Errorf("%s: incorrect compact item schema: %v", tool, item)
+		}
 		if checklist["additionalProperties"] != false || props["name"].(map[string]any)["default"] != "Checklist" || items["minItems"] != 1 || items["maxItems"] != 100 {
 			t.Errorf("%s: incomplete checklist schema: %v", tool, checklist)
 		}

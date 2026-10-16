@@ -24,12 +24,13 @@ func (s *Service) serverHealth(ctx context.Context, a arguments) (any, error) {
 	case "detailed":
 		selection := s.state.Get()
 		return struct {
-			OK              bool `json:"ok"`
-			ReadOnly        bool `json:"readOnly"`
-			Restricted      bool `json:"restricted"`
-			ActiveBoard     bool `json:"activeBoard"`
-			ActiveWorkspace bool `json:"activeWorkspace"`
-		}{true, s.config.ReadOnly, len(s.config.AllowedWorkspaces) > 0, selection.BoardID != "", selection.WorkspaceID != ""}, nil
+			OK               bool   `json:"ok"`
+			CredentialSource string `json:"credentialSource"`
+			ReadOnly         bool   `json:"readOnly"`
+			Restricted       bool   `json:"restricted"`
+			ActiveBoard      bool   `json:"activeBoard"`
+			ActiveWorkspace  bool   `json:"activeWorkspace"`
+		}{true, s.config.CredentialSource, s.config.ReadOnly, len(s.config.AllowedWorkspaces) > 0, selection.BoardID != "", selection.WorkspaceID != ""}, nil
 	case "metadata":
 		return struct {
 			Name      string `json:"name"`
@@ -46,10 +47,11 @@ func (s *Service) serverHealth(ctx context.Context, a arguments) (any, error) {
 		}{int64(time.Since(s.started) / time.Second), stats.Requests, stats.Retries}, nil
 	default:
 		return struct {
-			OK bool `json:"ok"`
-		}{true}, nil
+			OK               bool   `json:"ok"`
+			CredentialSource string `json:"credentialSource"`
+		}{true, s.config.CredentialSource}, nil
 	}
 }
 
 // Version is the server implementation version, set by the command at startup.
-var Version = "0.5.0"
+var Version = "0.6.0"

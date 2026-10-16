@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -162,6 +163,30 @@ func TestSizes(t *testing.T) {
 		return string(data)
 	}
 	summary := call("card_find", map[string]any{"listId": "l1"})
+	withoutDescriptions := call("card_find", map[string]any{"listId": "l1", "includeDesc": false})
+	// Matched synthetic serialization, not contribution subtraction or a live-data claim.
+	var withPage, withoutPage struct {
+		Items []view.Card `json:"items"`
+		Next  string      `json:"next"`
+	}
+	if err := json.Unmarshal([]byte(summary), &withPage); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal([]byte(withoutDescriptions), &withoutPage); err != nil {
+		t.Fatal(err)
+	}
+	for i := range withPage.Items {
+		withPage.Items[i].Desc = ""
+		withPage.Items[i].DescTruncated = false
+	}
+	if !reflect.DeepEqual(withPage, withoutPage) {
+		t.Fatal("description omission changed IDs, cursor or non-description values")
+	}
+	withChars, withoutChars := utf8.RuneCountInString(summary), utf8.RuneCountInString(withoutDescriptions)
+	t.Logf("card_find matched synthetic omission | with: %d chars | without: %d chars | reduction: %.2f%% | non-description equality: true | tokens are chars/4 estimates", withChars, withoutChars, 100*(1-float64(withoutChars)/float64(withChars)))
+	if withoutChars >= withChars {
+		t.Fatal("synthetic description omission did not reduce serialization")
+	}
 	full := call("card_find", map[string]any{"listId": "l1", "detail": "full"})
 	boardActions := call("board_activity", map[string]any{"limit": 50})
 	rows := []struct{ name, fixture, output string }{
@@ -213,7 +238,25 @@ func TestSizes(t *testing.T) {
 		}
 		return marshal(definitions)
 	}
-	cost("tools/list", catalog(cs, 48), catalog(profile, 10))
+	defaultCatalog, profileCatalog := catalog(cs, 48), catalog(profile, 10)
+	cost("tools/list", defaultCatalog, profileCatalog)
+	// Isolate includeDesc's catalog cost from independently added text bounds.
+	var withoutOption map[string]any
+	if err := json.Unmarshal([]byte(defaultCatalog), &withoutOption); err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range withoutOption["tools"].([]any) {
+		tool := value.(map[string]any)
+		if tool["name"] != "card_find" {
+			continue
+		}
+		tool["description"] = "Find cards; filter names before paging a snapshot."
+		input := tool["inputSchema"].(map[string]any)
+		delete(input["properties"].(map[string]any), "includeDesc")
+		delete(input, "not")
+	}
+	optionCost := utf8.RuneCountInString(defaultCatalog) - utf8.RuneCountInString(marshal(withoutOption))
+	t.Logf("includeDesc tools/list delta | %d chars | %s tokens (chars/4 estimate)", optionCost, estimatedTokens(optionCost))
 	cost("Initialize instructions", cs.InitializeResult().Instructions, profile.InitializeResult().Instructions)
 	cost("Initialize result (including instructions)", marshal(cs.InitializeResult()), marshal(profile.InitializeResult()))
 	table.WriteString("\n| Independent response | Characters | Tokens (chars/4) |\n| --- | --- | --- |\n")

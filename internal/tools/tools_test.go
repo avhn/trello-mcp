@@ -100,7 +100,7 @@ func TestTools(t *testing.T) {
 		{"member_find", `{}`, `{"items":[{"id":"m1","username":"synthetic","fullName":"Synthetic Member"}]}`, catalog("members", "id,username,fullName", "members")},
 		{"label_find", `{}`, `{"items":[{"id":"label1","name":"Ready","color":"green"}]}`, catalog("labels", "id,name,color", "labels")},
 		{"customfield_find", `{}`, `{"items":[{"id":"f1","name":"Stage","type":"list","options":[{"id":"o1","value":{"text":"Ready"},"color":"green","pos":1}]},{"id":"f2","name":"Text","type":"text"},{"id":"f3","name":"Number","type":"number"},{"id":"f4","name":"Date","type":"date"},{"id":"f5","name":"Checkbox","type":"checkbox"}]}`, catalog("customFields", "id,name,type,options", "customfields")},
-		{"server_health", `{}`, `{"ok":true}`, nil},
+		{"server_health", `{}`, `{"ok":true,"credentialSource":"env"}`, nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -175,7 +175,7 @@ func testService(t *testing.T, fake *httptest.Server, allowed []string) *Service
 	if err = store.Update(ctx, state.Selection{BoardID: "b1", WorkspaceID: "w1"}); err != nil {
 		t.Fatal(err)
 	}
-	return New(config.Config{APIKey: "test-key", Token: "test-token", AllowedWorkspaces: allowed, Tools: []string{"all"}}, trello.NewClient(fake.URL, "test-key", "test-token", fake.Client()), store)
+	return New(config.Config{APIKey: "test-key", Token: "test-token", CredentialSource: "env", AllowedWorkspaces: allowed, Tools: []string{"all"}}, trello.NewClient(fake.URL, "test-key", "test-token", fake.Client()), store)
 }
 
 // TestValidation ensures untrusted raw handlers reject malformed input without any HTTP calls.
@@ -314,7 +314,11 @@ func TestRegistration(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if response.StructuredContent != nil || response.Content[0].(*mcp.TextContent).Text != `{"ok":true}` {
+				if response.IsError || response.StructuredContent != nil || len(response.Content) != 1 {
+					t.Fatalf("not a successful text-only result: %+v", response)
+				}
+				text, ok := response.Content[0].(*mcp.TextContent)
+				if !ok || text.Text != `{"ok":true,"credentialSource":"env"}` {
 					t.Errorf("not text-only: %+v", response)
 				}
 			}

@@ -65,11 +65,11 @@ func Parse(env func(string) string, configDir, homeDir func() (string, error)) (
 		c.Tools = []string{"all"}
 	}
 	switch env("TRELLO_READ_ONLY") {
-	case "", "0":
-	case "1":
+	case "", "0", "false":
+	case "1", "true":
 		c.ReadOnly = true
 	default:
-		return c, fmt.Errorf("TRELLO_READ_ONLY must be 0 or 1")
+		return c, fmt.Errorf("TRELLO_READ_ONLY must be 0, 1, false or true")
 	}
 	c.DownloadDir = env("TRELLO_DOWNLOAD_DIR")
 	if c.DownloadDir == "" {

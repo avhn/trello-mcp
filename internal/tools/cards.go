@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/avhn/trello-mcp/internal/trello"
 	"github.com/avhn/trello-mcp/internal/view"
@@ -38,6 +39,8 @@ func (s *Service) cardFind(ctx context.Context, a arguments) (any, error) {
 	fields := cardSummaryFields
 	if a.full() {
 		fields = cardFields + ",start,dateLastActivity"
+	} else if !a.includeDescriptions() {
+		fields = strings.ReplaceAll(fields, ",desc,", ",")
 	}
 	var all []view.Card
 	if err = s.access.Client.Get(ctx, path, url.Values{"fields": {fields}, "filter": {"open"}}, &all); err != nil {
@@ -76,7 +79,13 @@ func (s *Service) cardFind(ctx context.Context, a arguments) (any, error) {
 			}
 		}
 		if matches(c.Name, a.str("nameFilter")) {
-			filtered = append(filtered, view.ProjectCard(c, a.full(), true))
+			c = view.ProjectCard(c, a.full(), true)
+			// Ignore unsolicited descriptions and flags even if upstream expands them.
+			if !a.includeDescriptions() {
+				c.Desc = ""
+				c.DescTruncated = false
+			}
+			filtered = append(filtered, c)
 		}
 	}
 	start := 0
