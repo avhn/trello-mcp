@@ -56,4 +56,4 @@ func (s *Service) serverHealth(ctx context.Context, a arguments) (any, error) {
 }
 
 // Version is the server implementation version, set by the command at startup.
-var Version = "0.9.0"
+var Version = "1.0.0"
