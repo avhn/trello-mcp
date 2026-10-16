@@ -195,7 +195,8 @@ install path; there is no one-click Claude Desktop package yet.
 
 ## License
 
-MIT, copyright Mert Dede. This is an independent Go implementation and covers the tool surface of
+[GPL-3.0-or-later](LICENSE), copyright Mert Dede. Releases up to v0.5.0 were published under MIT. This is an
+independent Go implementation and covers the tool surface of
 [delorenj/mcp-server-trello](https://github.com/delorenj/mcp-server-trello) 1.8.1 (MIT); that server is not a
 runtime dependency. Trello is a trademark of Atlassian. trello-mcp is an independent project, not affiliated
 with or endorsed by Atlassian.

@@ -625,7 +625,7 @@ def validate():
         site_versions[prefix] = app['softwareVersion']
         require(app['applicationCategory'] == 'DeveloperApplication', f'{prefix}: application category')
         require(app['offers']['price'] == '0', f'{prefix}: expected a free offer')
-        require(app['license'].endswith('/blob/main/LICENSE') and (ROOT / 'LICENSE').read_text().startswith('MIT License'), 'License mismatch')
+        require(app['license'].endswith('/blob/main/LICENSE') and (ROOT / 'LICENSE').read_text().split()[:7] == ['GNU', 'GENERAL', 'PUBLIC', 'LICENSE', 'Version', '3,', '29'], 'License mismatch')
         for schema in page.schemas:
             require(schema['@context'] == 'https://schema.org', f'{prefix}: schema context')
             if schema['@type'] == 'BreadcrumbList':
