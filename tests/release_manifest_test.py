@@ -8,10 +8,15 @@ import io
 import json
 import os
 from pathlib import Path
+import re
+import shlex
 import stat
 import struct
+import subprocess
+import sys
 import tarfile
 import tempfile
+import textwrap
 import unittest
 from unittest import mock
 import warnings
@@ -80,17 +85,104 @@ class ReleaseTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "tag/version"):
             release.source_metadata(tag="v99.0.0")
 
-    def test_workflow_keeps_preview_out_of_normal_release(self):
+    def release_workflow(self):
+        return (ROOT / ".github/workflows/release.yml").read_text().split('\n  release:\n', 1)[1]
+
+    def run_blocks(self, workflow):
+        return [textwrap.dedent(block) for block in
+                re.findall(r'^        run: \|\n((?:          [^\n]*\n|\n)+)', workflow, re.MULTILINE)]
+
+    def test_workflow_publishes_normal_release_asset_set_without_registry_submission(self):
         workflow = (ROOT / ".github/workflows/release.yml").read_text()
-        publication = workflow.split('gh release create "$RELEASE_TAG"', 1)[1]
-        self.assertIn('dist/*.tar.gz dist/*.zip dist/checksums.txt', publication)
-        self.assertNotIn('.mcpb', publication)
-        self.assertNotIn('server.json', publication)
-        self.assertNotIn(' generate ', workflow)
-        self.assertIn('name: mcpb-bundles', workflow)
-        self.assertIn('needs: [checks, native, desktop, desktop-windows]', workflow)
-        self.assertIn('notes --output notes.md', workflow)
-        self.assertIn('--notes-file notes.md', publication)
+        job = self.release_workflow()
+        publication = job.split('gh release create "$RELEASE_TAG"', 1)[1]
+        assets = re.findall(r'"\$DIST/([^"\n]+)"', publication)
+        expected = list(release.expected_assets('registry')) + ['checksums.txt']
+        self.assertCountEqual(assets, expected)
+        self.assertEqual(len(assets), 11)
+        needs = re.search(r'needs: \[([^\]]+)\]', job).group(1).split(', ')
+        self.assertTrue({'checks', 'native', 'desktop', 'desktop-windows', 'windows-installer'} <= set(needs))
+        self.assertIn('notes --output "$GITHUB_WORKSPACE/notes.md"', job)
+        self.assertIn('--notes-file "$GITHUB_WORKSPACE/notes.md"', publication)
+        self.assertIn('--verify-tag', publication)
+        self.assertLess(job.index(' generate --directory '), job.index(' publisher-validate --input '))
+        self.assertLess(job.index(' publisher-validate --input '), job.index('gh release create'))
+        self.assertIn('checksums --directory "$DIST" --kind registry --verify', job)
+        self.assertNotIn('continue-on-error:', job)
+        self.assertNotIn('if:', job)
+        for name in ('ci.yml', 'release.yml'):
+            text = (ROOT / '.github/workflows' / name).read_text()
+            self.assertNotRegex(text, r'\bmcp-publisher\s+(?:login|publish)\b')
+            self.assertNotRegex(text, r'(?i)secrets\.[^ }]*(?:registry|publisher)')
+        self.assertNotIn('preview', workflow.lower())
+
+    def test_workflow_paths_resolve_from_workspace_and_initialize_dist_per_step(self):
+        job = self.release_workflow()
+        declaration = 'DIST="${GITHUB_WORKSPACE:?GITHUB_WORKSPACE must be set}/dist"'
+        self.assertEqual(job.count('path: ${{ github.workspace }}/dist'), 2)
+        self.assertNotIn('path: preview', job)
+        self.assertNotIn('$PWD', job)
+        self.assertNotIn('/home/avhn/', job)
+        for block in self.run_blocks(job):
+            subprocess.run(['bash', '-n'], input=block, text=True, capture_output=True, check=True)
+            if '$DIST' in block:
+                self.assertEqual(block.splitlines()[0], declaration)
+            for line in block.splitlines():
+                if 'release_manifest.py' in line:
+                    self.assertIn('python3 -I "$GITHUB_WORKSPACE/scripts/release_manifest.py"', line)
+        workflow = (ROOT / '.github/workflows/release.yml').read_text()
+        for path in re.findall(r'^          path: (.+)$', workflow, re.MULTILINE):
+            self.assertTrue(path.startswith('${{ github.workspace }}/'), path)
+        for name in ('ci.yml', 'release.yml'):
+            text = (ROOT / '.github/workflows' / name).read_text()
+            self.assertNotIn('/home/avhn/', text)
+            for engine in ('pwsh', 'powershell'):
+                self.assertIn('shell: ' + engine, text)
+                for test in ('install_test.ps1', 'setup_commands_test.ps1'):
+                    prefix = engine + ' -NoProfile '
+                    if engine == 'powershell':
+                        prefix += '-ExecutionPolicy Bypass '
+                    command = prefix + '-File "$env:GITHUB_WORKSPACE/tests/' + test + '"'
+                    self.assertIn(command + '\n          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }', text)
+
+    def test_exact_workflow_generation_command_in_unrelated_checkout_with_spaces(self):
+        block, = [block for block in self.run_blocks(self.release_workflow()) if ' generate --directory ' in block]
+        command, = [line for line in block.splitlines() if ' generate --directory ' in line]
+        workspace = self.directory / 'unrelated checkout with spaces'
+        scripts = workspace / 'scripts'
+        scripts.mkdir(parents=True)
+        (scripts / 'release_manifest.py').write_text('import json, sys\nprint(json.dumps(sys.argv[1:]))\n')
+        elsewhere = self.directory / 'other working directory'
+        elsewhere.mkdir()
+        env = dict(os.environ, GITHUB_WORKSPACE=str(workspace), RELEASE_TAG='v' + self.version)
+        result = subprocess.run(['bash', '-eu', '-c', block.splitlines()[0] + '\n' + command],
+                                cwd=elsewhere, env=env, check=True, text=True, capture_output=True)
+        self.assertEqual(json.loads(result.stdout),
+                         ['--tag', 'v' + self.version, 'generate', '--directory', str(workspace / 'dist')])
+        env.pop('GITHUB_WORKSPACE')
+        result = subprocess.run(['bash', '-eu', '-c', block.splitlines()[0] + '\n' + command],
+                                cwd=elsewhere, env=env, text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('GITHUB_WORKSPACE must be set', result.stderr)
+
+    def test_workflow_generated_validation_failure_prevents_publication(self):
+        blocks = self.run_blocks(self.release_workflow())
+        validation, = [block for block in blocks if ' publisher-validate --input ' in block]
+        publication, = [block for block in blocks if 'gh release create ' in block]
+        workspace = self.directory / 'synthetic checkout with spaces'
+        scripts = workspace / 'scripts'
+        scripts.mkdir(parents=True)
+        (scripts / 'release_manifest.py').write_text('raise SystemExit(1)\n')
+        marker = self.directory / 'unexpected publication'
+        gh = scripts / 'gh'
+        gh.write_text('#!/bin/sh\nprintf published > ' + shlex.quote(str(marker)) + '\n')
+        gh.chmod(0o755)
+        env = dict(os.environ, GITHUB_WORKSPACE=str(workspace), RELEASE_TAG='v' + self.version,
+                   PATH=str(scripts) + os.pathsep + os.defpath)
+        result = subprocess.run(['bash', '-eu', '-c', validation + '\n' + publication],
+                                cwd=self.directory, env=env, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertFalse(marker.exists())
 
     def test_malformed_manifest_json(self):
         for data in (b'{', b'[]', b'{"version":"1.0.0","version":"2.0.0"}'):
@@ -189,16 +281,28 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(package["registryType"], "mcpb")
         self.assertEqual(package["identifier"], f"{release.REPOSITORY}/releases/download/v{self.version}/trello-mcp_desktop.mcpb")
         self.assertEqual(package["fileSha256"], hashlib.sha256((self.directory / "trello-mcp_desktop.mcpb").read_bytes()).hexdigest())
+        self.assertEqual(package["version"], self.version)
+        self.assertEqual(value["version"], self.version)
+        self.assertRegex(package["fileSha256"], r'^[0-9a-f]{64}$')
         self.assertEqual(package["transport"], {"type": "stdio"})
+        self.assertEqual(json.loads((self.directory / 'server.json').read_text()), value)
         text = release.checksums(self.directory, "registry", verify=True)
-        self.assertEqual(len(text.splitlines()), 10)
+        lines = text.splitlines()
+        names = [line.split('  ', 1)[1] for line in lines]
+        self.assertEqual(names, sorted(release.expected_assets('registry')))
+        self.assertEqual(len(lines), len(set(lines)))
+        self.assertEqual(len(lines), 10)
         self.assertNotIn("  checksums.txt", text)
+        for line in lines:
+            checksum, name = line.split('  ', 1)
+            self.assertEqual(checksum, hashlib.sha256((self.directory / name).read_bytes()).hexdigest())
 
     def test_generated_invalid_package_semantics(self):
         self.all_assets()
         value = release.generate(self.metadata, self.directory)
-        for key, invalid in (("identifier", "https://example.com/wrong.mcpb"), ("version", "99.0.0"),
-                             ("fileSha256", "A" * 64), ("registryType", "npm")):
+        for key, invalid in (("identifier", "https://example.com/wrong.mcpb"),
+                             ("identifier", f"{release.REPOSITORY}/releases/download/desktop-v{self.version}/trello-mcp_desktop.mcpb"),
+                             ("version", "99.0.0"), ("fileSha256", "A" * 64), ("registryType", "npm")):
             altered = copy.deepcopy(value)
             altered["packages"][0][key] = invalid
             with self.subTest(key=key), self.assertRaises(ValueError):
@@ -253,6 +357,48 @@ class ReleaseTests(unittest.TestCase):
         path.symlink_to(self.directory / release.CLI_ASSETS[1])
         with self.assertRaisesRegex(ValueError, "nonregular"):
             release.checksums(self.directory, "cli")
+
+    @mock.patch.object(release, 'publisher_validate')
+    def test_generated_input_is_locally_verified_before_publisher_validation(self, publisher):
+        self.all_assets()
+        release.generate(self.metadata, self.directory)
+        path = self.directory / 'server.json'
+        argv = ['release_manifest.py', '--tag', 'v' + self.version, 'publisher-validate', '--input', str(path)]
+        with mock.patch.object(sys, 'argv', argv):
+            release.main()
+        publisher.assert_called_once_with(path)
+        publisher.reset_mock()
+        (self.directory / release.CLI_ASSETS[0]).write_bytes(b'tampered final archive')
+        with mock.patch.object(sys, 'argv', argv), self.assertRaisesRegex(ValueError, 'stale'):
+            release.main()
+        publisher.assert_not_called()
+        release.checksums(self.directory, 'registry')
+        value = json.loads(path.read_text())
+        value['packages'][0]['identifier'] = value['packages'][0]['identifier'].replace('/v', '/desktop-v')
+        path.write_text(json.dumps(value))
+        with mock.patch.object(sys, 'argv', argv), self.assertRaisesRegex(ValueError, 'invalid generated'):
+            release.main()
+        publisher.assert_not_called()
+
+    @mock.patch.object(release, 'publisher_validate')
+    def test_default_publisher_validation_keeps_metadata_only_source_support(self, publisher):
+        with mock.patch.object(sys, 'argv', ['release_manifest.py', 'publisher-validate']):
+            release.main()
+        publisher.assert_called_once_with(ROOT / 'server.json')
+
+    def test_registry_checksums_reject_missing_asset_or_metadata_tamper(self):
+        self.all_assets()
+        release.generate(self.metadata, self.directory)
+        asset = self.directory / release.CLI_ASSETS[0]
+        original = asset.read_bytes()
+        asset.unlink()
+        with self.assertRaisesRegex(ValueError, 'missing'):
+            release.checksums(self.directory, 'registry', verify=True)
+        asset.write_bytes(original)
+        path = self.directory / 'server.json'
+        path.write_text(path.read_text() + ' ')
+        with self.assertRaisesRegex(ValueError, 'stale'):
+            release.checksums(self.directory, 'registry', verify=True)
 
     @mock.patch.object(release.subprocess, "check_output")
     def test_tag_notes_preserve_prose_and_git_extraction(self, output):

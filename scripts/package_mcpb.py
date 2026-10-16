@@ -313,9 +313,10 @@ def smoke(binary, version):
             raise ValueError("MCP health did not return one text result")
         health_text = content[0]["text"]
         health_value = json.loads(health_text)
-        if (health_value != {"ok": True, "credentialSource": "env"}
+        if (health_value != {"ok": True, "credentialSource": "env",
+                             "access": "unverified; call workspace_find"}
                 or health_text != json.dumps(health_value, separators=(",", ":"))):
-            raise ValueError("MCP health did not return compact success with env credential source")
+            raise ValueError("MCP health did not return compact local success with env source and unverified access")
         print("PASS extracted payload: --version, MCP initialize, tools/list, server_health", flush=True)
 
 

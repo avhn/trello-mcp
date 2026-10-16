@@ -117,6 +117,45 @@ class BundleTests(unittest.TestCase):
                     self.assertIn("beta", manifest["display_name"])
                     self.assertIn(target.removeprefix("linux-"), manifest["display_name"])
 
+    def test_supported_desktop_and_explicit_linux_beta_help(self):
+        for target in packaging.TARGETS:
+            with self.subTest(target=target):
+                manifest = packaging.manifest("6.7.8", target)
+                self.assertIn("macOS and Windows are supported.", manifest["long_description"])
+                for field in ("display_name", "description", "long_description"):
+                    self.assertNotIn("preview", manifest[field].lower())
+                    self.assertNotIn("pending", manifest[field].lower())
+                if target == "desktop":
+                    self.assertEqual(manifest["display_name"], "trello-mcp")
+                    for field in ("display_name", "description", "long_description"):
+                        self.assertNotIn("beta", manifest[field].lower())
+                else:
+                    arch = target.removeprefix("linux-")
+                    self.assertEqual(manifest["display_name"], f"trello-mcp (Linux {arch} beta)")
+                    self.assertTrue(manifest["description"].startswith(f"Linux {arch} beta. "))
+                    self.assertTrue(manifest["long_description"].startswith(
+                        f"Linux {arch} beta: manual, architecture-specific download. "))
+                    self.assertIn("compatible Claude Desktop Linux beta host and secure storage",
+                                  manifest["long_description"])
+
+    def test_windows_transfer_warnings_cannot_be_enabled_by_settings(self):
+        for target in packaging.TARGETS:
+            with self.subTest(target=target):
+                manifest = packaging.manifest("6.7.8", target)
+                for setting, operation in (("download_dir", "attachment downloads"),
+                                           ("upload_dir", "local path uploads")):
+                    description = manifest["user_config"][setting]["description"]
+                    self.assertIn(f"Windows refuses {operation}", description)
+                    self.assertIn("even when this directory is set", description)
+                    self.assertIn("configuring it cannot enable them", description)
+                    self.assertIn("Restart", description)
+                help_text = manifest["long_description"]
+                self.assertIn("Windows refuses local path uploads and attachment downloads", help_text)
+                self.assertIn("even when directories are set; configuring directories cannot enable them", help_text)
+                for text in (help_text, manifest["user_config"]["upload_dir"]["description"]):
+                    self.assertIn("Base64 uploads and URL attachments remain alternatives", text)
+                    self.assertIn("subject to write permissions and tool-profile policy", text)
+
     def test_settings_and_substitution_contract(self):
         manifest = packaging.manifest("6.7.8", "desktop")
         config = manifest["user_config"]
@@ -151,6 +190,30 @@ class BundleTests(unittest.TestCase):
                          "Extension Developer > Install Extension"):
             self.assertIn(required, help_text)
         self.assertEqual(manifest["privacy_policies"], ["https://www.atlassian.com/legal/privacy-policy"])
+
+    def test_help_verifies_desktop_access_without_cli_credentials(self):
+        manifest = packaging.manifest("6.7.8", "desktop")
+        self.assertEqual(manifest["tools"][0]["description"],
+                         "Local config health, not Trello auth; verify with workspace_find. "
+                         "Policy shows access restrictions.")
+        help_text = manifest["long_description"]
+        for required in ("basic checks local credential presence/source",
+                         "metadata shows the installed version", "policy shows effective restrictions",
+                         "Health does not verify Trello access", "workspace_find {} for a real Trello read",
+                         "successful empty items result proves that upstream read worked",
+                         "not that a workspace selector matches", "Authentication rejection differs",
+                         "permission, network or rate-limit failures", "permitted existing upstream read such as board_find",
+                         "health-only profile cannot verify access", "change the profile and reconnect",
+                         "never bypass restrictions", "No CLI auth/status or credential copying is required",
+                         "CLI status describes only that CLI invocation, not Desktop credentials",
+                         "remove or disable the extension in Settings > Extensions",
+                         "retained sensitive settings using supported controls",
+                         "Do not use CLI logout as Desktop cleanup",
+                         "removal does not promise deletion of OS secure-storage entries"):
+            self.assertIn(required, help_text)
+        self.assertLess(help_text.index("basic checks"), help_text.index("metadata shows"))
+        self.assertLess(help_text.index("metadata shows"), help_text.index("policy shows"))
+        self.assertLess(help_text.index("policy shows"), help_text.index("Then call workspace_find"))
 
     def test_native_headers_and_symlink_rejection(self):
         for system, arches in (("linux", ("amd64", "arm64")), ("darwin", ("amd64", "arm64")),
@@ -260,7 +323,7 @@ class BundleTests(unittest.TestCase):
         replies = [
             {"id": 1, "result": {"serverInfo": {"name": "trello-mcp", "version": "v6.7.8"}}},
             {"id": 2, "result": {"tools": [{"name": "server_health"}, {"name": "card_find"}]}},
-            {"id": 3, "result": {"content": [{"type": "text", "text": '{"ok":true,"credentialSource":"env"}'}]}},
+            {"id": 3, "result": {"content": [{"type": "text", "text": '{"ok":true,"credentialSource":"env","access":"unverified; call workspace_find"}'}]}},
         ]
         host = {"HOME": "/synthetic-host-home", "TRELLO_API_KEY": "synthetic-host-key",
                 "TRELLO_TOKEN": "synthetic-host-token", "TRELLO_TOOLS": "server_health"}
@@ -277,7 +340,9 @@ class BundleTests(unittest.TestCase):
             self.assertEqual([message["method"] for message in messages],
                              ["initialize", "notifications/initialized", "tools/list", "tools/call"])
             for content in ([{"type": "text", "text": '{"ok":false}'}],
-                            [{"type": "text", "text": '{ "ok":true,"credentialSource":"env"}'}],
+                            [{"type": "text", "text": '{ "ok":true,"credentialSource":"env","access":"unverified; call workspace_find"}'}],
+                            [{"type": "text", "text": '{"ok":true,"credentialSource":"env"}'}],
+                            [{"type": "text", "text": '{"ok":true,"credentialSource":"env","access":"verified"}'}],
                             [{"type": "text", "text": '{"ok":true}'}],
                             [{"type": "image", "data": "synthetic"}]):
                 with self.subTest(content=content):

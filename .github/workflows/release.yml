@@ -27,12 +27,32 @@ jobs:
           sh tests/install_test.sh
       - name: Validate site and release version
         run: |
-          python3 -I scripts/site/validate.py --self-test
-          python3 -I scripts/site/validate.py
-          python3 -I scripts/release_manifest.py --tag "$RELEASE_TAG" version
-          python3 -I tests/release_manifest_test.py
+          python3 -I "$GITHUB_WORKSPACE/scripts/site/validate.py" --self-test
+          python3 -I "$GITHUB_WORKSPACE/scripts/site/validate.py"
+          python3 -I "$GITHUB_WORKSPACE/scripts/release_manifest.py" --tag "$RELEASE_TAG" version
+          python3 -I "$GITHUB_WORKSPACE/tests/release_manifest_test.py"
       - name: Validate metadata-only registry template with pinned publisher
-        run: python3 -I scripts/release_manifest.py publisher-validate
+        run: python3 -I "$GITHUB_WORKSPACE/scripts/release_manifest.py" publisher-validate
+
+  windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Test installer and rollback with PowerShell 7
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File "$env:GITHUB_WORKSPACE/tests/install_test.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pwsh -NoProfile -File "$env:GITHUB_WORKSPACE/tests/setup_commands_test.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test installer and rollback with Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE/tests/install_test.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          powershell -NoProfile -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE/tests/setup_commands_test.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   native:
     needs: checks
@@ -94,38 +114,38 @@ jobs:
               with tarfile.open(str(stem) + '.tar.gz') as archive:
                   archive.extractall('extracted', filter='data')
           PY
-          python -I scripts/package_mcpb.py --version "$RELEASE_TAG" \
-            --smoke-binary "$PWD/extracted/$binary"
+          python -I "$GITHUB_WORKSPACE/scripts/package_mcpb.py" --version "$RELEASE_TAG" \
+            --smoke-binary "$GITHUB_WORKSPACE/extracted/$binary"
       - name: Upload CLI archive
         uses: actions/upload-artifact@v7
         with:
           name: cli-${{ matrix.os }}-${{ matrix.arch }}
-          path: archives/*
+          path: ${{ github.workspace }}/archives/*
           if-no-files-found: error
       - name: Upload Desktop input
         if: matrix.os == 'darwin' || (matrix.os == 'windows' && matrix.arch == 'amd64')
         uses: actions/upload-artifact@v7
         with:
           name: native-${{ matrix.os }}-${{ matrix.arch }}
-          path: payload/*
+          path: ${{ github.workspace }}/payload/*
           if-no-files-found: error
       - uses: actions/setup-node@v6
         if: matrix.os == 'linux'
         with:
           node-version: '22'
-      - name: Build and smoke Linux preview bundle
+      - name: Build and smoke Linux beta bundle
         if: matrix.os == 'linux'
         run: |
           npm ci --prefix packaging/mcpb --ignore-scripts --no-audit --no-fund
-          python -I scripts/package_mcpb.py --version "$RELEASE_TAG" \
-            --target "linux-$TARGET_ARCH" --linux-binary "$PWD/payload/trello-mcp" \
-            --output-dir "$PWD/bundles" --require-smoke
-      - name: Upload Linux preview input
+          python -I "$GITHUB_WORKSPACE/scripts/package_mcpb.py" --version "$RELEASE_TAG" \
+            --target "linux-$TARGET_ARCH" --linux-binary "$GITHUB_WORKSPACE/payload/trello-mcp" \
+            --output-dir "$GITHUB_WORKSPACE/bundles" --require-smoke
+      - name: Upload Linux beta input
         if: matrix.os == 'linux'
         uses: actions/upload-artifact@v7
         with:
           name: mcpb-linux-${{ matrix.arch }}
-          path: bundles/*.mcpb
+          path: ${{ github.workspace }}/bundles/*.mcpb
           if-no-files-found: error
 
   desktop:
@@ -145,19 +165,19 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           pattern: native-*
-          path: native
-      - name: Build universal Desktop preview and smoke extracted macOS payload
+          path: ${{ github.workspace }}/native
+      - name: Build universal Desktop bundle and smoke extracted macOS payload
         run: |
           npm ci --prefix packaging/mcpb --ignore-scripts --no-audit --no-fund
-          python -I scripts/package_mcpb.py --version "$RELEASE_TAG" --target desktop \
-            --darwin-amd64 "$PWD/native/native-darwin-amd64/trello-mcp" \
-            --darwin-arm64 "$PWD/native/native-darwin-arm64/trello-mcp" \
-            --windows-amd64 "$PWD/native/native-windows-amd64/trello-mcp.exe" \
-            --output-dir "$PWD/bundles" --require-smoke
+          python -I "$GITHUB_WORKSPACE/scripts/package_mcpb.py" --version "$RELEASE_TAG" --target desktop \
+            --darwin-amd64 "$GITHUB_WORKSPACE/native/native-darwin-amd64/trello-mcp" \
+            --darwin-arm64 "$GITHUB_WORKSPACE/native/native-darwin-arm64/trello-mcp" \
+            --windows-amd64 "$GITHUB_WORKSPACE/native/native-windows-amd64/trello-mcp.exe" \
+            --output-dir "$GITHUB_WORKSPACE/bundles" --require-smoke
       - uses: actions/upload-artifact@v7
         with:
           name: mcpb-desktop
-          path: bundles/*.mcpb
+          path: ${{ github.workspace }}/bundles/*.mcpb
           if-no-files-found: error
 
   desktop-windows:
@@ -177,17 +197,17 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: mcpb-desktop
-          path: bundles
+          path: ${{ github.workspace }}/bundles
       - name: Inspect ZIP before extraction and smoke Windows payload
         run: |
           mkdir extracted
-          python -I scripts/release_manifest.py --tag "$RELEASE_TAG" inspect-bundle \
-            "$PWD/bundles/trello-mcp_desktop.mcpb" --extract "$PWD/extracted"
-          python -I scripts/package_mcpb.py --version "$RELEASE_TAG" \
-            --smoke-binary "$PWD/extracted/server/trello-mcp.exe"
+          python -I "$GITHUB_WORKSPACE/scripts/release_manifest.py" --tag "$RELEASE_TAG" inspect-bundle \
+            "$GITHUB_WORKSPACE/bundles/trello-mcp_desktop.mcpb" --extract "$GITHUB_WORKSPACE/extracted"
+          python -I "$GITHUB_WORKSPACE/scripts/package_mcpb.py" --version "$RELEASE_TAG" \
+            --smoke-binary "$GITHUB_WORKSPACE/extracted/server/trello-mcp.exe"
 
   release:
-    needs: [checks, native, desktop, desktop-windows]
+    needs: [checks, native, desktop, desktop-windows, windows-installer]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -196,40 +216,47 @@ jobs:
       RELEASE_TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v7
+      - name: Prepare clean release directory
+        run: |
+          DIST="${GITHUB_WORKSPACE:?GITHUB_WORKSPACE must be set}/dist"
+          mkdir "$DIST"
       - uses: actions/download-artifact@v8
         with:
           pattern: cli-*
           merge-multiple: true
-          path: dist
+          path: ${{ github.workspace }}/dist
       - uses: actions/download-artifact@v8
         with:
           pattern: mcpb-*
           merge-multiple: true
-          path: preview
-      - name: Inspect final preview bytes and create separate checksum lists
+          path: ${{ github.workspace }}/dist
+      - name: Inspect final bundles and generate metadata and unified checksums
         run: |
-          for bundle in preview/*.mcpb; do
-            python3 -I scripts/release_manifest.py --tag "$RELEASE_TAG" inspect-bundle "$bundle"
+          DIST="${GITHUB_WORKSPACE:?GITHUB_WORKSPACE must be set}/dist"
+          for bundle in "$DIST"/*.mcpb; do
+            python3 -I "$GITHUB_WORKSPACE/scripts/release_manifest.py" --tag "$RELEASE_TAG" inspect-bundle "$bundle"
           done
-          python3 -I scripts/release_manifest.py --tag "$RELEASE_TAG" checksums --directory dist --kind cli
-          python3 -I scripts/release_manifest.py --tag "$RELEASE_TAG" checksums --directory dist --kind cli --verify
-          python3 -I scripts/release_manifest.py --tag "$RELEASE_TAG" checksums --directory preview --kind mcpb
-          python3 -I scripts/release_manifest.py --tag "$RELEASE_TAG" checksums --directory preview --kind mcpb --verify
-      - name: Retain preview bundles for owner-tested separate pre-release
-        uses: actions/upload-artifact@v7
-        with:
-          name: mcpb-bundles
-          path: preview/*
-          if-no-files-found: error
+          python3 -I "$GITHUB_WORKSPACE/scripts/release_manifest.py" --tag "$RELEASE_TAG" generate --directory "$DIST"
+          python3 -I "$GITHUB_WORKSPACE/scripts/release_manifest.py" --tag "$RELEASE_TAG" checksums --directory "$DIST" --kind registry --verify
+      - name: Validate final generated metadata with checksum-pinned publisher v1.8.1
+        run: |
+          DIST="${GITHUB_WORKSPACE:?GITHUB_WORKSPACE must be set}/dist"
+          python3 -I "$GITHUB_WORKSPACE/scripts/release_manifest.py" --tag "$RELEASE_TAG" publisher-validate --input "$DIST/server.json"
       - name: Extract signed tag release notes
         run: |
           # Preserve owner-written signed tag subject/body; fail without prose.
           git fetch --force origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
-          python3 -I scripts/release_manifest.py --tag "$RELEASE_TAG" notes --output notes.md
-      - name: Publish CLI-only GitHub release
+          python3 -I "$GITHUB_WORKSPACE/scripts/release_manifest.py" --tag "$RELEASE_TAG" notes --output "$GITHUB_WORKSPACE/notes.md"
+      - name: Publish normal GitHub release assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Desktop preview publication and registry submission remain owner actions.
-          gh release create "$RELEASE_TAG" dist/*.tar.gz dist/*.zip dist/checksums.txt \
-            --verify-tag --notes-file notes.md --title "$RELEASE_TAG"
+          DIST="${GITHUB_WORKSPACE:?GITHUB_WORKSPACE must be set}/dist"
+          # Registry login and publication remain held until separately authorized v1.0.0.
+          gh release create "$RELEASE_TAG" \
+            "$DIST/trello-mcp_linux_amd64.tar.gz" "$DIST/trello-mcp_linux_arm64.tar.gz" \
+            "$DIST/trello-mcp_darwin_amd64.tar.gz" "$DIST/trello-mcp_darwin_arm64.tar.gz" \
+            "$DIST/trello-mcp_windows_amd64.zip" "$DIST/trello-mcp_windows_arm64.zip" \
+            "$DIST/trello-mcp_desktop.mcpb" "$DIST/trello-mcp_linux_amd64.mcpb" "$DIST/trello-mcp_linux_arm64.mcpb" \
+            "$DIST/server.json" "$DIST/checksums.txt" \
+            --verify-tag --notes-file "$GITHUB_WORKSPACE/notes.md" --title "$RELEASE_TAG"

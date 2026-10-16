@@ -18,12 +18,12 @@ jobs:
           node-version: '22'
       - name: Install pinned MCPB tooling
         run: npm ci --prefix packaging/mcpb --ignore-scripts --no-audit --no-fund
-      - name: Test bundle and future registry assembly
+      - name: Test bundle and normal-release registry assembly
         run: |
-          python3 -I tests/package_mcpb_test.py
-          python3 -I tests/release_manifest_test.py
+          python3 -I "$GITHUB_WORKSPACE/tests/package_mcpb_test.py"
+          python3 -I "$GITHUB_WORKSPACE/tests/release_manifest_test.py"
       - name: Validate metadata-only template with checksum-pinned publisher v1.8.1
-        run: python3 -I scripts/release_manifest.py publisher-validate
+        run: python3 -I "$GITHUB_WORKSPACE/scripts/release_manifest.py" publisher-validate
 
   site:
     runs-on: ubuntu-latest
@@ -32,21 +32,29 @@ jobs:
       - uses: actions/checkout@v7
       - name: Validate static site, docs mirror and versions
         run: |
-          python3 -I scripts/site/validate.py --self-test
-          python3 -I scripts/site/validate.py
-          python3 -I scripts/site/generate_social.py --check
+          python3 -I "$GITHUB_WORKSPACE/scripts/site/validate.py" --self-test
+          python3 -I "$GITHUB_WORKSPACE/scripts/site/validate.py"
+          python3 -I "$GITHUB_WORKSPACE/scripts/site/generate_social.py" --check
 
   windows-installer:
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - name: Test installer with PowerShell 7
+      - name: Test installer and rollback with PowerShell 7
         shell: pwsh
-        run: pwsh -NoProfile -File tests/install_test.ps1
-      - name: Test installer with Windows PowerShell 5.1
+        run: |
+          pwsh -NoProfile -File "$env:GITHUB_WORKSPACE/tests/install_test.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pwsh -NoProfile -File "$env:GITHUB_WORKSPACE/tests/setup_commands_test.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test installer and rollback with Windows PowerShell 5.1
         shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/install_test.ps1
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE/tests/install_test.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          powershell -NoProfile -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE/tests/setup_commands_test.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   windows-auth:
     runs-on: windows-latest

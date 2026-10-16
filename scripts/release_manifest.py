@@ -1,9 +1,18 @@
 #!/usr/bin/env python3
-"""Release byte checks and future registry generation. Run with python3 -I.
+"""Generate and validate normal-release metadata and bytes. Run with python3 -I.
 
-Root server.json is a metadata-only template. `generate` is deliberately not
-part of publication: use it only after owner acceptance of the Desktop preview.
-`checksums` keeps CLI release assets separate from preview workflow artifacts.
+Root server.json stays metadata-only. For v0.7.0, inspect final MCPBs, generate
+metadata and unified checksums, verify them, and publisher-validate the generated
+server.json before approved GitHub publication. Independently verify public bytes
+and validate downloaded metadata afterward. Stop there: no registry submission.
+
+Only for separately authorized v1.0.0 registry publication: recheck the official
+format and publisher pin, regenerate from final bytes, verify public URL/hash and
+checksums, then mcp-publisher validate /absolute/path/to/downloaded/server.json.
+A human privately runs mcp-publisher login github for io.github.avhn/trello-mcp,
+then mcp-publisher publish /absolute/path/to/downloaded/server.json. Verify the
+returned name/version through the Registry API. Never inspect token files, add
+automated registry auth secrets, or retroactively submit v0.7.0. See AGENTS.md.
 """
 
 import argparse
@@ -233,7 +242,7 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("version")
     command = commands.add_parser("publisher-validate")
-    command.add_argument("--input", type=Path, help="Defaults to the metadata-only source; accepts future generated metadata")
+    command.add_argument("--input", type=Path, help="Generated metadata beside final assets and unified checksums; defaults to the metadata-only source")
     for name in ("checksums", "generate"):
         command = commands.add_parser(name)
         command.add_argument("--directory", required=True, type=Path)
@@ -250,6 +259,9 @@ def main():
     if args.command == "version":
         print(metadata["version"])
     elif args.command == "publisher-validate":
+        if args.input is not None:
+            validate_generated(read_json(args.input.read_text()), metadata, args.input.parent)
+            checksums(args.input.parent, "registry", verify=True)
         publisher_validate(args.input or args.metadata)
     elif args.command == "checksums":
         checksums(args.directory, args.kind, args.verify)
