@@ -5,8 +5,11 @@ import "fmt"
 // PolicyDenied distinguishes local safety refusals from upstream authentication errors.
 // Reasons may identify caller-supplied objects or configured selectors, never resolved denied scopes.
 func PolicyDenied(policy, reason string) error {
-	return fmt.Errorf("access denied by %s: %s. This is server policy, not a token/permission error. Call server_health with detail \"policy\" for details", policy, reason)
+	return policyDenial{fmt.Errorf("access denied by %s: %s. This is server policy, not a token/permission error. Call server_health with detail \"policy\" for details", policy, reason)}
 }
+
+// policyDenial marks deterministic refusals so nested lookups never report them as retryable.
+type policyDenial struct{ error }
 
 // OwnershipDenied fails closed when an object's current parent cannot be proven.
 func OwnershipDenied(object string) error {

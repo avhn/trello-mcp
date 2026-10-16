@@ -83,7 +83,7 @@ func TestLongRetryAfterSharedRecovery(t *testing.T) {
 			defer fake.Close()
 			c := NewClient(fake.URL, "synthetic-key", "synthetic-token", fake.Client())
 			var out any
-			if err := c.Get(context.Background(), "/members/me/boards", nil, &out); err == nil || err.Error() != "trello retry delay exceeds 30 seconds" {
+			if err := c.Get(context.Background(), "/members/me/boards", nil, &out); err == nil || err.Error() != "trello API: HTTP 429; rate limit exceeded; retry delay exceeds 30 seconds; retry later" {
 				t.Fatalf("long Retry-After not refused: %v", err)
 			}
 			for i, w := range c.windows {
@@ -91,10 +91,12 @@ func TestLongRetryAfterSharedRecovery(t *testing.T) {
 					t.Errorf("window %d lost the long cooldown", i)
 				}
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+			// Later calls during the long cooldown fail fast with the same covered marker.
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			if err := c.Get(ctx, "/boards/b1", nil, &out); !errors.Is(err, context.DeadlineExceeded) {
-				t.Errorf("next call bypassed recovery: %v", err)
+			var status *HTTPError
+			if err := c.Get(ctx, "/boards/b1", nil, &out); err == nil || err.Error() != errLongRetry.Error() || !errors.As(err, &status) || status.StatusCode != http.StatusTooManyRequests || ctx.Err() != nil {
+				t.Errorf("next call bypassed recovery or waited: %v", err)
 			}
 			if requests.Load() != 1 || c.Stats().Retries != 0 {
 				t.Errorf("unexpected counters: requests=%d, stats=%+v", requests.Load(), c.Stats())
@@ -142,7 +144,7 @@ func TestInterleavedRateHeaders(t *testing.T) {
 		t.Fatal("short-window request did not start")
 	}
 	var out any
-	if err := c.Get(ctx, "/members/long", nil, &out); err == nil || err.Error() != "trello retry delay exceeds 30 seconds" {
+	if err := c.Get(ctx, "/members/long", nil, &out); err == nil || err.Error() != "trello API: HTTP 429; rate limit exceeded; retry delay exceeds 30 seconds; retry later" {
 		t.Fatalf("long Retry-After not refused: %v", err)
 	}
 	c.mu.Lock()

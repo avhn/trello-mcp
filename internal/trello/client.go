@@ -38,6 +38,7 @@ type window struct {
 	interval time.Duration
 	times    []time.Time
 	blocked  time.Time
+	retry    time.Time // 429 Retry-After cooldown only, never header-reported exhaustion
 }
 
 // Stats contains only non-sensitive counters for the local health tool.
@@ -79,6 +80,15 @@ func (c *Client) Scrub(message string) string {
 	return strings.NewReplacer(pairs...).Replace(message)
 }
 
+// ErrRateLimited marks local quota waits that cannot finish before the request deadline.
+var ErrRateLimited = errors.New("local rate limit")
+
+// errLongRetry keeps the covered 429 marker for cooldowns that exceed the retry ceiling.
+var errLongRetry = errors.New("trello API: HTTP 429; rate limit exceeded; retry delay exceeds 30 seconds; retry later")
+
+// seconds rounds a wait up to whole seconds for retry hints.
+func seconds(d time.Duration) int64 { return int64((d + time.Second - 1) / time.Second) }
+
 // pause waits without leaking a timer or ignoring request cancellation.
 func pause(ctx context.Context, d time.Duration) error {
 	if d <= 0 {
@@ -101,7 +111,7 @@ func (c *Client) acquire(ctx context.Context, members bool) error {
 			return err
 		}
 		now := time.Now()
-		wait := time.Duration(0)
+		wait, cooling := time.Duration(0), time.Duration(0)
 		n := 2
 		if members {
 			n = 3
@@ -115,6 +125,9 @@ func (c *Client) acquire(ctx context.Context, members bool) error {
 			}
 			w.times = w.times[drop:]
 			until := w.blocked
+			if d := w.retry.Sub(now); d > cooling {
+				cooling = d
+			}
 			if len(w.times) >= w.max && w.times[0].Add(w.interval).After(until) {
 				until = w.times[0].Add(w.interval)
 			}
@@ -131,6 +144,18 @@ func (c *Client) acquire(ctx context.Context, members bool) error {
 			return nil
 		}
 		c.mu.Unlock()
+		// A shared 429 cooldown past the retry ceiling fails now instead of sleeping into the deadline.
+		if cooling > 30*time.Second {
+			return safeError{message: errLongRetry.Error(), cause: &HTTPError{StatusCode: http.StatusTooManyRequests}}
+		}
+		// A wait that cannot finish before the deadline fails now: a Trello 429 cooldown keeps the HTTP
+		// marker, while a local quota or header-reported exhaustion is labelled local.
+		if deadline, ok := ctx.Deadline(); ok && now.Add(wait).After(deadline) {
+			if now.Add(cooling).After(deadline) {
+				return safeError{message: fmt.Sprintf("trello API: HTTP 429; rate limit exceeded; retry after %ds", seconds(cooling)), cause: errors.Join(&HTTPError{StatusCode: http.StatusTooManyRequests}, context.DeadlineExceeded)}
+			}
+			return safeError{message: fmt.Sprintf("local rate limit: request quota exhausted; retry after %ds", seconds(wait)), cause: errors.Join(ErrRateLimited, context.DeadlineExceeded)}
+		}
 		if err := pause(ctx, wait); err != nil {
 			return err
 		}
@@ -183,6 +208,9 @@ func (c *Client) cooldown(delay time.Duration, members bool) {
 		if until.After(c.windows[i].blocked) {
 			c.windows[i].blocked = until
 		}
+		if until.After(c.windows[i].retry) {
+			c.windows[i].retry = until
+		}
 	}
 }
 
@@ -205,7 +233,7 @@ func retryDelay(h http.Header, attempt int) (time.Duration, error) {
 		}
 	}
 	if d > 30*time.Second {
-		return d, fmt.Errorf("trello retry delay exceeds 30 seconds")
+		return d, errLongRetry
 	}
 	return d, nil
 }

@@ -289,3 +289,55 @@ func assertSafeScopeMessage(t *testing.T, err error) {
 		}
 	}
 }
+
+func TestNestedHTTPFailuresKeepStatusMarker(t *testing.T) {
+	for _, status := range []int{http.StatusNotFound, http.StatusBadGateway} {
+		t.Run(fmt.Sprint(status), func(t *testing.T) {
+			client := NewClient("https://example.invalid", "synthetic-key", "synthetic-token", &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				code, body := http.StatusOK, `{"idBoard":"hidden-board"}`
+				if req.URL.Path == "/boards/hidden-board" {
+					code, body = status, `{}`
+				}
+				return &http.Response{StatusCode: code, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body))}, nil
+			})})
+			a := &Access{Client: client, Allowed: []string{"team"}}
+			_, err := a.ObjectBoard(context.Background(), "cards", "supplied-id", "")
+			want := fmt.Sprintf("card supplied-id ownership could not be verified: trello API: HTTP %d", status)
+			if err == nil || errors.Is(err, ErrDenied) || err.Error() != want {
+				t.Fatalf("got %v, want %s", err, want)
+			}
+		})
+	}
+}
+
+func TestActionOnMovedCardFailsClosedWithPolicyPrefix(t *testing.T) {
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/actions/a1":
+			_, _ = w.Write([]byte(`{"data":{"board":{"id":"old-board"},"card":{"id":"c1"}}}`))
+		case "/boards/old-board", "/boards/hidden-board":
+			_, _ = w.Write([]byte(`{"id":"` + strings.TrimPrefix(r.URL.Path, "/boards/") + `","idOrganization":"team"}`))
+		case "/organizations/team":
+			_, _ = w.Write([]byte(`{"id":"team","name":"team"}`))
+		case "/cards/c1":
+			_, _ = w.Write([]byte(`{"idBoard":"hidden-board"}`))
+		default:
+			t.Errorf("unexpected request: %s", r.URL.Path)
+		}
+	}))
+	defer fake.Close()
+	a := &Access{Client: NewClient(fake.URL, "synthetic-key", "synthetic-token", fake.Client()), Allowed: []string{"team"}}
+	_, err := a.ObjectBoard(context.Background(), "actions", "a1", "")
+	if err == nil || err.Error() != OwnershipDenied("action a1").Error() || strings.Contains(err.Error(), "hidden-board") {
+		t.Fatalf("moved card was not refused as policy: %v", err)
+	}
+}
+
+func TestScopeErrorRateLimitHidesResolvedParents(t *testing.T) {
+	a := &Access{Allowed: []string{"team"}}
+	inner := a.ScopeError(safeError{message: "local rate limit: request quota exhausted; retry after 900s", cause: errors.Join(ErrRateLimited, context.DeadlineExceeded)}, "board hidden-board")
+	got := a.ScopeError(inner, "card c1")
+	if got.Error() != "card c1 ownership could not be verified: local rate limit: request quota exhausted; retry later" || !errors.Is(got, ErrRateLimited) {
+		t.Fatalf("rate-limited ownership failure exposed parents or lost its cause: %v", got)
+	}
+}

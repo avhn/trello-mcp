@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
@@ -180,21 +179,23 @@ func (a *Access) ScopeError(err error, object string) error {
 		return a.workspaceDenied(object)
 	}
 	var ownership ownershipDenial
-	if errors.As(err, &ownership) {
+	var policy policyDenial
+	if errors.As(err, &ownership) || errors.As(err, &policy) {
 		return OwnershipDenied(object)
 	}
 	message := "ownership could not be verified (temporary error); retry"
 	var status *HTTPError
+	// Messages are fixed or status-derived: nested errors may name resolved parents.
 	switch {
+	case errors.As(err, &status):
+		// Every upstream status keeps the covered HTTP marker; it names no parent object.
+		message = "ownership could not be verified: " + status.Error()
+	case errors.Is(err, ErrRateLimited):
+		message = "ownership could not be verified: local rate limit: request quota exhausted; retry later"
 	case errors.Is(err, context.Canceled):
 		message = "ownership verification canceled"
 	case errors.Is(err, context.DeadlineExceeded):
 		message = "ownership verification deadline exceeded"
-	case errors.As(err, &status):
-		switch status.StatusCode {
-		case http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests:
-			message = "ownership could not be verified: " + status.Error()
-		}
 	}
 	return safeError{message: object + " " + message, cause: err}
 }

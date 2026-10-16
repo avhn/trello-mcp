@@ -204,7 +204,7 @@ func TestCustomFieldErrors(t *testing.T) {
 					if tc.stage == "parent" {
 						want = s.access.ScopeError(cause, "customField f1").Error()
 					} else if tc.status == http.StatusTooManyRequests {
-						want = "trello retry delay exceeds 30 seconds"
+						want = "trello API: HTTP 429; rate limit exceeded; retry delay exceeds 30 seconds; retry later"
 					}
 					if tc.contextual {
 						want = "custom field unavailable or not accessible; refresh customfield_find on the card's authorized board and verify access: " + want

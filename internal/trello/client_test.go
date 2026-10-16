@@ -383,3 +383,27 @@ func assertConfiguredAuthError(t *testing.T, err error, status int) {
 		}
 	}
 }
+
+func TestHeaderExhaustionIsNotReportedAs429(t *testing.T) {
+	c := NewClient("https://example.invalid", "synthetic-key", "synthetic-token", http.DefaultClient)
+	c.observe(http.Header{"X-Rate-Limit-Member-Remaining": {"0"}}, true)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	var status *HTTPError
+	err := c.acquire(ctx, true)
+	if !errors.Is(err, ErrRateLimited) || errors.As(err, &status) || err.Error() != "local rate limit: request quota exhausted; retry after 900s" || ctx.Err() != nil {
+		t.Fatalf("header-reported exhaustion not reported promptly as a local rate limit: %v", err)
+	}
+}
+
+func TestShort429CooldownPastDeadlineKeepsMarker(t *testing.T) {
+	c := NewClient("https://example.invalid", "synthetic-key", "synthetic-token", http.DefaultClient)
+	c.cooldown(2*time.Second, false)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	var status *HTTPError
+	err := c.acquire(ctx, false)
+	if err == nil || err.Error() != "trello API: HTTP 429; rate limit exceeded; retry after 2s" || !errors.As(err, &status) || status.StatusCode != http.StatusTooManyRequests || errors.Is(err, ErrRateLimited) || ctx.Err() != nil {
+		t.Fatalf("short 429 cooldown lost its marker: %v", err)
+	}
+}
