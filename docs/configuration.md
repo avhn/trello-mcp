@@ -145,14 +145,23 @@ need no CLI auth/status or credential copying. Metadata and policy details exist
 are configured; without credentials every detail returns the setup response. With none found:
 
 ```text
-No credentials in this shell or <path>. MCP clients may pass them through their own config; run `trello-mcp auth` to save them for all clients.
+No credentials in this shell or <path>. MCP clients may pass them through their own config. To save CLI credentials, the human runs the installer's quoted absolute-path auth command in a private terminal, then reconnects or restarts clients.
 ```
 
-Validation failure starts with:
+Validation failure of saved file credentials starts with:
 
 ```text
-credential validation failed; check the token and its read permission, then run `trello-mcp auth`:
+credential validation failed; check the token and its read permission. If renewal is needed, the human runs the installer's quoted absolute-path auth command with --file and the path above in a private terminal, then reconnects or restarts clients:
 ```
+
+Environment credentials win over saved files, so for them the recovery instead reads `the human updates
+or unsets TRELLO_API_KEY and TRELLO_TOKEN where they are set`. For the shared `~/.secrets.env` store, which
+auth never writes, it reads `the human runs the installer's quoted absolute-path auth command without
+--file in a private terminal (the dedicated file outranks the shared store) or updates the shared store
+privately`. When the `TRELLO_MCP_CREDENTIALS` environment variable (not `--file`) names the shared store, auth without `--file` would target
+it, so the recovery reads `the human updates the shared store privately, or points TRELLO_MCP_CREDENTIALS
+at a dedicated file, wherever it is set, and runs the installer's quoted absolute-path auth command in a
+private terminal`.
 
 The error follows that prefix: an HTTP 401 uses the CLI validation message (`token rejected during auth
 validation; ...; nothing saved`); a token whose identity or read permission cannot be verified reports
@@ -175,20 +184,21 @@ then run `chmod 700 ~/.secrets`; auth and `secret stash` also repair that defaul
 If using the `secret` tool, `secret stash FILE KEY`
 prompts privately for each key; never place values in command arguments. On
 Windows use a current-user-owned folder and a protected owner-only DACL in
-Properties > Security for both directory and file. Then run `trello-mcp auth status`.
+Properties > Security for both directory and file. Then run the installer's quoted absolute-path
+status command.
 
 ## Troubleshooting
 
 The CLI prefixes errors with `trello-mcp auth:`; source resolution may also
 prepend `credentials file <path>:`. Exact storage messages include:
 
-- `credentials directory is group/world accessible; chmod 700 ~/.secrets or rerun trello-mcp auth`
+- `credentials directory is group/world accessible; chmod 700 ~/.secrets or rerun the installer's absolute-path auth command`
 - `credentials directory is group/world writable; remove group/world write permissions (chmod go-w) or choose a private directory with TRELLO_MCP_CREDENTIALS`
-- `credentials file is group/world accessible; chmod 600 the credentials file or rerun trello-mcp auth`
-- `credentials must be owned by the current user; rerun trello-mcp auth as that user`
+- `credentials file is group/world accessible; chmod 600 the credentials file or rerun the installer's absolute-path auth command`
+- `credentials must be owned by the current user; rerun the installer's absolute-path auth command as that user`
 - `credentials parent must be a directory, not a symlink; choose a real directory with TRELLO_MCP_CREDENTIALS`
 - `credentials file must be a regular file, not a symlink`
-- Windows: `credentials require a protected owner-only Windows DACL and ownership by the current user; remove access for other users in Properties > Security on the credentials directory and .trello-mcp.secret, then rerun trello-mcp auth`
+- Windows: `credentials require a protected owner-only Windows DACL and ownership by the current user; remove access for other users in Properties > Security on the credentials directory and .trello-mcp.secret, then rerun the installer's absolute-path auth command`
 
 Fix permissions only on a path you own and intend to keep private, or select a
 new private parent with `TRELLO_MCP_CREDENTIALS`. Replace symlinks with real
@@ -207,8 +217,11 @@ paths, and rerun as the owner rather than bypassing ownership checks.
   expired or revoked token, a missing required scope (especially write scope) or no access to that object;
   it is not proof of an invalid token. Check the matching API key and token. If `workspace_find {}`
   succeeds, the token is valid for that read; check object access or write scope. If renewal is needed,
-  CLI users rerun the printed absolute-path auth command privately and Desktop users update extension
-  settings, then reconnect or restart. During `auth` or `auth status` validation a 401 prints a
+  CLI users rerun the printed absolute-path auth command privately (with `--file` and that path when a
+  client config sets `TRELLO_MCP_CREDENTIALS` to a dedicated file; if it names `~/.secrets.env`, update that
+  store privately or point the override at a dedicated file), Desktop users update extension settings, and clients whose
+  config sets `TRELLO_API_KEY` and `TRELLO_TOKEN` update them there (they win over saved files), then
+  reconnect or restart. During `auth` or `auth status` validation a 401 prints a
   CLI-specific message and saves nothing.
 - Configured server with 403: check object access, granted permissions and token scopes; renewal is not
   automatically required. Scope and access failures are not always 403. Network and rate-limit failures
@@ -260,10 +273,11 @@ operations, and names of workspaces outside the allowlist are not returned.
 ## Text limits
 
 Human text fields (descriptions, comments, names, checklist items, name filters and custom-field text) are
-validated in Unicode code points at runtime; tool schemas omit the limit to stay small. The only documented
-upstream figure is the card description, "Up to 16384 chars" in Trello's object definitions, and Trello does not
-define how it counts Unicode. Every other field has a local 16,384 code point ceiling because Trello documents
-no limit; it is a safety bound of this server, not an observed or documented Trello maximum. Whole requests
+validated in Unicode code points at runtime; tool schemas omit the limit to stay small. Every field has a
+local 16,384 code point ceiling, a safety bound of this server. Trello documents up to 16384 characters for card
+descriptions and, at creation, for board, list, checklist, check item and label names and board descriptions,
+and 256 for attachment names; it does not define how it counts Unicode. Comments, card names, custom-field
+text and `nameFilter` have no documented upstream figure. Whole requests
 have separate byte caps: 1 MiB for text-bearing tools, 14 MiB for `attachment_upload`, 16 KiB otherwise. The
 per-field table is in [tools](tools.md#text-limits). Live checks accepted 16,384 ASCII characters for
 card names/descriptions, comments and checklist item names; only descriptions have supplementary-character
@@ -337,6 +351,11 @@ round-trip evidence. These observations are not upstream maxima or Unicode evide
 - Rolling limits: 300 requests/10s per key, 100/10s per token, and a conservative
   100/900s for all member-prefixed requests. Rate headers can reduce the budget.
 - HTTP 429 allows at most three retries, honoring `Retry-After` across concurrent
-  calls. Delays above 30s fail instead of retrying early.
+  calls. Delays above 30s fail instead of retrying early, and later calls fail fast with the same
+  `trello API: HTTP 429` error until the shared cooldown is under 30s.
+- When a wait would hold a request past its deadline (45s per request), the call fails at once: a Trello
+  429 cooldown reports `trello API: HTTP 429; rate limit exceeded; retry after <N>s`, and a local quota or
+  header-reported exhaustion reports `local rate limit: request quota exhausted; retry after <N>s`, with no
+  HTTP marker and no request sent. Tool calls have a 60s deadline.
 - Limits are per process. Other clients sharing credentials still consume the
   same upstream quota.

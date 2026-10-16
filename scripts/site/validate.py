@@ -2,7 +2,7 @@
 
 Run: python3 -I scripts/site/validate.py
 Parser regression checks: python3 -I scripts/site/validate.py --self-test
-Release gate: RELEASE_TAG=v0.8.0 python3 -I scripts/site/validate.py
+Release gate: RELEASE_TAG=vX.Y.Z python3 -I scripts/site/validate.py
 """
 from collections import Counter
 from html import unescape
@@ -667,9 +667,10 @@ def validate_clients(items):
     require('server_health' in flat and 'trello-mcp auth status' in flat, 'Secret-free verification')
 
 
-# ---- Read-parameter table against the registration and runtime schema ----
+# ---- Parameter tables against the registration and runtime schema ----
 
 READ_HEADING = '## Read parameters'
+MUTATION_HEADING = '## Mutation parameters'
 
 
 def registry_tools(source):
@@ -687,7 +688,13 @@ def registry_tools(source):
             require(creation is not None, 'Missing cardCreateParams constant')
             names += creation.group(1).split()
         required = re.search(r'required: "([^"]*)"', line)
-        tools[definition.group(1)] = (names, set(required.group(1).split()) if required else set(), 'write: true' in line)
+        name = definition.group(1)
+        require(name not in tools, f'Duplicate registered tool: {name}')
+        require(len(names) == len(set(names)), f'Duplicate registered parameter for {name}')
+        required_names = required.group(1).split() if required else []
+        require(len(required_names) == len(set(required_names)) and set(required_names) <= set(names),
+                f'Invalid registered required parameters for {name}')
+        tools[name] = (names, set(required_names), 'write: true' in line)
     return tools
 
 
@@ -774,6 +781,52 @@ def check_read_parameters(markdown, registry_source, arguments_source):
                 require(segment is not None, f'Missing {key} values for {name}')
                 require(ticks(segment.group(1)) == values, f'Enum drift for {name}.{key}: {sorted(values)}')
         require(mentioned == expected, f'Undocumented or extra rules for {name}: expected {sorted(expected)}, found {sorted(mentioned)}')
+    return rows
+
+
+def mutation_keys(cell, name):
+    """Only top-level names belong in input cells; nested guidance goes in Rules."""
+    if cell == 'none':
+        return set()
+    require(re.fullmatch(r'`[A-Za-z][A-Za-z0-9]*`(?:,\s*`[A-Za-z][A-Za-z0-9]*`)*', cell),
+            f'Invalid mutation parameter cell for {name}: {cell}')
+    keys = re.findall(r'`([^`]+)`', cell)
+    require(len(keys) == len(set(keys)), f'Duplicate mutation parameter for {name}')
+    return set(keys)
+
+
+def check_mutation_parameters(markdown, registry_source):
+    """Compare every write/transfer row's top-level inputs with its registration."""
+    start = markdown.find(MUTATION_HEADING)
+    require(start >= 0, f'Missing {MUTATION_HEADING} section in tools.md')
+    rows = []
+    for line in markdown[start + len(MUTATION_HEADING):].split('\n'):
+        if line.startswith('|'):
+            rows.append([cell.strip() for cell in line.strip().strip('|').split('|')])
+        elif rows:
+            break
+    require(len(rows) > 2 and rows[0] == ['Tool', 'Required input', 'Optional input', 'Rules'],
+            'Mutation parameter table header')
+    require(all(len(row) == 4 for row in rows), 'Ragged mutation parameter table')
+    rows = rows[2:]
+    tools = registry_tools(registry_source)
+    writes = {name for name, (_, _, write) in tools.items() if write}
+    listed = []
+    for tool, _, _, _ in rows:
+        require(re.fullmatch(r'`[a-z_]+`', tool), f'Invalid mutation tool cell: {tool}')
+        listed.append(tool.strip('`'))
+    require(len(listed) == len(set(listed)), 'Duplicate tool in the mutation parameter table')
+    require(set(listed) == writes,
+            f'Mutation parameter table tools differ from registry: missing {sorted(writes - set(listed))}, extra {sorted(set(listed) - writes)}')
+    for tool, required_cell, optional_cell, _ in rows:
+        name = tool.strip('`')
+        params, required, _ = tools[name]
+        have_required = mutation_keys(required_cell, name)
+        have_optional = mutation_keys(optional_cell, name)
+        require(have_required == required,
+                f'Mutation requiredness drift for {name}: registry requires {sorted(required)}, table has {sorted(have_required)}')
+        require(have_optional == set(params) - required,
+                f'Mutation parameter drift for {name}: optional {sorted(set(params) - required)}, table has {sorted(have_optional)}')
     return rows
 
 
@@ -986,8 +1039,10 @@ def validate():
     registry_source = (ROOT / 'internal/tools/registry.go').read_text() + (ROOT / 'internal/tools/delivery.go').read_text()
     read_rows = check_read_parameters(tools_doc, registry_source, (ROOT / 'internal/tools/arguments.go').read_text())
     check_read_table_on_page(read_rows, tools_page)
-    for text_name, text in (('tools.md', tools_doc), ('configuration.md', configuration)):
-        require('Trello documents no limit' in normalized(text) and 'Up to 16384 chars' in normalized(text), f'{text_name}: text-limit evidence labels')
+    mutation_rows = check_mutation_parameters(tools_doc, registry_source)
+    for text_name, text, labels in (('tools.md', tools_doc, ('No documented limit', 'Up to 16384 chars', 'max 256')),
+                                    ('configuration.md', configuration, ('no documented upstream figure', '256 for attachment names'))):
+        require(all(label in normalized(text) for label in labels), f'{text_name}: text-limit evidence labels')
     tools_text = ' '.join(tools_page.text('p'))
     check_batch_errors(tools_doc, tools_text)
     require('filter' in details['board_activity'] and 'filter' in details['card_history'], 'Activity tools must document filter')
@@ -1007,6 +1062,7 @@ def validate():
     print(f'PASS: README {len(lines)} lines, six-row benchmark, paste line, four badges; credential refusals documented in configuration.md')
     print(f'PASS: version {version} matches health.go, server.json and all site pages' + (f'; RELEASE_TAG {tag} accepted' if tag else ' (no RELEASE_TAG)'))
     print(f'PASS: read parameter table matches {len(read_rows)} registered non-write tools and the site tools page')
+    print(f'PASS: mutation parameter table matches {len(mutation_rows)} registered write/transfer tools')
     print('PASS: server.json source template checked for metadata-only shape; release package validation belongs to the pinned publisher and release_manifest.py')
     total = sum(file.stat().st_size for file in SITE.rglob('*') if file.is_file())
     print(f'PASS: one local CSS file ({len(css.encode())} bytes), copy.js ({len(copy_js)} bytes), home {html_sizes[SITE / "index.html"]} bytes, HTML {sum(html_sizes.values())} bytes; site {total} bytes')
@@ -1353,7 +1409,7 @@ class ReadParameterTests(unittest.TestCase):
 
     def test_enum_drift_fails(self):
         with self.assertRaisesRegex(ValueError, 'Enum drift for card_get.view'):
-            self.check(self.edit('`view`: `json` or `markdown`', '`view`: `json`, `markdown` or `html`'))
+            self.check(self.edit('`view`: `json` (default) or `markdown`', '`view`: `json` (default), `markdown` or `html`'))
         with self.assertRaisesRegex(ValueError, 'Enum drift for server_health.detail'):
             self.check(self.edit('`performance` or `policy`', '`performance`'))
 
@@ -1368,6 +1424,80 @@ class ReadParameterTests(unittest.TestCase):
         arguments = self.arguments.replace('return 100, 1000', 'return 100, 500', 1)
         with self.assertRaisesRegex(ValueError, 'Limit drift for card_find'):
             self.check(arguments=arguments)
+
+
+class MutationParameterTests(unittest.TestCase):
+    registry = '''const cardCreateParams = "name desc checklist"
+{name: "board_create", params: "workspaceId name desc", required: "name", write: true}
+{name: "card_create", params: "boardId listId " + cardCreateParams, required: "listId name", write: true}
+{name: "card_move", params: "boardId cardId listId pos", required: "cardId listId", write: true}
+{name: "card_copy", params: "boardId cardId listId name pos", required: "cardId listId", write: true}
+{name: "card_get", params: "boardId cardId", required: "cardId"}
+'''
+    markdown = '''## Mutation parameters
+
+| Tool | Required input | Optional input | Rules |
+| --- | --- | --- | --- |
+| `board_create` | `name` | `workspaceId`, `desc` | Active workspace default. |
+| `card_create` | `listId`, `name` | `boardId`, `desc`, `checklist` | Nested checklist has `items`. |
+| `card_move` | `cardId`, `listId` | `boardId`, `pos` | Destination list. |
+| `card_copy` | `cardId`, `listId` | `boardId`, `name`, `pos` | Copy-only name. |
+'''
+
+    def check(self, markdown=None, registry=None):
+        return check_mutation_parameters(markdown or self.markdown, registry or self.registry)
+
+    def test_exact_rows_and_card_create_expansion(self):
+        self.assertEqual(len(self.check()), 4)
+        self.assertIn('checklist', registry_tools(self.registry)['card_create'][0])
+
+    def test_live_table_matches(self):
+        source = (ROOT / 'internal/tools/registry.go').read_text() + (ROOT / 'internal/tools/delivery.go').read_text()
+        self.assertEqual(len(check_mutation_parameters((ROOT / 'docs/tools.md').read_text(), source)), 29)
+
+    def test_false_board_create_board_id(self):
+        with self.assertRaisesRegex(ValueError, 'parameter drift for board_create'):
+            self.check(self.markdown.replace('`workspaceId`, `desc`', '`boardId`, `workspaceId`, `desc`'))
+
+    def test_omitted_optional_board_id(self):
+        with self.assertRaisesRegex(ValueError, 'parameter drift for card_create'):
+            self.check(self.markdown.replace('`boardId`, `desc`, `checklist`', '`desc`, `checklist`'))
+
+    def test_requiredness_drift(self):
+        with self.assertRaisesRegex(ValueError, 'requiredness drift for board_create'):
+            self.check(self.markdown.replace('| `name` | `workspaceId`, `desc` |', '| none | `name`, `workspaceId`, `desc` |'))
+
+    def test_wrong_variant(self):
+        with self.assertRaisesRegex(ValueError, 'parameter drift for card_move'):
+            self.check(self.markdown.replace('| `boardId`, `pos` |', '| `boardId`, `name`, `pos` |'))
+
+    def test_duplicate_and_missing_rows(self):
+        row = self.markdown.splitlines()[-1] + '\n'
+        with self.assertRaisesRegex(ValueError, 'Duplicate tool'):
+            self.check(self.markdown + row)
+        with self.assertRaisesRegex(ValueError, 'tools differ'):
+            self.check(self.markdown.replace(row, ''))
+
+    def test_unknown_tool(self):
+        with self.assertRaisesRegex(ValueError, 'tools differ'):
+            self.check(self.markdown.replace('`card_copy`', '`card_clone`'))
+
+    def test_unknown_and_nested_keys(self):
+        for key in ('unknown', 'items', 'checklist.items'):
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, 'parameter drift|Invalid mutation parameter cell'):
+                self.check(self.markdown.replace('`boardId`, `desc`, `checklist`', f'`boardId`, `desc`, `checklist`, `{key}`'))
+
+    def test_duplicate_keys(self):
+        with self.assertRaisesRegex(ValueError, 'Duplicate mutation parameter'):
+            self.check(self.markdown.replace('`workspaceId`, `desc`', '`workspaceId`, `desc`, `desc`'))
+
+    def test_duplicate_registry_definition(self):
+        with self.assertRaisesRegex(ValueError, 'Duplicate registered tool'):
+            self.check(registry=self.registry + self.registry.splitlines()[1])
+
+    def test_rules_cannot_hide_an_input(self):
+        with self.assertRaisesRegex(ValueError, 'parameter drift for card_create'):
+            self.check(self.markdown.replace('`boardId`, `desc`, `checklist`', '`boardId`, `desc`'))
 
 
 class VersionTests(unittest.TestCase):

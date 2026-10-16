@@ -23,7 +23,7 @@
 <link rel="icon" href="/trello-mcp/assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/trello-mcp/assets/style.css">
 <script src="/trello-mcp/assets/copy.js" defer></script>
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","@id":"https://avhn.github.io/trello-mcp/#software","name":"trello-mcp","url":"https://avhn.github.io/trello-mcp/","description":"A local Trello MCP server in Go with compact curated responses, workspace restrictions and read-only opt-in.","operatingSystem":"Linux, macOS, Windows","applicationCategory":"DeveloperApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://github.com/avhn/trello-mcp/blob/main/LICENSE","softwareVersion":"0.8.0","downloadUrl":"https://github.com/avhn/trello-mcp/releases","codeRepository":"https://github.com/avhn/trello-mcp","programmingLanguage":"Go"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","@id":"https://avhn.github.io/trello-mcp/#software","name":"trello-mcp","url":"https://avhn.github.io/trello-mcp/","description":"A local Trello MCP server in Go with compact curated responses, workspace restrictions and read-only opt-in.","operatingSystem":"Linux, macOS, Windows","applicationCategory":"DeveloperApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://github.com/avhn/trello-mcp/blob/main/LICENSE","softwareVersion":"0.9.0","downloadUrl":"https://github.com/avhn/trello-mcp/releases","codeRepository":"https://github.com/avhn/trello-mcp","programmingLanguage":"Go"}</script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to main content</a>
@@ -42,7 +42,7 @@
 <tr><td>Transport</td><td>Local stdio</td><td>Hosted HTTP</td><td>Local stdio</td></tr>
 <tr><td>Auth</td><td>API key and token</td><td>OAuth 2.0</td><td>API key and token</td></tr>
 <tr><td>Runtime</td><td>Go binary</td><td>Hosted</td><td>JavaScript</td></tr>
-<tr><td>Scope</td><td>Accessible open boards, including guest boards; optional workspace allowlist</td><td>Workspace-scoped OAuth; current multi-workspace coverage unverified</td><td>Every board the token can see</td></tr>
+<tr><td>Scope</td><td>Accessible open boards, including guest boards; optional workspace allowlist</td><td>Workspace-scoped OAuth; current multi-workspace coverage unverified</td><td>Token-wide; optional board-list workspace filter</td></tr>
 </tbody></table></div>
 <p>Checked 2026-10-16: Atlassian's <a href="https://support.atlassian.com/trello/docs/connect-trello-to-ai-assistants-with-trello-mcp/">support guide</a> describes comments, activity, custom fields and URL attachments, while its <a href="https://github.com/atlassian/trello-mcp-server">repository</a> lists them as coming soon. The sources also differ on multi-workspace support. Current coverage was not independently verified; see both official sources.</p>
 <p>This server offers compact curated JSON and optional server-side workspace allowlisting, runs locally in Go; this is a selective description, not a ranking. Benchmarks are synthetic, not competitor measurements; see the <a href="https://github.com/avhn/trello-mcp#readme">README</a>.</p></section>

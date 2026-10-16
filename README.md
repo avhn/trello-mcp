@@ -51,11 +51,7 @@ Set up trello-mcp by following https://raw.githubusercontent.com/avhn/trello-mcp
    every health detail then returns just the setup response; version and policy fields need credentials.
 
 Claude Desktop bundles support macOS and Windows amd64 (owner-tested at v0.6.0; Windows on Arm is not
-claimed); Linux Desktop remains beta.
-Download from [normal releases](https://github.com/avhn/trello-mcp/releases/latest), verify the checksum and
-install/update manually. Setup needs no terminal (only the checksum check does); create the key/token in a browser and use
-extension settings, not CLI auth. They are not directory listed or one-click. Removal uses Desktop controls,
-not CLI logout; settings deletion/migration and token revocation are not guaranteed. See
+claimed); Linux Desktop remains beta. Download bundles from GitHub releases, verify checksums, and install/update manually. Registry discovery is separate from Desktop installation. Create the key/token in a browser and use extension settings, not CLI auth. Removal uses Desktop controls, not CLI logout; settings migration and token revocation are not guaranteed. See
 [docs/setup.md](docs/setup.md#claude-desktop-extension).
 
 Update, rollback, uninstall and revocation are in [docs/setup.md](docs/setup.md#update-roll-back-and-uninstall).
@@ -97,24 +93,9 @@ and the reference-name mapping are in [docs/tools.md](docs/tools.md).
   `label_create`, `label_update`, `label_delete`, `customfield_find`, `customfield_set`, `attachment_find`,
   `attachment_add`, `attachment_upload`, `attachment_download`, `server_health`.
 
-Responses are one compact JSON text block: curated fields, no output schemas, structured content, `fields=all`
-or inline attachment bodies. Collections return `{"items":[...],"next":"cursor"}`. Writes return
-`{id,name?,url?}` or `{ok:true}`. For requested card fields subject to zero-value omission, an absent key
-means empty, false or unset; activity name reuse and redacted upload URLs are not empty signals. When a
-single mutation may have applied but a requested field is unconfirmed, the result lists `unconfirmed`
-fields with `isError`; batches put `error` and `unconfirmed` on entries, not the envelope. Inspect before
-retrying. Date and label-color clears are
-sent as query parameters and verified from the response. Activity is flat, supports an upstream `filter`
-(default `all`) and `since`/`before` paging, and repeats card and list names only when they change within a page.
-`card_find` summaries omit `url`; use `detail: "full"` or `card_get` when you need it. Pass
-`includeDesc: false` to `card_find` to skip description previews when triaging or paging. Human text fields
-carry a 16,384 code point limit; only the card description limit is documented by Trello, the rest are
-labeled local ceilings in [docs/tools.md](docs/tools.md#text-limits).
+Responses are compact text JSON with curated projections, no output schemas, structured content, `fields=all` or inline attachment bodies. Collections return `{"items":[...],"next":"cursor"}`; `next` appears only when another page may exist, and that page can be empty. Zero-value omission has activity-name and redaction exceptions; single-call unconfirmed writes retain progress and set `isError`, while batches report per entry. Inspect before retrying. See [paging](docs/tools.md#profiles-and-common-parameters), [activity](docs/tools.md#activity-and-comments) and [projection](docs/tools.md#response-conventions) details.
 
-Through v1.0.0, the stability intent covers tool names, `TRELLO_TOOLS` selection syntax, local-health
-semantics and the v0.7.0 configured basic/detailed fields. Values, documentation, packaging, descriptions
-and Linux beta status can change; incompatible changes require explicit review in the v1.0.0 audit.
-The [compatibility and versioning policy](docs/tools.md#compatibility-and-versioning) is binding from v1.0.0.
+The [compatibility and versioning policy](docs/tools.md#compatibility-and-versioning) defines covered interfaces and versioning; it is binding for releases from v1.0.0.
 
 ## How it compares
 
@@ -126,7 +107,7 @@ ranking of capabilities or token efficiency. The benchmark below does not execut
 | Transport | Local stdio | Hosted remote HTTP at `mcp.trello.com/v1` | Local stdio |
 | Auth | User-managed API key and token | OAuth 2.0 | API key and token |
 | Runtime | Native Go binary | Hosted; no local runtime | JavaScript entrypoint; package declares Bun >=1.0.0 |
-| Scope | Accessible open boards, including guest boards; optional workspace allowlist | Workspace-scoped OAuth; current multi-workspace coverage unverified | Every board the token can see |
+| Scope | Accessible open boards, including guest boards; optional workspace allowlist | Workspace-scoped OAuth; current multi-workspace coverage unverified | Every board the token can see; optional workspace filter for board listing, not per-object checks |
 | Tool inventory (not parity) | 48 by default, [10 in a profile](#read-oriented-profile) | Capability categories published, no tool count | 57 direct registrations in pinned source |
 | Response shaping | Curated compact text JSON | Not evaluated | Pretty JSON with [card-list previews and size controls](https://github.com/delorenj/mcp-server-trello/blob/v1.8.1/src/card-list-preview.ts) |
 
@@ -156,7 +137,7 @@ Synthetic raw pretty JSON is a reproducible reference, not measured output from 
 
 | Startup cost | Default (48 tools) | Read-oriented discovery (10 tools) |
 | --- | --- | --- |
-| tools/list | 20801 chars (~5200 tokens) | 4374 chars (~1094 tokens) |
+| tools/list | 20694 chars (~5174 tokens) | 4400 chars (~1100 tokens) |
 | Initialize instructions | 140 chars (~35 tokens) | 141 chars (~35 tokens) |
 | Initialize result (including instructions) | 304 chars (~76 tokens) | 305 chars (~76 tokens) |
 
@@ -184,7 +165,8 @@ Synthetic raw pretty JSON is a reproducible reference, not measured output from 
 - Every scoped read and write resolves the real owning board. Moves, copies, comments, checklist items,
   labels, custom fields, members and attachments are checked against their actual parents; supplied
   board ids are constraints, not authorization. Unverifiable ownership fails closed.
-- Server-policy denials are distinct from upstream failures and never reveal resolved ids or names;
+- Server-policy denials are distinct from upstream failures and never reveal resolved ids or names
+  outside the allowlist (a `boardId` mismatch on an allowed object names its actual board);
   `server_health` with `detail: "policy"` explains restrictions, not validated authentication.
 - Path uploads are off unless `TRELLO_UPLOAD_DIR` is set and are confined to regular files below it;
   downloads use a private directory, OAuth headers, no redirects and a 10 MiB cap.
@@ -222,7 +204,7 @@ The tag message is the release description: `git tag -s --cleanup=verbatim vX.Y.
 
 Normal releases include native CLI binaries, Claude Desktop bundles (`.mcpb`, pinned CLI 2.1.2) and
 checksums. macOS and Windows amd64 bundles are supported; Linux Desktop is beta. Install and update bundles
-manually using the setup guide. They are not directory listed and there is no one-click Desktop install.
+manually using the setup guide. Registry discovery is separate from Desktop installation.
 
 ## License
 

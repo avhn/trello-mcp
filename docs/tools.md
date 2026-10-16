@@ -95,29 +95,45 @@ response. See [configuration](configuration.md) for the exact message and preced
   list's board and otherwise uses the active board unless `mine` is true.
 - Object ids are required for object-scoped calls: `cardId`, `listId`,
   `checklistId`, `commentId`, `itemId`, `labelId`, `customFieldId`, `memberId`,
-  `attachmentId`, as appropriate. Item mutations require both `checklistId` and
-  `itemId`; comment mutations require both `cardId` and `commentId`.
-- `pos` accepts `top`, `bottom`, or a positive number. Dates use RFC 3339;
+  `attachmentId`, as appropriate. Item updates and deletes require both `checklistId` and
+  `itemId`; comment updates and deletes require both `cardId` and `commentId`.
+- `pos` accepts `top`, `bottom`, a JSON number, or a string in JSON number syntax (no leading sign,
+  leading zeros, whitespace, hex, digit separators or bare dot; an exponent sign is allowed) with
+  `0 < pos <= 1e20`, checked after conversion to a double; Trello receives that double as a plain
+  decimal (`"1e5"` is sent as `100000`). The upper bound is local, not an official Trello maximum. Dates use RFC 3339;
   empty `due` or `start` clears a date, and empty label `color` clears a color. Optional
   booleans preserve explicit false.
 - Every result is one compact JSON text block, without structured content or an
-  output schema. Writes return `{id,name?,url?}` or `{ok:true}`, never raw objects;
-  card creation can also include checklist progress and an error.
+  output schema. Collection reads return `{items:[...],next?}`: `items` is always an array, possibly
+  empty, and `next` appears only when another page may exist and is passed back as `before`. Writes
+  never return raw objects: they return `{id,name?,url?}` or `{ok:true}`; card
+  creation can add checklist progress, `error` and `unconfirmed`; a partial mutation returns
+  `{id,error,unconfirmed}`; `card_create_batch` returns `{items:[...]}` with per-entry results; and
+  `attachment_download` returns `{path,size,mimeType}`.
 - `card_find` (default `detail: "summary"`) returns IDs, ownership, labels, members, dates,
   status and a description preview of at most 200 code points with `descTruncated`, but no `url`.
   `detail: "full"` adds `url`, `start` and `dateLastActivity` but still limits collection descriptions to
   200 code points. `card_get` keeps `url` and untruncated descriptions at both levels; full adds
-  checklists and members. Filters, authorization, IDs and `next` cursors are identical in both modes.
+  `start`, `dateLastActivity`, checklists and members. Filters, authorization, IDs and `next` cursors are identical in both modes.
+- Card keys: `id`, `name`, `idBoard`, `idList`, `desc`, `descTruncated`, `due`, `dueComplete`,
+  `closed`, `labels` (`{id,name,color?}`) and `idMembers`; `url` (both `card_get` levels, full `card_find`); `start` and `dateLastActivity` (full only).
+  Full `card_get` adds `checklists` and `members` (`{id,username?,fullName?}`). `extraFields` add
+  `idMembersVoted` (member ids, for `votes`), `stickers` (`{id,image?,top?,left?}`), `pluginData`
+  (`{id,idPlugin?,value?}`) and `customFieldItems` (`{idCustomField,idValue?,value?}`, where `value`
+  holds one of `text`, `number`, `date` or `checked`). A checklist, in `checklists` or from
+  `checklist_get`, is `{id,name,idBoard?,idCard?,checkItems:[{id,name,state,pos?,due?,idMember?}]}`.
 - `card_find` accepts `includeDesc`, a boolean defaulting to `true`. `includeDesc: false` drops `desc` and
   `descTruncated` from summaries for triage, listing or paging; it is rejected together with
   `detail: "full"`. Filters, ownership checks, IDs, retained values and `next` cursors do not change, and
   `card_get` and full detail are unaffected. On the synthetic 30-card benchmark fixture the response shrinks
-  from 11,873 to 4,943 characters (58.4%); the saving on your boards depends on your descriptions, and the
-  `tools/list` entry grows by 80 characters. Character counts are not tokenizer measurements.
+  from 11,873 to 4,943 characters (58.4%); the saving on your boards depends on your descriptions.
+  Tool descriptions are measured as serialized metadata, not tokenized text.
 - `card_find` `before` is a card ID returned earlier in the same filtered snapshot, never a date.
-  Dates and malformed IDs are rejected before any request; syntactically valid IDs are checked against
-  the freshly fetched filtered snapshot and rejected if absent. `mine: true` selects account-wide assigned cards and
-  cannot be combined with `boardId` or `listId`. Board, list and mine modes discover open cards only,
+  A value is sent to the snapshot lookup only if it is 1 to 64 letters, digits, `_` or `-` and not a
+  `YYYY-MM-DD` or `YYYYMMDD` date; anything else, such as an RFC 3339 timestamp, is rejected before any
+  request. A value that passes, including a numeric epoch, is checked against the freshly fetched
+  filtered snapshot and rejected if absent. `mine: true` selects account-wide assigned cards and cannot be combined with `boardId` or
+  `listId`. Board, list and mine modes discover open cards only,
   with no archive selector. An authorized `card_get` can still retrieve a known archived card ID from
   history; empty discovery does not imply deletion.
 - Unknown arguments name the key, object location and allowed keys. Duplicate
@@ -135,11 +151,11 @@ checked against the registration and runtime schema by the repository validator.
 | `workspace_use` | `workspaceId` | none | local selection; clears the active board |
 | `board_find` | none | `workspaceId`, `nameFilter` | accessible open boards, including guest boards, unless `workspaceId` narrows |
 | `board_use` | `boardId` | none | local selection |
-| `board_get` | none | `boardId`, `detail` | `detail`: `summary` or `full` |
+| `board_get` | none | `boardId`, `detail` | `detail`: `summary` (default) or `full` |
 | `board_activity` | none | `boardId`, `limit`, `since`, `before`, `filter` | `limit`: default 20, max 1000; `filter`: default `all` |
 | `list_find` | none | `boardId`, `nameFilter` | open lists only |
-| `card_find` | none | `boardId`, `listId`, `mine`, `nameFilter`, `detail`, `limit`, `before`, `includeDesc` | `detail`: `summary` or `full`; `limit`: default 100, max 1000; `includeDesc`: default `true` |
-| `card_get` | `cardId` | `boardId`, `detail`, `view`, `extraFields` | `detail`: `summary` or `full`; `view`: `json` or `markdown`; `extraFields`: up to four unique of `stickers`, `pluginData`, `votes` and `customFieldItems` |
+| `card_find` | none | `boardId`, `listId`, `mine`, `nameFilter`, `detail`, `limit`, `before`, `includeDesc` | `detail`: `summary` (default) or `full`; `limit`: default 100, max 1000; `includeDesc`: default `true` |
+| `card_get` | `cardId` | `boardId`, `detail`, `view`, `extraFields` | `detail`: `summary` (default) or `full`; `view`: `json` (default) or `markdown`; `extraFields`: up to four unique of `stickers`, `pluginData`, `votes` and `customFieldItems` |
 | `card_history` | `cardId` | `boardId`, `limit`, `before`, `since`, `filter` | `limit`: default 20, max 1000; `filter`: default `all` |
 | `attachment_find` | `cardId` | `boardId` | metadata only |
 | `comment_find` | `cardId` | `boardId`, `limit`, `before`, `since` | `limit`: default 20, max 100 |
@@ -149,7 +165,7 @@ checked against the registration and runtime schema by the repository validator.
 | `member_find` | none | `boardId`, `nameFilter` | none |
 | `label_find` | none | `boardId`, `nameFilter` | none |
 | `customfield_find` | none | `boardId` | none |
-| `server_health` | none | `detail` | `detail`: `basic`, `detailed`, `metadata`, `performance` or `policy` |
+| `server_health` | none | `detail` | `detail`: `basic` (default), `detailed`, `metadata`, `performance` or `policy` |
 
 `card_find` cursors and action cursors differ. A `card_find` `before` is a card ID from the same filtered
 snapshot and `mine` cannot be combined with `boardId` or `listId`. Trello JSON responses have an 8 MiB
@@ -160,13 +176,13 @@ for this limit, which is not an MCP output cap. Activity, history and comment `b
 `since` take an action ID or an RFC 3339 date, and `filter` applies upstream before paging.
 
 ```json
-{"cardId":"c1","view":"markdown"}
+{"cardId":"c1","view":"markdown","detail":"full"}
 {"cardId":"c1","detail":"full","extraFields":["votes"]}
 {"listId":"l1","includeDesc":false,"limit":50}
 ```
 
 `card_get` with `view: "markdown"` returns only `{markdown:string}`, rendering name, description, URL,
-due and checklist text. It does not render IDs, members, labels, start/activity or extras. Request JSON
+due and, with `detail: "full"`, checklist text. It does not render IDs, members, labels, start/activity or extras. Request JSON
 for metadata or `extraFields`, even though a Markdown-plus-extras call can fetch those fields.
 
 ## Text limits
@@ -177,12 +193,13 @@ limits to keep the catalog small; the runtime check and its error message state 
 
 | Field | Local limit | Evidence |
 | --- | --- | --- |
-| Card `desc` (`card_create`, `card_update`, batch cards) | 16,384 code points | Trello's object definitions say "Up to 16384 chars"; how upstream counts Unicode is not defined |
-| Board `desc` | 16,384 code points | Trello documents no limit; local ceiling |
-| Comment `text`, card, list, board, checklist, checklist item, label and attachment names, `checklist.items` entries, custom-field text and `nameFilter` | 16,384 code points | Trello documents no limit; local ceiling, not an observed Trello maximum |
+| Card `desc` (`card_create`, `card_update`, batch cards) | 16,384 code points | Trello's object definitions: "Up to 16384 chars"; Unicode counting undefined |
+| Board name and `desc`, list, checklist, checklist item and label names, `checklist.items` entries | 16,384 code points | Trello's API reference: up to 16384 characters at creation; Unicode counting undefined |
+| Attachment `name` | 16,384 code points | Trello's API reference: max 256 (lower than local) |
+| Comment `text`, card names, custom-field text and `nameFilter` | 16,384 code points | No documented limit; local ceiling |
 
 A ceiling marked local is this server's own safety bound. It may be lower or higher than what Trello accepts;
-the card description row is the only one with a documented upstream figure. Live checks accepted 16,384
+only the comment, card name, custom-field text and `nameFilter` row lacks a documented upstream figure. Live checks accepted 16,384
 ASCII characters for card names/descriptions, comments and checklist item names; only descriptions also
 have supplementary-character round-trip evidence. These observations are not upstream maxima or Unicode
 evidence for the other fields. Request bodies have independent
@@ -242,8 +259,9 @@ object id, never resolved denied board/workspace ids or names. For example:
 `card c1 is outside the allowed workspaces (allowed: team)`. Unverifiable
 ownership explicitly fails closed without exposing resolved parent ids. Only
 after the allowlist passes, a supplied `boardId` mismatch reports `object <id> belongs to board <actual>, not the supplied
-boardId <expected>`. Read-only, confined path uploads and platform transfer
-refusals follow the same format. Do not assume these failures mean a broken token.
+boardId <expected>`. Confined path uploads and platform transfer refusals
+follow the same format. Read-only and profile-hidden tools are absent from tools/list; calling one
+anyway is rejected by the MCP layer as an unknown tool, not with a policy denial. Do not assume these failures mean a broken token.
 
 Upstream HTTP failures instead use `trello API: HTTP <status>`; 401/403 explicitly
 say `token/permission issue, not server policy`. With configured credentials these are never reported as
@@ -262,10 +280,12 @@ server omits Go zero values after decoding, so absence does not show whether ups
 an empty value. Apply the rule only after considering the requested
 projection and options (for example `includeDesc: false`).
 
-Two exceptions are not empty-value signals. Activity responses omit unchanged card and list names: reuse
-the last name for that ID earlier in the same page (names do not carry across pages). Security redaction
-also removes populated upstream data: uploaded attachment URLs are deliberately omitted. Never infer an
-empty upstream value from either.
+Two exceptions are not empty-value signals. An omitted card/list name reuses the last supplied name for
+that ID within this page; if none was supplied, the name is unknown. Each page starts fresh. Resolve by ID
+with `card_get`/`list_find` if needed; these return current accessible entities, not historical names, and
+`list_find` returns only open lists, so an unresolved or archived list may remain unknown. Security redaction
+also removes populated upstream data: `attachment_find` omits uploaded-file URLs (the
+`attachment_upload` write result returns Trello's `url`). Never infer an empty upstream value from either.
 
 Single-call partial results set MCP `isError`; batches put `error` and `unconfirmed` on entries, not on the
 envelope, so `isError` stays false for a batch with partial entries. Inspect every `items[]` entry, keep
@@ -276,10 +296,13 @@ progress ids and read back before retrying anything.
 `board_activity`, `card_history` and `comment_find` share a flat, type-specific projection:
 `id`, `type`, `date`, then only relevant fields. `by` is the username (the member id when Trello has no
 username); `cardId`, `listId`, `listBeforeId`, `listAfterId` and `boardId` are IDs, with `boardId` omitted
-when it equals the queried board. Entity names (`card`, `list`, `listBefore`, `listAfter`) appear on the first
-occurrence in a page and whenever the name changes; an omitted name means the last name for that ID earlier in
-the same page. Every new page starts fresh, so its first occurrence is complete. `checklist`, `item` and `state`
-describe progress; attachments keep id and name, never URLs. Comment `text` is unchanged.
+when it equals the queried board. Entity names (`card`, `list`, `listBefore`, `listAfter`) appear when
+supplied unless repeated for that ID. An omitted card/list name reuses the last supplied name for that ID
+within this page; if none was supplied, the name is unknown. Each page starts fresh. Resolve by ID with
+`card_get`/`list_find` if needed: these resolve current accessible entities, not historical names;
+`list_find` returns open lists, so unresolved or archived lists may remain unknown. `checklist`, `item` and `state`
+describe progress; attachments keep id and name, never URLs. Label actions add `label` as `{id,name,color?}`;
+member actions add `member`, a username or member id like `by`. Comment `text` is unchanged.
 `old` keeps previous scalar values, including false, zero, null and empty strings, with strings capped at
 80 Unicode characters; `oldTruncated` lists shortened fields and `changed` lists fields whose non-scalar old
 values were omitted. Other nested metadata and profile details are dropped.
@@ -298,10 +321,12 @@ Synthetic page input and its `ProjectActions` output (`boardId` is the resolved 
 {
   "boardId": "b1",
   "input": [
+    {"id":"a0","type":"updateCard","date":"2026-10-15T13:00:00Z","memberCreator":{"id":"m1","username":"synthetic"},"data":{"card":{"id":"c1"},"list":{"id":"l1"}}},
     {"id":"a1","type":"commentCard","date":"2026-10-15T12:00:00Z","memberCreator":{"id":"m1","username":"synthetic"},"data":{"board":{"id":"b1"},"card":{"id":"c1","name":"Example"},"list":{"id":"l1","name":"Doing"},"text":"Keep this text.\nNext line."}},
     {"id":"a2","type":"updateCard","date":"2026-10-15T11:00:00Z","memberCreator":{"id":"m1","username":"synthetic"},"data":{"card":{"id":"c1","name":"Example"},"list":{"id":"l1","name":"Doing"},"old":{"name":"Draft","idLabels":["label1"]}}}
   ],
   "output": [
+    {"id":"a0","type":"updateCard","date":"2026-10-15T13:00:00Z","by":"synthetic","cardId":"c1","listId":"l1"},
     {"id":"a1","type":"commentCard","date":"2026-10-15T12:00:00Z","by":"synthetic","cardId":"c1","card":"Example","text":"Keep this text.\nNext line.","listId":"l1","list":"Doing"},
     {"id":"a2","type":"updateCard","date":"2026-10-15T11:00:00Z","by":"synthetic","cardId":"c1","listId":"l1","old":{"name":"Draft"},"changed":["idLabels"]}
   ]
@@ -311,39 +336,47 @@ Synthetic page input and its `ProjectActions` output (`boardId` is the resolved 
 
 ## Mutation parameters
 
-| Tool(s) | Required input | Optional input beyond `boardId` |
-| --- | --- | --- |
-| `board_create` | `name` | `workspaceId` (active workspace default), `desc`, `defaultLists` |
-| `list_create` | `name` | `pos` |
-| `list_update` | `listId`, at least one update | `name`, `pos`, `idBoard` (destination), `closed` |
-| `list_archive` / `list_watch` | `listId` | watch: `subscribed` (default true) |
-| `card_create` | `listId`, `name` | `desc`, `due`, `start`, `pos`, `idMembers`, `idLabels`, `checklist` (`name` optional, `items` required) |
-| `card_create_batch` | `listId`, `cards` | each card has `name` and the same optional creation fields, including `checklist` |
-| `card_update` | `cardId`, at least one update | `name`, `desc`, `due`, `start`, `dueComplete`, `closed`, `pos`, `idMembers`, `idLabels` |
-| `card_archive` / `card_watch` | `cardId` | watch: `subscribed` (default true) |
-| `card_move` / `card_copy` | `cardId`, `listId` (destination) | `idBoard` (destination constraint), `pos`; copy: `name` |
-| `comment_create` | `cardId`, `text` | none |
-| `comment_update` / `comment_delete` | `cardId`, `commentId` | update also requires `text` |
-| `checklist_create` | `cardId`, `name` | `pos` |
-| `checklist_copy` | `checklistId` (source), `cardId` (destination) | `name`, `pos`; `boardId` constrains destination |
-| `checklist_item_create` | `checklistId`, `name` | `pos`, `checked`, `due`, `memberId` |
-| `checklist_item_update` | `checklistId`, `itemId`, at least one update | `name`, `state` (`complete`/`incomplete`), `pos`, `due`, `memberId` |
-| `checklist_item_delete` | `checklistId`, `itemId` | none |
-| `card_member_add` / `card_member_remove` | `cardId`, `memberId` | none |
-| `label_create` | `name` | `color` |
-| `label_update` | `labelId`, at least one update | `name`, `color` |
-| `label_delete` | `labelId` | none |
-| `customfield_set` | `cardId`, `customFieldId`, exactly one value input | `value` or `idValue`, as below |
-| `attachment_add` | `cardId`, HTTP(S) `url` | display `name` |
-| `attachment_upload` | `cardId`, exactly one of confined `path` or `base64` | `fileName` (required for base64), `mimeType`, display `name` |
-| `attachment_download` | `cardId`, `attachmentId` | none |
+| Tool | Required input | Optional input | Rules |
+| --- | --- | --- | --- |
+| `board_create` | `name` | `defaultLists`, `desc`, `workspaceId` | Uses active workspace by default; no `boardId`. |
+| `list_create` | `name` | `boardId`, `pos` | Uses the explicit or active board; position uses the common local bound. |
+| `list_update` | `listId` | `boardId`, `closed`, `idBoard`, `name`, `pos` | At least one update; `idBoard` is the destination. |
+| `list_archive` | `listId` | `boardId` | Optional `boardId` verifies expected ownership; it does not authorize access. |
+| `list_watch` | `listId` | `boardId`, `subscribed` | `subscribed` defaults to `true`. |
+| `card_create` | `listId`, `name` | `boardId`, `checklist`, `desc`, `due`, `idLabels`, `idMembers`, `pos`, `start` | Optional nested checklist: `name` optional, `items` required. |
+| `card_create_batch` | `cards`, `listId` | `boardId` | Each card requires `name` and accepts `desc`, `due`, `start`, `pos`, `idMembers`, `idLabels` and `checklist`; `boardId` is top-level only. |
+| `card_update` | `cardId` | `boardId`, `closed`, `desc`, `due`, `dueComplete`, `idLabels`, `idMembers`, `name`, `pos`, `start` | At least one update. |
+| `card_archive` | `cardId` | `boardId` | Optional `boardId` verifies expected ownership; it does not authorize access. |
+| `card_watch` | `cardId` | `boardId`, `subscribed` | `subscribed` defaults to `true`. |
+| `card_move` | `cardId`, `listId` | `boardId`, `idBoard`, `pos` | `listId` is the destination; `idBoard` constrains it. |
+| `card_copy` | `cardId`, `listId` | `boardId`, `idBoard`, `name`, `pos` | `listId` is the destination; `idBoard` constrains it. |
+| `comment_create` | `cardId`, `text` | `boardId` | Optional `boardId` verifies expected ownership; it does not authorize access. |
+| `comment_update` | `cardId`, `commentId`, `text` | `boardId` | Optional `boardId` verifies expected ownership; it does not authorize access. |
+| `comment_delete` | `cardId`, `commentId` | `boardId` | Optional `boardId` verifies expected ownership; it does not authorize access. |
+| `checklist_create` | `cardId`, `name` | `boardId`, `pos` | Optional `boardId` verifies expected ownership; it does not authorize access. |
+| `checklist_copy` | `cardId`, `checklistId` | `boardId`, `name`, `pos` | `checklistId` is the source; `cardId` is the destination; `boardId` constrains the destination. |
+| `checklist_item_create` | `checklistId`, `name` | `boardId`, `checked`, `due`, `memberId`, `pos` | Due/member fields may be unconfirmed. |
+| `checklist_item_update` | `checklistId`, `itemId` | `boardId`, `due`, `memberId`, `name`, `pos`, `state` | At least one update; `state`: `complete` or `incomplete`; due/member fields may be unconfirmed. |
+| `checklist_item_delete` | `checklistId`, `itemId` | `boardId` | Optional `boardId` verifies expected ownership; it does not authorize access. |
+| `card_member_add` | `cardId`, `memberId` | `boardId` | Optional `boardId` verifies expected ownership; it does not authorize access. |
+| `card_member_remove` | `cardId`, `memberId` | `boardId` | Optional `boardId` verifies expected ownership; it does not authorize access. |
+| `label_create` | `name` | `boardId`, `color` | Uses the explicit or active board. |
+| `label_update` | `labelId` | `boardId`, `color`, `name` | At least one update. |
+| `label_delete` | `labelId` | `boardId` | Optional `boardId` verifies expected ownership; it does not authorize access. |
+| `customfield_set` | `cardId`, `customFieldId` | `boardId`, `idValue`, `value` | Exactly one of `value`, `idValue`. |
+| `attachment_add` | `cardId`, `url` | `boardId`, `name` | HTTP(S) `url`; optional display name. |
+| `attachment_upload` | `cardId` | `base64`, `boardId`, `fileName`, `mimeType`, `name`, `path` | Exactly one of `path`, `base64`; `fileName` required for base64. |
+| `attachment_download` | `attachmentId`, `cardId` | `boardId` | Uploaded files only (`isUpload: true`). Optional `boardId` verifies expected ownership; it does not authorize access. |
 
 Batch create accepts 1-100 cards. All arguments and referenced ids are preflighted
 before the first mutation, then ownership and references are checked again per
 card. Results are `items` with zero-based `index`, `id` when created, optional
 `checklist` progress and `error` on failure. Batch processing continues after a
 per-card failure. This is not a transaction; cards and checklists are never rolled
-back after a later failure.
+back after a later failure. A tool call has a 60-second deadline and shares the local rate limits, and
+each card takes several requests (more with a checklist), so a large batch can run out of time: entries
+reached after the deadline fail with a deadline or local rate-limit error and were not created, while the
+entry in flight may have applied and needs inspection. Split large batches, especially with checklists.
 
 Both creation tools accept `checklist: {"name":"Checklist","items":["SND01","SND02"]}`
 on each card. The name defaults to `Checklist`; `items` requires 1-100 nonblank
@@ -429,7 +462,8 @@ before fetching metadata and rechecked afterward. The result is `{"items":[...]}
 with `id`, `name`, `fileName`, `mimeType`, `bytes`, `date`, and `isUpload`. Only
 non-upload (link) attachments include `url`; uploaded-file URLs require OAuth
 and are omitted. No attachment bodies or previews are returned. Use the returned
-`id` as `attachmentId` for `attachment_download`.
+`id` of an `isUpload: true` item as `attachmentId` for `attachment_download`; link
+attachments cannot be downloaded (use their `url`) and are refused as ownership denials.
 
 Uploads accept regular local files (not symlinks) or standard base64. Path
 uploads are disabled by default. To enable them, set `TRELLO_UPLOAD_DIR` to an
@@ -487,9 +521,11 @@ currently Unix-only (including Linux and macOS); other platforms fail closed.
 9. Health modes `basic`, `detailed`, `metadata`, `performance` are all local, and every unconfigured
    detail returns only the setup response:
    configured `basic` returns `ok`, `credentialSource` and the unverified `access` pointer;
-   `detailed` adds read-only/restriction and selection-presence booleans;
-   `metadata` reports implementation/runtime/transport; `performance` reports
-   uptime/request/retry counters. `policy` reports configured/effective access
+   `detailed` adds booleans `readOnly`, `restricted`, `activeBoard` and `activeWorkspace`;
+   `metadata` returns strings `name`, `version` (the release tag, such as `v0.9.0`), `transport`
+   and `go`; `performance` returns integers `uptimeSeconds`, `requests` (upstream HTTP attempts
+   admitted by the local limiter, including 429 retries and attachment transfers) and `retries`
+   (429 retries only), all per process since start. `policy` reports configured/effective access
    policy with one cached best-effort workspace-resolution request. No mode
    exposes saved ids or credentials. This is not an upstream readiness check.
 10. Dropdown ids and all scalar types are preserved and tested, including writes
@@ -497,14 +533,18 @@ currently Unix-only (including Linux and macOS); other platforms fail closed.
 
 ## Compatibility and versioning
 
-Published in v0.8.0 for review; binding from v1.0.0. Until then only the v0.7.0 stability intent applies:
-tool names, `TRELLO_TOOLS` selection syntax, local-health semantics and the configured basic/detailed
-health fields; incompatible changes require explicit review in the v1.0.0 audit.
+Status: published for review; binding from v1.0.0.
+
+Published in v0.8.0. For releases before v1.0.0, the v0.7.0 stability intent covers tool names,
+TRELLO_TOOLS syntax, local-health semantics and configured basic/detailed health fields;
+incompatibilities require explicit review before promotion.
 
 ### Covered
 
 - Documented tools, arguments and defaults, profile syntax, local health, response envelopes, types,
   meanings and omission rules.
+- The `{error}` envelope, the `access denied by <policy>:` prefix for server-policy denials and the
+  `trello API: HTTP <status>` marker for upstream HTTP failures; the remaining error text is human wording.
 - Documented auth commands and flags, environment values and defaults, credential precedence and
   locations, and saved credential and state read compatibility within a major version.
 - Documented release asset naming patterns, installer URLs and extension identity; not indefinite hosting
@@ -515,16 +555,23 @@ health fields; incompatible changes require explicit review in the v1.0.0 audit.
 
 ### Not covered
 
-- Internal Go packages, state representation, opaque cursor encoding, JSON key order and whitespace, counts,
-  descriptions and human error wording.
+- Internal Go packages, state representation, JSON key order and whitespace, documented catalog, tool
+  and benchmark counts (such as 48 tools or tools/list sizes), descriptions and human error wording.
+  Numeric response fields keep their documented meaning and type.
+- Local rate limits, quotas and call deadlines (their values may change).
 - Upstream Trello availability, data, permissions and plans, external client formats, Desktop settings or
   secure-storage migration, and the Linux Desktop beta.
+- Tools may fail or degrade when Trello withdraws an upstream capability; such upstream-driven loss may
+  be documented in a minor release without changing the remaining covered contracts.
 - Downgrades across releases; a stable extension identity does not guarantee settings retention.
 
 ### How changes are signalled
 
-- From 1.0, compatible fixes use patch versions, additive tools or optional fields use minor versions, and
-  incompatible documented changes require a major version.
+- From 1.0, compatible fixes use patch versions, additive tools or optional fields use minor versions,
+  and incompatible documented changes require a major version.
+- Exception: urgent security fixes may introduce an incompatibility in a patch or minor release, with a
+  **breaking-change notice** and concrete migration guidance. This is an explicit project exception to
+  strict SemVer, not a security exemption granted by SemVer.
 - Deprecations appear in documentation and minor-release notes with migration guidance; removal waits for
   a later major version.
 - GitHub release notes and signed tag messages are the changelog; there is no separate CHANGELOG file.
