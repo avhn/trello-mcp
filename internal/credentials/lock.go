@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"time"
 )
@@ -36,11 +37,17 @@ func acquireWriteLock(root *os.Root, path string, timeout time.Duration) (func()
 		if err == nil {
 			break
 		}
-		if !errors.Is(err, os.ErrExist) {
+		// A Windows permission denial may be transient, so retry it until the
+		// deadline before reporting directory permission guidance.
+		retry, permission := lockRetry(runtime.GOOS, err)
+		if !retry {
 			return nil, fmt.Errorf("create credentials write lock %s; check directory permissions", lockPath)
 		}
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
+			if permission {
+				return nil, fmt.Errorf("create credentials write lock %s; check directory permissions", lockPath)
+			}
 			return nil, fmt.Errorf("credentials write lock timed out after %s; verify its PID is stopped, then manually remove %s (never auto-stolen)", timeout, lockPath)
 		}
 		time.Sleep(min(writeLockRetry, remaining))
@@ -55,14 +62,16 @@ func acquireWriteLock(root *os.Root, path string, timeout time.Duration) (func()
 		return nil, fmt.Errorf("inspect credentials write lock %s", lockPath)
 	}
 	release := func() {
-		defer func() { _ = lock.Close() }()
 		current, statErr := root.Lstat(writeLockName)
 		owner, readErr := readFile(lock, "token")
 		if statErr != nil || !os.SameFile(info, current) || readErr != nil || string(owner) != token {
+			_ = lock.Close()
 			return
 		}
 		_ = lock.Remove("token")
 		_ = lock.Remove("pid")
+		// Close our handle before removing so it cannot delay deletion.
+		_ = lock.Close()
 		_ = root.Remove(writeLockName)
 	}
 	initialized := false
@@ -82,6 +91,11 @@ func acquireWriteLock(root *os.Root, path string, timeout time.Duration) (func()
 	}
 	initialized = true
 	return release, nil
+}
+
+func lockRetry(goos string, err error) (retry, permission bool) {
+	permission = goos == "windows" && errors.Is(err, os.ErrPermission)
+	return errors.Is(err, os.ErrExist) || permission, permission
 }
 
 func writeLockEntry(lock *os.Root, name, value string) error {

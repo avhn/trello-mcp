@@ -13,6 +13,30 @@ import (
 	"time"
 )
 
+func TestLockRetry(t *testing.T) {
+	for _, goos := range []string{"windows", "linux", "darwin"} {
+		for _, test := range []struct {
+			name string
+			err  error
+		}{
+			{"exist/path", &os.PathError{Op: "mkdir", Path: writeLockName, Err: os.ErrExist}},
+			{"exist/wrapped", fmt.Errorf("mkdir: %w", os.ErrExist)},
+			{"permission/path", &os.PathError{Op: "mkdir", Path: writeLockName, Err: os.ErrPermission}},
+			{"permission/wrapped", fmt.Errorf("mkdir: %w", os.ErrPermission)},
+			{"unrelated", errors.New("synthetic failure")},
+		} {
+			t.Run(goos+"/"+test.name, func(t *testing.T) {
+				wantPermission := goos == "windows" && strings.HasPrefix(test.name, "permission/")
+				wantRetry := strings.HasPrefix(test.name, "exist/") || wantPermission
+				retry, permission := lockRetry(goos, test.err)
+				if retry != wantRetry || permission != wantPermission {
+					t.Fatalf("lockRetry(%q, %v) = (%t, %t), want (%t, %t)", goos, test.err, retry, permission, wantRetry, wantPermission)
+				}
+			})
+		}
+	}
+}
+
 func TestConcurrentSavesPreserveKeys(t *testing.T) {
 	path := filepath.Join(credentialTestDir(t), "store", "test.secret")
 	if err := Save(path, synthetic()); err != nil {
