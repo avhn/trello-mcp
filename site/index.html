@@ -23,7 +23,7 @@
 <link rel="icon" href="/trello-mcp/assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/trello-mcp/assets/style.css">
 <script src="/trello-mcp/assets/copy.js" defer></script>
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","@id":"https://avhn.github.io/trello-mcp/#software","name":"trello-mcp","url":"https://avhn.github.io/trello-mcp/","description":"A local Trello MCP server in Go with compact curated responses, workspace restrictions and read-only opt-in.","operatingSystem":"Linux, macOS, Windows","applicationCategory":"DeveloperApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://github.com/avhn/trello-mcp/blob/main/LICENSE","softwareVersion":"0.5.0","downloadUrl":"https://github.com/avhn/trello-mcp/releases","codeRepository":"https://github.com/avhn/trello-mcp","programmingLanguage":"Go"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","@id":"https://avhn.github.io/trello-mcp/#software","name":"trello-mcp","url":"https://avhn.github.io/trello-mcp/","description":"A local Trello MCP server in Go with compact curated responses, workspace restrictions and read-only opt-in.","operatingSystem":"Linux, macOS, Windows","applicationCategory":"DeveloperApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://github.com/avhn/trello-mcp/blob/main/LICENSE","softwareVersion":"0.6.0","downloadUrl":"https://github.com/avhn/trello-mcp/releases","codeRepository":"https://github.com/avhn/trello-mcp","programmingLanguage":"Go"}</script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to main content</a>
@@ -33,16 +33,16 @@
 <p class="lead">Your AI assistant manages Trello boards, cards and checklists over local stdio, with compact curated responses, workspace allowlists and a read-only opt-in.</p>
 <section aria-labelledby="install"><h2 id="install">Install</h2>
 <pre><code class="language-sh">curl -fsSL https://raw.githubusercontent.com/avhn/trello-mcp/main/install.sh | sh</code></pre>
-<p>Windows, other clients and verification are in the <a href="/trello-mcp/setup/">setup guide</a>.</p></section>
+<p>Windows, other clients and verification are in the <a href="/trello-mcp/setup/">setup guide</a>. New in v0.6.0: a Claude Desktop extension preview, not directory listed and not one-click.</p></section>
 <section aria-labelledby="agent"><h2 id="agent">Or let your agent set it up</h2>
-<pre><code class="language-text">Set up trello-mcp by following https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md; ask me to run trello-mcp auth myself in a private terminal, then reconnect. Never capture authentication output.</code></pre>
-<p>You run <code>trello-mcp auth</code> yourself; the agent never sees your credentials.</p></section>
+<pre><code class="language-text">Set up trello-mcp by following https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md; ask me to run its printed absolute-path auth command myself in a private terminal, then reconnect. Never capture authentication output.</code></pre>
+<p>You run the installer's printed auth command yourself, or fill in Claude Desktop extension settings; the agent never sees your credentials.</p></section>
 <section aria-labelledby="compare"><h2 id="compare">How it compares</h2>
 <div class="table-wrap"><table><thead><tr><th scope="col"></th><th scope="col">trello-mcp</th><th scope="col"><a href="https://github.com/atlassian/trello-mcp-server">Atlassian official</a></th><th scope="col"><a href="https://github.com/delorenj/mcp-server-trello/blob/v1.8.1/src/index.ts">delorenj 1.8.1</a></th></tr></thead><tbody>
 <tr><td>Transport</td><td>Local stdio</td><td>Hosted HTTP</td><td>Local stdio</td></tr>
 <tr><td>Auth</td><td>API key and token</td><td>OAuth 2.0</td><td>API key and token</td></tr>
 <tr><td>Runtime</td><td>Go binary</td><td>Hosted</td><td>JavaScript</td></tr>
-<tr><td>Scope</td><td>Every board the token can see; optional workspace allowlist</td><td>Workspaces approved on the OAuth consent screen</td><td>Every board the token can see</td></tr>
+<tr><td>Scope</td><td>Every board the token can see; optional workspace allowlist</td><td>Workspaces selected on the OAuth consent screen</td><td>Every board the token can see</td></tr>
 </tbody></table></div>
 <p>A description, not a ranking. Tool counts and the synthetic benchmark are in the <a href="https://github.com/avhn/trello-mcp#readme">README</a>.</p></section>
 <section aria-labelledby="guides"><h2 id="guides">Guides</h2>

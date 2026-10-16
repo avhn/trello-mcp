@@ -17,15 +17,15 @@ Follow these steps in order. Resolve every path on the machine you are setting u
 
 1. Install the binary (Install section) and resolve its absolute executable path.
 2. Register it with the user's client (Clients section). Prefer user scope; use project scope only when asked.
-3. Stop and ask the human to run `trello-mcp auth` themselves in a private terminal. Browser consent and API-key creation are human-only.
-4. Never run bare `trello-mcp auth` in a terminal you capture, and never ask for, read, print or paste an API key, token, authorization link or credential file.
-5. Ask the human to restart or reconnect the client. Until a fresh configured server starts, only `server_health` is exposed.
-6. Verify with `server_health` and `trello-mcp auth status` (Verify section). Both are secret-free.
+3. Substitute the concrete absolute path into the installer's auth command, then stop and ask the human to run it themselves in a private terminal. Do not rely on PATH, shell variables, the working directory or a new shell. Browser consent and API-key creation are human-only.
+4. Never run bare `trello-mcp auth` or the absolute-path form in a terminal you capture, and never ask for, read, print or paste an API key, token, authorization link or credential file.
+5. Ask the human to use the individual trello Reconnect action in `/mcp` or fully restart the client. Until a fresh configured server starts, only `server_health` is exposed.
+6. Verify with `server_health` and the absolute-path `trello-mcp auth status` (Verify section). Both are secret-free.
 
 The same request as one paste-to-agent line:
 
 ```text
-Set up trello-mcp by following https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md; ask me to run trello-mcp auth myself in a private terminal, then reconnect. Never capture authentication output.
+Set up trello-mcp by following https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md; ask me to run its printed absolute-path auth command myself in a private terminal, then reconnect. Never capture authentication output.
 ```
 <!-- /section:agent -->
 
@@ -66,22 +66,23 @@ command -v trello-mcp || { test -x "$HOME/.local/bin/trello-mcp" && echo "$HOME/
 (Get-Command trello-mcp -ErrorAction SilentlyContinue).Source
 ```
 
-Use the installer's printed path if the command is not on PATH. In the snippets below, replace `/absolute/path/to/trello-mcp` with that path. In JSON and TOML double every backslash on Windows, for example `C:\\Users\\you\\AppData\\Local\\Programs\\trello-mcp\\trello-mcp.exe`.
+The installer prints quoted, concrete absolute-path commands for auth, read-only auth, status, version and Claude Code registration; PowerShell prefixes the auth, status and version commands with `&`, passes the quoted path as an argument in the registration line, and doubles every single-quote character in the path (including typographic quotes). Hand them to the human as printed. Use the printed path if the command is not on PATH. In the snippets below, replace `/absolute/path/to/trello-mcp` with that path. In JSON and TOML double every backslash on Windows, for example `C:\\Users\\you\\AppData\\Local\\Programs\\trello-mcp\\trello-mcp.exe`.
 <!-- /section:install -->
 
 <!-- section:auth -->
 ## Connect Trello
 
-This step belongs to the human, in a private terminal that no agent captures:
+This step belongs to the human, in a private terminal that no agent captures. Run the installer's absolute-path command so it does not depend on PATH:
 
 ```sh
-trello-mcp auth
+/absolute/path/to/trello-mcp auth
 ```
 
 - Create an API key at https://trello.com/power-ups/admin when prompted, approve the Trello authorization link, then paste the token at the hidden prompt. The link contains the API key, so keep it private.
+- Claude Desktop users who install the preview extension enter the key and token in the extension settings instead and do not run this command (see the Claude Desktop extension section).
 - Write access is the default. Use `trello-mcp auth --read-only` for a read-only token.
 - Credentials are validated and saved to `~/.secrets/.trello-mcp.secret` (`%USERPROFILE%\.secrets\.trello-mcp.secret` on Windows). Client snippets never need credentials.
-- Restart or reconnect the MCP client afterward. Until then the server exposes only `server_health`.
+- Use the individual trello Reconnect action in `/mcp`, or fully quit and restart the client, afterward. Until a fresh configured server starts it exposes only `server_health`.
 
 Variables, precedence, permissions and troubleshooting are in [configuration](https://github.com/avhn/trello-mcp/blob/main/docs/configuration.md).
 <!-- /section:auth -->
@@ -109,11 +110,11 @@ User scope makes the server available in all your projects. Replace the path fir
 claude mcp add --scope user --transport stdio trello -- "/absolute/path/to/trello-mcp"
 ```
 
-On Windows quote the real path, for example `"C:\Users\you\AppData\Local\Programs\trello-mcp\trello-mcp.exe"`. Use `--scope local` (this project only, the default) or `--scope project` (shared through `.mcp.json`) only when you want that narrower scope. Check with `claude mcp list` and `/mcp`; after authentication run `/mcp reconnect all` or restart Claude Code.
+On Windows quote the real path, for example `"C:\Users\you\AppData\Local\Programs\trello-mcp\trello-mcp.exe"`. Use `--scope local` (this project only, the default) or `--scope project` (shared through `.mcp.json`) only when you want that narrower scope. Check with `claude mcp list` and `/mcp`; after authentication use the trello server's individual Reconnect action in `/mcp`, which refreshes its tool list; `/mcp reconnect all` retries failed or auth-needed servers, and a full restart also works.
 
 ### Claude Desktop
 
-Merge into the user configuration file, then quit and reopen Claude Desktop:
+This is the CLI binary path; the packaged extension is described in the next section. Merge into the user configuration file, then quit and reopen Claude Desktop:
 
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
@@ -193,6 +194,31 @@ For one workspace, merge into `.vscode/mcp.json`. For your user profile, run the
 Use MCP: List Servers to start, stop, restart or show output.
 <!-- /section:clients -->
 
+<!-- section:desktop -->
+## Claude Desktop extension (preview, new in v0.6.0)
+
+New in v0.6.0 and a preview only: the bundles are published separately on the `desktop-v0.6.0` pre-release and are pending the owner's own testing on macOS and Windows. They are not listed in any directory, there is no one-click install, and the registry metadata does not point at them. The CLI install above stays the primary path and the one for every other client. Setup needs no terminal, but Trello authorization is a human step in a browser.
+
+- Download from https://github.com/avhn/trello-mcp/releases/tag/desktop-v0.6.0. Use `trello-mcp_desktop.mcpb` for macOS and Windows amd64; there is no CPU choice. Windows on Arm is not claimed.
+- Linux Desktop is itself a beta. Pick `trello-mcp_linux_amd64.mcpb` or `trello-mcp_linux_arm64.mcpb` to match your CPU. Secure-storage support on Linux is unverified.
+- Compare the file's SHA-256 with the `checksums.txt` on that pre-release before installing. Updates are manual: download the newer bundle and install it again.
+
+Steps for a person at Claude Desktop:
+
+1. In your browser open https://trello.com/power-ups/admin, create a personal Power-Up if needed, and generate a personal API key in its Trello Auth or API key area.
+2. In your browser only, replace `YOUR_KEY` in `https://trello.com/1/authorize?key=YOUR_KEY&scope=read,write&expiration=30days&name=trello-mcp&response_type=token`, open it, approve access and copy the token. For a read-only token use `scope=read`. The Power-Up page's own Token link may use different parameters.
+3. In Claude Desktop choose Settings > Extensions > Advanced settings > Extension Developer > Install Extension, select the downloaded `.mcpb` file and approve it.
+4. Paste the key and token only into the extension's masked API key and token fields. Optionally set allowed workspaces, read-only mode and the download and upload directories, then save.
+5. Restart the extension. If Desktop does not pick the settings up, fully quit and reopen it. Ask Claude to call `server_health`; with extension settings it reports `credentialSource` as `env`.
+
+- Never share the key, token or your personalized authorization URL in chat, logs or agent-captured commands. There is no shared application key and no server-printed URL.
+- The URL template asks for read and write access that expires after 30 days. When it expires, repeat steps 2 and 4 and restart the extension. A token with expiration `never` must be revoked by hand; uninstalling the extension does not revoke any token. Revoke in your Trello account's authorized applications.
+- The read-only toggle and the workspace allowlist restrict this server only, not the token's authority. Use a `scope=read` token for read-only access at Trello.
+- Desktop keeps sensitive fields in OS secure storage, but the running server still receives them as environment variables, which take priority over saved credential files. Do not run CLI auth to store Desktop credentials. An environment token has unknown scope and is not assumed read-only.
+- An empty download directory keeps the temporary-directory default; an empty upload directory keeps path uploads off. Read-only accepts `true` or `false` here and `1` or `0` in a client environment.
+- Update by installing the newer bundle over the old one; the extension name `trello-mcp` is its identity, so settings are kept. Check `server_health` afterward and restart the extension.
+<!-- /section:desktop -->
+
 <!-- section:profile -->
 ## Optional read-oriented profile
 
@@ -229,9 +255,9 @@ For a token that cannot write at all, authenticate with `trello-mcp auth --read-
 <!-- section:verify -->
 ## Verify
 
-1. Ask the client to call `server_health`. With credentials it answers `ok`; without them it is the only tool and its message says to run `trello-mcp auth`.
-2. Run `trello-mcp --version` to confirm the installed release.
-3. Run `trello-mcp auth status`. It prints the credential source, username and granted scope, never a secret.
+1. Ask the client to call `server_health`. With credentials it answers `ok`; without them it is the only tool and its message says to run the installer's absolute-path auth command, or to use extension settings in Claude Desktop.
+2. Run the installer's absolute-path `--version` command to confirm the installed release.
+3. Run the absolute-path `trello-mcp auth status`. It prints the credential source, username and granted scope, never a secret. Basic and detailed `server_health` also report `credentialSource` as `env`, `file` or `none`, never a path or secret.
 4. Call `server_health` with `detail` set to `policy` to see the effective workspace allowlist, read-only state and enabled tool count.
 5. If a tool is hidden or refused, read the policy health before assuming the token is broken.
 <!-- /section:verify -->
@@ -243,8 +269,10 @@ For a token that cannot write at all, authenticate with `trello-mcp auth --read-
 
 1. Stop every client that runs trello-mcp.
 2. Repeat the install method you used, with the same destination: the installer command above, or `go install ...@latest`.
-3. Run `trello-mcp --version`.
-4. Reconnect or restart the client.
+3. Run the printed absolute-path `--version` command, for example `/absolute/path/to/trello-mcp --version`.
+4. Use the individual trello Reconnect action or fully restart the client.
+
+Updating from v0.4.x? Read [upgrading from v0.4.x](https://github.com/avhn/trello-mcp/releases/tag/v0.5.0#upgrading-from-v04x) for the summary URL migration and the explicit versioned `go install` fallback when release assets are missing.
 
 ### Roll back
 
@@ -258,7 +286,7 @@ curl -fsSL https://raw.githubusercontent.com/avhn/trello-mcp/main/install.sh | T
 $env:TRELLO_MCP_VERSION = 'v0.4.2'; irm https://raw.githubusercontent.com/avhn/trello-mcp/main/install.ps1 | iex
 ```
 
-For a Go install use `go install github.com/avhn/trello-mcp/cmd/trello-mcp@v0.4.2`. Then check the version and reconnect.
+For a Go install use `go install github.com/avhn/trello-mcp/cmd/trello-mcp@v0.4.2`. Then check the version with the absolute path and reconnect.
 
 ### Uninstall
 

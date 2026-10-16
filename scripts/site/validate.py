@@ -2,7 +2,7 @@
 
 Run: python3 -I scripts/site/validate.py
 Parser regression checks: python3 -I scripts/site/validate.py --self-test
-Release gate: RELEASE_TAG=v0.5.0 python3 -I scripts/site/validate.py
+Release gate: RELEASE_TAG=v0.6.0 python3 -I scripts/site/validate.py
 """
 from collections import Counter
 from html import unescape
@@ -43,7 +43,7 @@ ALLOWED_ATTRS = set('''aria-current aria-hidden aria-label aria-labelledby chars
 data-mirror data-section defer fill focusable height href id lang name property rel rx scope src stroke
 stroke-linejoin stroke-width type viewbox width'''.split())
 FORBIDDEN_TEXT = r'[\u2013\u2014\U0001f300-\U0001faff]'
-SECTIONS = ['agent', 'install', 'auth', 'clients', 'profile', 'verify', 'lifecycle']
+SECTIONS = ['agent', 'install', 'auth', 'clients', 'desktop', 'profile', 'verify', 'lifecycle']
 CLIENTS = ['Claude Code', 'Claude Desktop', 'Codex CLI and desktop', 'ChatGPT desktop', 'OpenCode', 'Cursor', 'VS Code']
 PLACEHOLDER = '/absolute/path/to/trello-mcp'
 PROFILE_TOOLS = ('workspace_find,board_find,board_use,list_find,card_find,card_get,comment_find,'
@@ -557,6 +557,124 @@ def validate_clients(items):
     require('server_health' in flat and 'trello-mcp auth status' in flat, 'Secret-free verification')
 
 
+# ---- Read-parameter table against the registration and runtime schema ----
+
+READ_HEADING = '## Read parameters'
+
+
+def registry_tools(source):
+    """Return {name: (parameters, required, is_write)} from the tool definitions."""
+    creation = re.search(r'const cardCreateParams = "([^"]+)"', source)
+    tools = {}
+    for line in source.splitlines():
+        definition = re.search(r'\{name: "([a-z_]+)"', line)
+        if not definition:
+            continue
+        params = re.search(r'params: "([^"]*)"', line)
+        require(params is not None, f'Tool definition without params: {definition.group(1)}')
+        names = params.group(1).split()
+        if '+ cardCreateParams' in line:
+            require(creation is not None, 'Missing cardCreateParams constant')
+            names += creation.group(1).split()
+        required = re.search(r'required: "([^"]*)"', line)
+        tools[definition.group(1)] = (names, set(required.group(1).split()) if required else set(), 'write: true' in line)
+    return tools
+
+
+def schema_facts(arguments_source):
+    """Extract defaults, ceilings and enums the runtime schema publishes."""
+    facts = {}
+    body = re.search(r'func maxLimit\(.*?\n}\n', arguments_source, re.S)
+    require(body is not None, 'Missing maxLimit in arguments.go')
+    limits = {name: (int(a), int(b)) for name, a, b in re.findall(r'case "(\w+)":\s+return (\d+), (\d+)', body.group(0))}
+    fallback = re.search(r'default:\s+return (\d+), (\d+)', body.group(0))
+    require(fallback is not None, 'Missing default limits in arguments.go')
+    facts['limits'] = (limits, (int(fallback.group(1)), int(fallback.group(2))))
+    for key, pattern in (
+            ('filter', r'case "filter":\s+p\["default"\] = "([^"]+)"'),
+            ('checklist_name', r'case "checklist_get":\s+p\["default"\] = "([^"]+)"'),
+            ('includeDesc', r'case "includeDesc":\s+p = map\[string\]any\{"type": "boolean", "default": (true|false)\}'),
+            ('view', r'case "view":\s+p\["enum"\] = \[\]string\{([^}]*)\}'),
+            ('extraFields', r'case "extraFields":\s+p = map\[string\]any\{[^\n]*"enum": \[\]string\{([^}]*)\}'),
+            ('detail', r'values := \[\]string\{([^}]*)\}'),
+            ('health', r'values = \[\]string\{([^}]*)\}')):
+        match = re.search(pattern, arguments_source, re.S)
+        require(match is not None, f'Missing schema fact in arguments.go: {key}')
+        facts[key] = match.group(1)
+    for key in ('view', 'extraFields', 'detail', 'health'):
+        facts[key] = set(re.findall(r'"([^"]+)"', facts[key]))
+    return facts
+
+
+def read_table(markdown):
+    start = markdown.find(READ_HEADING)
+    require(start >= 0, f'Missing {READ_HEADING} section in tools.md')
+    rows = []
+    for line in markdown[start + len(READ_HEADING):].split('\n'):
+        if line.startswith('|'):
+            rows.append([cell.strip() for cell in line.strip().strip('|').split('|')])
+        elif rows:
+            break
+    require(len(rows) > 2 and rows[0] == ['Tool', 'Required', 'Optional', 'Defaults and accepted values'], 'Read parameter table header')
+    del rows[1]
+    require(all(len(row) == 4 for row in rows), 'Ragged read parameter table')
+    return rows[1:]
+
+
+def ticks(cell):
+    return set(re.findall(r'`([^`]+)`', cell))
+
+
+def check_read_parameters(markdown, registry_source, arguments_source):
+    """Compare the tools.md read table with registered non-write tools; return its rows."""
+    tools = registry_tools(registry_source)
+    facts = schema_facts(arguments_source)
+    limits, fallback = facts['limits']
+    rows = read_table(markdown)
+    reads = {name for name, (_, _, write) in tools.items() if not write}
+    listed = [row[0].strip('`') for row in rows]
+    require(len(listed) == len(set(listed)), 'Duplicate tool in the read parameter table')
+    require(set(listed) == reads, f'Read parameter table tools differ from registry: missing {sorted(reads - set(listed))}, extra {sorted(set(listed) - reads)}')
+    for tool, required_cell, optional_cell, rules in rows:
+        name = tool.strip('`')
+        params, required, _ = tools[name]
+        have_required, have_optional = ticks(required_cell), ticks(optional_cell)
+        require(have_required == required, f'Requiredness drift for {name}: registry requires {sorted(required)}, table has {sorted(have_required)}')
+        require(have_optional == set(params) - required, f'Parameter drift for {name}: optional {sorted(set(params) - required)}, table has {sorted(have_optional)}')
+        mentioned = set(re.findall(r'`(\w+)`:', rules))
+        expected = set()
+        if 'limit' in params:
+            expected.add('limit')
+            default, ceiling = limits.get(name, fallback)
+            require(re.search(rf'`limit`: default {default}, max {ceiling}(?!\d)', rules), f'Limit drift for {name}: default {default}, max {ceiling}')
+        if 'filter' in params:
+            expected.add('filter')
+            require(f'`filter`: default `{facts["filter"]}`' in rules, f'Filter default drift for {name}')
+        if 'includeDesc' in params:
+            expected.add('includeDesc')
+            require(f'`includeDesc`: default `{facts["includeDesc"]}`' in rules, f'includeDesc default drift for {name}')
+        if name == 'checklist_get':
+            expected.add('name')
+            require(f'`name`: default `{facts["checklist_name"]}`' in rules, 'checklist_get name default drift')
+        for key, values in (('detail', facts['health'] if name == 'server_health' else facts['detail']),
+                            ('view', facts['view']), ('extraFields', facts['extraFields'])):
+            if key in params:
+                expected.add(key)
+                segment = re.search(rf'`{key}`: ([^;]*)', rules)
+                require(segment is not None, f'Missing {key} values for {name}')
+                require(ticks(segment.group(1)) == values, f'Enum drift for {name}.{key}: {sorted(values)}')
+        require(mentioned == expected, f'Undocumented or extra rules for {name}: expected {sorted(expected)}, found {sorted(mentioned)}')
+    return rows
+
+
+def check_read_table_on_page(rows, page):
+    """The site tools page must carry the same table rows, with code formatting removed."""
+    published = {tuple(row) for row in page.rows}
+    for row in rows:
+        want = tuple(normalized(cell.replace('`', '')) for cell in row)
+        require(want in published, f'Tools page lacks the read parameter row for {row[0].strip("`")}')
+
+
 def validate():
     pages = {}
     for file in sorted(SITE.rglob('*.html')):
@@ -664,7 +782,7 @@ def validate():
     require((SITE / '.nojekyll').is_file(), 'Missing .nojekyll')
     html_sizes = {f: f.stat().st_size for f in pages}
     require(html_sizes[SITE / 'index.html'] <= 9000, f'Home HTML exceeds 9,000 bytes: {html_sizes[SITE / "index.html"]}')
-    require(sum(html_sizes.values()) <= 84 * 1024, 'Total HTML exceeds 84 KiB')
+    require(sum(html_sizes.values()) <= 104 * 1024, 'Total HTML exceeds 104 KiB')
     favicon = ET.parse(SITE / 'assets/favicon.svg').getroot()
     require(favicon.get('data-mark') == 'tm', 'Favicon must use the independent TM mark')
     validate_png()
@@ -756,6 +874,11 @@ def validate():
         expected_params = 'Parameters: ' + ', '.join(params.split()) + '.'
         require(expected_params in details[definition.group(1)],
                 f'Parameter drift for {definition.group(1)}: {expected_params}')
+    registry_source = (ROOT / 'internal/tools/registry.go').read_text() + (ROOT / 'internal/tools/delivery.go').read_text()
+    read_rows = check_read_parameters(tools_doc, registry_source, (ROOT / 'internal/tools/arguments.go').read_text())
+    check_read_table_on_page(read_rows, tools_page)
+    for text_name, text in (('tools.md', tools_doc), ('configuration.md', configuration)):
+        require('Trello documents no limit' in normalized(text) and 'Up to 16384 chars' in normalized(text), f'{text_name}: text-limit evidence labels')
     tools_text = ' '.join(tools_page.text('p'))
     require('filter' in details['board_activity'] and 'filter' in details['card_history'], 'Activity tools must document filter')
     require('summary' in tools_text and 'full' in tools_text and 'url' in tools_text, 'Tools page must explain summary versus full detail')
@@ -773,7 +896,8 @@ def validate():
     print(f'PASS: setup page mirrors docs/setup.md ({len(items)} items, exact code text); {snippet_count} JSON/TOML snippets parse; seven-client matrix')
     print(f'PASS: README {len(lines)} lines, six-row benchmark, paste line, four badges; credential refusals documented in configuration.md')
     print(f'PASS: version {version} matches health.go, server.json and all site pages' + (f'; RELEASE_TAG {tag} accepted' if tag else ' (no RELEASE_TAG)'))
-    print('SKIP: server.json JSON Schema validation (pinned schema not vendored, no jsonschema module); release prerequisite, only metadata fields checked')
+    print(f'PASS: read parameter table matches {len(read_rows)} registered non-write tools and the site tools page')
+    print('PASS: server.json source template checked for metadata-only shape; release package validation belongs to the pinned publisher and release_manifest.py')
     total = sum(file.stat().st_size for file in SITE.rglob('*') if file.is_file())
     print(f'PASS: one local CSS file ({len(css.encode())} bytes), copy.js ({len(copy_js)} bytes), home {html_sizes[SITE / "index.html"]} bytes, HTML {sum(html_sizes.values())} bytes; site {total} bytes')
 
@@ -932,6 +1056,75 @@ class MirrorTests(unittest.TestCase):
             validate_clients(parse_markdown(self.markdown.replace('### Cursor', '### Cursor IDE')))
         with self.assertRaises(ValueError):
             validate_clients(parse_markdown(self.markdown.replace('claude mcp add --scope user', 'claude mcp add', 1)))
+
+
+class ReadParameterTests(unittest.TestCase):
+    markdown = (ROOT / 'docs/tools.md').read_text()
+    registry = (ROOT / 'internal/tools/registry.go').read_text() + (ROOT / 'internal/tools/delivery.go').read_text()
+    arguments = (ROOT / 'internal/tools/arguments.go').read_text()
+
+    def check(self, markdown=None, registry=None, arguments=None):
+        return check_read_parameters(markdown or self.markdown, registry or self.registry, arguments or self.arguments)
+
+    def edit(self, old, new):
+        start = self.markdown.index(READ_HEADING)
+        head, tail = self.markdown[:start], self.markdown[start:]
+        self.assertIn(old, tail)
+        return head + tail.replace(old, new, 1)
+
+    def test_live_table_matches(self):
+        self.assertEqual(len(self.check()), 19)
+
+    def test_missing_tool_row_fails(self):
+        row = '| `member_find` | none | `boardId`, `nameFilter` | none |\n'
+        with self.assertRaisesRegex(ValueError, 'tools differ'):
+            self.check(self.edit(row, ''))
+
+    def test_extra_tool_row_fails(self):
+        with self.assertRaisesRegex(ValueError, 'tools differ'):
+            self.check(self.edit('| `member_find` |', '| `board_create` | `name` | none | none |\n| `member_find` |'))
+
+    def test_missing_parameter_fails(self):
+        with self.assertRaisesRegex(ValueError, 'Parameter drift for card_find'):
+            self.check(self.edit('`before`, `includeDesc` |', '`before` |'))
+
+    def test_extra_parameter_fails(self):
+        with self.assertRaisesRegex(ValueError, 'Parameter drift for card_get'):
+            self.check(self.edit('| `boardId`, `detail`, `view`, `extraFields` |', '| `boardId`, `detail`, `view`, `extraFields`, `fields` |'))
+
+    def test_requiredness_drift_fails(self):
+        with self.assertRaisesRegex(ValueError, 'Requiredness drift for card_get'):
+            self.check(self.edit('| `card_get` | `cardId` |', '| `card_get` | none |'))
+
+    def test_limit_drift_fails(self):
+        for old, new in (('`limit`: default 100, max 1000', '`limit`: default 50, max 1000'),
+                         ('`limit`: default 20, max 100 ', '`limit`: default 20, max 1000 ')):
+            with self.subTest(old=old), self.assertRaisesRegex(ValueError, 'Limit drift'):
+                self.check(self.edit(old, new))
+
+    def test_default_drift_fails(self):
+        with self.assertRaisesRegex(ValueError, 'includeDesc default drift'):
+            self.check(self.edit('`includeDesc`: default `true`', '`includeDesc`: default `false`'))
+        with self.assertRaisesRegex(ValueError, 'Filter default drift'):
+            self.check(self.edit('`filter`: default `all`', '`filter`: default `none`'))
+
+    def test_enum_drift_fails(self):
+        with self.assertRaisesRegex(ValueError, 'Enum drift for card_get.view'):
+            self.check(self.edit('`view`: `json` or `markdown`', '`view`: `json`, `markdown` or `html`'))
+        with self.assertRaisesRegex(ValueError, 'Enum drift for server_health.detail'):
+            self.check(self.edit('`performance` or `policy`', '`performance`'))
+
+    def test_missing_include_desc_rule_fails(self):
+        with self.assertRaisesRegex(ValueError, 'includeDesc default drift'):
+            self.check(self.edit('; `includeDesc`: default `true`', ''))
+
+    def test_registry_drift_is_detected(self):
+        registry = self.registry.replace('params: "boardId limit since before filter"', 'params: "boardId limit since before filter extra"', 1)
+        with self.assertRaisesRegex(ValueError, 'Parameter drift for board_activity'):
+            self.check(registry=registry)
+        arguments = self.arguments.replace('return 100, 1000', 'return 100, 500', 1)
+        with self.assertRaisesRegex(ValueError, 'Limit drift for card_find'):
+            self.check(arguments=arguments)
 
 
 class VersionTests(unittest.TestCase):

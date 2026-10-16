@@ -24,12 +24,13 @@ Both verify SHA-256 and fail closed instead of building from source.
 Or give your agent this line and let it follow the canonical [setup guide](docs/setup.md):
 
 ```text
-Set up trello-mcp by following https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md; ask me to run trello-mcp auth myself in a private terminal, then reconnect. Never capture authentication output.
+Set up trello-mcp by following https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md; ask me to run its printed absolute-path auth command myself in a private terminal, then reconnect. Never capture authentication output.
 ```
 
 ## Quick start
 
-1. Install the binary (above) and note its absolute path; it installs into `~/.local/bin` by default.
+1. Install the binary (above) and note its absolute path; it installs into `~/.local/bin` by default. The
+   installer prints quoted absolute-path commands for auth, status, version and registration; use those.
 2. Register it with your client. Claude Code, user scope:
 
    ```sh
@@ -38,10 +39,16 @@ Set up trello-mcp by following https://raw.githubusercontent.com/avhn/trello-mcp
 
    Claude Desktop, Codex CLI and desktop, ChatGPT desktop, OpenCode, Cursor and VS Code snippets,
    with exact file locations and reload steps, are in [docs/setup.md](docs/setup.md).
-3. Run `trello-mcp auth` yourself in a private terminal. It validates your Trello API key and token and saves
+3. Run the printed absolute-path `trello-mcp auth` yourself in a private terminal. It validates your Trello API key and token and saves
    them to `~/.secrets/.trello-mcp.secret`; write access is the default and `--read-only` opts out.
    Never run it where an agent captures the output or paste keys, tokens or authorization links into chat.
-4. Restart or reconnect the client, then call `server_health`. Until then only `server_health` is exposed.
+4. Use the trello server's Reconnect action in `/mcp` or restart the client, then call `server_health`
+   (it reports `credentialSource`). Until then only `server_health` is exposed.
+
+Claude Desktop users can try a packaged extension, new in v0.6.0 and a preview on the `desktop-v0.6.0`
+pre-release. It needs no terminal, but you create a Trello key and token in a browser; it is not directory
+listed and not a one-click install. Steps are in
+[docs/setup.md](docs/setup.md#claude-desktop-extension-preview-new-in-v060).
 
 Update, rollback, uninstall and revocation are in [docs/setup.md](docs/setup.md#update-roll-back-and-uninstall).
 Variables, credential precedence and permissions are in [docs/configuration.md](docs/configuration.md).
@@ -60,7 +67,10 @@ capability or token-efficiency ranking, and the benchmark below does not execute
 | Tool inventory (not parity) | 48 by default, [10 in a profile](#read-oriented-profile) | Capability categories published, no tool count | 57 direct registrations in pinned source |
 | Response shaping | Curated compact text JSON | Not evaluated | Pretty JSON with [card-list previews and size controls](https://github.com/delorenj/mcp-server-trello/blob/v1.8.1/src/card-list-preview.ts) |
 
-Atlassian documents ([support page](https://support.atlassian.com/trello/docs/connect-trello-to-ai-assistants-with-trello-mcp/)) that its connector reaches only workspaces approved on its consent screen. That does not
+Atlassian's [support page](https://support.atlassian.com/trello/docs/connect-trello-to-ai-assistants-with-trello-mcp/)
+documents selecting multiple workspaces on its OAuth consent screen, and a community announcement dated
+2026-09-28 describes a multi-workspace update (its date was corroborated through a search index; the
+announcement body was not retrieved). That does not
 establish whether guest-only boards are accessible, so no guest-board exclusion is claimed. Here `board_find`
 lists every board your token can see, including guest boards, unless you narrow it with a workspace allowlist.
 
@@ -69,9 +79,9 @@ lists every board your token can see, including guest boards, unless you narrow 
 Ask in plain language: "List my boards", "Show cards assigned to me", "Move card X to Done and tick the
 checklist" or "Summarize this week's activity on the board". Useful controls:
 
-- `TRELLO_READ_ONLY=1` or `trello-mcp auth --read-only` hides all 29 mutation and transfer tools.
-- `TRELLO_ALLOWED_WORKSPACES=team,Another Team` adds a server-side allowlist, checked against each object's
-  actual owner and not a supplied board id.
+- `TRELLO_READ_ONLY=1` (or `true`) or `trello-mcp auth --read-only` hides all 29 mutation and transfer tools.
+- `TRELLO_ALLOWED_WORKSPACES=team,5f0c1a2b3c4d5e6f7a8b9c0d` adds a server-side allowlist of workspace ids or
+  canonical names (not display names), checked against each object's actual owner and not a supplied board id.
 - Select tools with `TRELLO_TOOLS`; groups use the prefix before the first underscore, such as `card`.
 
 ### Read-oriented profile
@@ -103,7 +113,7 @@ Synthetic raw pretty JSON is a reproducible reference, not measured output from 
 
 | Startup cost | Default (48 tools) | Read-oriented discovery (10 tools) |
 | --- | --- | --- |
-| tools/list | 20703 chars (~5176 tokens) | 4242 chars (~1060 tokens) |
+| tools/list | 20771 chars (~5193 tokens) | 4344 chars (~1086 tokens) |
 | Initialize instructions | 140 chars (~35 tokens) | 141 chars (~35 tokens) |
 | Initialize result (including instructions) | 304 chars (~76 tokens) | 305 chars (~76 tokens) |
 
@@ -145,7 +155,10 @@ or inline attachment bodies. Collections return `{"items":[...],"next":"cursor"}
 result lists `unconfirmed` fields with `isError`; inspect before retrying. Date and label-color clears are
 sent as query parameters and verified from the response. Activity is flat, supports an upstream `filter`
 (default `all`) and `since`/`before` paging, and repeats card and list names only when they change within a page.
-`card_find` summaries omit `url`; use `detail: "full"` or `card_get` when you need it.
+`card_find` summaries omit `url`; use `detail: "full"` or `card_get` when you need it. Pass
+`includeDesc: false` to `card_find` to skip description previews when triaging or paging. Human text fields
+carry a 16,384 code point limit; only the card description limit is documented by Trello, the rest are
+labeled local ceilings in [docs/tools.md](docs/tools.md#text-limits).
 
 ## Security
 
@@ -190,8 +203,10 @@ The tag message is the release description: `git tag -s --cleanup=verbatim vX.Y.
 
 ### Distribution
 
-`server.json` is MCP Registry metadata (schema-valid, metadata only). Release binaries are the supported
-install path; there is no one-click Claude Desktop package yet.
+`server.json` is MCP Registry metadata (metadata only, no package entry). Release binaries are the supported
+install path. The release workflow also builds Claude Desktop preview bundles (`.mcpb`, pinned CLI 2.1.2),
+which the owner publishes separately on a pre-release after testing on real machines; they are not
+registered or directory listed, and there is no one-click Desktop install yet.
 
 ## License
 

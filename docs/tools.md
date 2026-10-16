@@ -69,10 +69,10 @@ Credentials never appear in tool arguments, tool results or client snippets.
 `attachment`, `server`, or `all`. Selectors form a union, not an intersection.
 For example, `card` includes both card-member tools. Unknown selectors fail
 startup. Write access is the default for `trello-mcp auth`. Read-only is opt-in via
-`trello-mcp auth --read-only` or `TRELLO_READ_ONLY=1`; either then removes all 29
+`trello-mcp auth --read-only` or `TRELLO_READ_ONLY=1` (`true` and `false` are also accepted); either then removes all 29
 mutation/transfer tools, even explicitly selected ones. The 19 reads and
 local-selection tools remain eligible. A saved token with `scope=read` implies
-read-only mode even if `TRELLO_READ_ONLY=0`.
+read-only mode even if `TRELLO_READ_ONLY=0` or `false`.
 
 The named read-oriented discovery profile has exactly ten tools. `board_use` still changes
 the local default board, so the profile is not wholly read-only:
@@ -83,7 +83,8 @@ TRELLO_TOOLS=workspace_find,board_find,board_use,list_find,card_find,card_get,co
 
 With no credentials the server still initializes and registers only `server_health`,
 regardless of the selected profile. Initialization instructions and every health mode
-tell the human to run `trello-mcp auth` in a private terminal, then restart or reconnect the
+tell a CLI human to run the installer's absolute-path auth command in a private terminal (or a Desktop
+extension human to use extension settings), then use the individual Reconnect action or restart the
 client. Never request keys, tokens or authorization links in chat. See
 [configuration](configuration.md) for the exact message and precedence.
 
@@ -105,12 +106,75 @@ client. Never request keys, tokens or authorization links in chat. See
   status and a description preview of at most 200 characters with `descTruncated`, but no `url`.
   `detail: "full"` adds `url`; `card_get` keeps `url` at both detail levels. This summary change is
   intentional before 1.0. Filters, authorization, IDs and `next` cursors are identical in both modes.
+- `card_find` accepts `includeDesc`, a boolean defaulting to `true`. `includeDesc: false` drops `desc` and
+  `descTruncated` from summaries for triage, listing or paging; it is rejected together with
+  `detail: "full"`. Filters, ownership checks, IDs, retained values and `next` cursors do not change, and
+  `card_get` and full detail are unaffected. On the synthetic 30-card benchmark fixture the response shrinks
+  from 11,873 to 4,943 characters (58.4%); the saving on your boards depends on your descriptions, and the
+  `tools/list` entry grows by 80 characters. Character counts are not tokenizer measurements.
 - `card_find` `before` is a card ID returned earlier in the same filtered snapshot, never a date.
   Dates and malformed IDs are rejected before any request; syntactically valid IDs are checked against
   the freshly fetched filtered snapshot and rejected if absent. `mine: true` selects account-wide assigned cards and
   cannot be combined with `boardId` or `listId`. `state` accepts `complete` or `incomplete`.
 - Unknown arguments name the key, object location and allowed keys. Duplicate
   arguments name the key and location; type errors name the field and expected type.
+
+## Read parameters
+
+Every non-write tool. `boardId` is optional everywhere except `board_use`, which requires it: collection reads default to the active board and
+object reads treat it as an expected-owner constraint, never authorization. Limits, defaults and enums here are
+checked against the registration and runtime schema by the repository validator.
+
+| Tool | Required | Optional | Defaults and accepted values |
+| --- | --- | --- | --- |
+| `workspace_find` | none | `nameFilter` | none |
+| `workspace_use` | `workspaceId` | none | local selection; clears the active board |
+| `board_find` | none | `workspaceId`, `nameFilter` | all accessible boards unless `workspaceId` narrows |
+| `board_use` | `boardId` | none | local selection |
+| `board_get` | none | `boardId`, `detail` | `detail`: `summary` or `full` |
+| `board_activity` | none | `boardId`, `limit`, `since`, `before`, `filter` | `limit`: default 20, max 1000; `filter`: default `all` |
+| `list_find` | none | `boardId`, `nameFilter` | open lists only |
+| `card_find` | none | `boardId`, `listId`, `mine`, `nameFilter`, `detail`, `limit`, `before`, `includeDesc` | `detail`: `summary` or `full`; `limit`: default 100, max 1000; `includeDesc`: default `true` |
+| `card_get` | `cardId` | `boardId`, `detail`, `view`, `extraFields` | `detail`: `summary` or `full`; `view`: `json` or `markdown`; `extraFields`: up to four unique of `stickers`, `pluginData`, `votes` and `customFieldItems` |
+| `card_history` | `cardId` | `boardId`, `limit`, `before`, `since`, `filter` | `limit`: default 20, max 1000; `filter`: default `all` |
+| `attachment_find` | `cardId` | `boardId` | metadata only |
+| `comment_find` | `cardId` | `boardId`, `limit`, `before`, `since` | `limit`: default 20, max 100 |
+| `checklist_items` | `checklistId` | `boardId` | none |
+| `checklist_get` | `cardId` | `boardId`, `name` | `name`: default `Acceptance Criteria` |
+| `checklist_item_find` | `checklistId` | `boardId`, `nameFilter` | case-insensitive substring |
+| `member_find` | none | `boardId`, `nameFilter` | none |
+| `label_find` | none | `boardId`, `nameFilter` | none |
+| `customfield_find` | none | `boardId` | none |
+| `server_health` | none | `detail` | `detail`: `basic`, `detailed`, `metadata`, `performance` or `policy` |
+
+`card_find` cursors and action cursors differ. A `card_find` `before` is a card ID from the same filtered
+snapshot and `mine` cannot be combined with `boardId` or `listId`. Activity, history and comment `before` and
+`since` take an action ID or an RFC 3339 date, and `filter` applies upstream before paging.
+
+```json
+{"cardId":"c1","view":"markdown"}
+{"cardId":"c1","detail":"full","extraFields":["votes"]}
+{"listId":"l1","includeDesc":false,"limit":50}
+```
+
+## Text limits
+
+Human text is counted in Unicode code points, not bytes, and a value over its limit is rejected before any
+request. Trello's own error is reported as an error, never as silent truncation. Tool schemas omit these
+limits to keep the catalog small; the runtime check and its error message state them.
+
+| Field | Local limit | Evidence |
+| --- | --- | --- |
+| Card `desc` (`card_create`, `card_update`, batch cards) | 16,384 code points | Trello's object definitions say "Up to 16384 chars"; how upstream counts Unicode is not defined |
+| Board `desc` | 16,384 code points | Trello documents no limit; local ceiling |
+| Comment `text`, card, list, board, checklist, checklist item, label and attachment names, `checklist.items` entries, custom-field text and `nameFilter` | 16,384 code points | Trello documents no limit; local ceiling, not an observed Trello maximum |
+
+A ceiling marked local is this server's own safety bound. It may be lower or higher than what Trello accepts;
+the card description row is the only one with a documented upstream figure. Request bodies have independent
+aggregate caps: 1 MiB of JSON for tools that carry enlarged text, cards, checklists or custom-field values,
+14 MiB for `attachment_upload` and 16 KiB for everything else. A maximal 16,384 code point value of
+supplementary characters written as literal JSON surrogate escapes takes 196,608 bytes and fits, but the whole
+request must too: 100 batch cards with maximal descriptions exceed 1 MiB, so split large batches.
 
 ## Discovering access policy
 
@@ -136,6 +200,8 @@ Call `server_health` with `detail: "policy"` for compact text-only JSON containi
 
 Custom profiles should include `server` or `server_health` to retain diagnostics.
 The health `detail` enum is `basic`, `detailed`, `metadata`, `performance`, `policy`.
+`basic` and `detailed` also report `credentialSource` as `env`, `file` or `none`; it never contains a
+path, key or token. An environment source includes credentials supplied by a Claude Desktop extension.
 
 Policy denials use `{"error":"access denied by <policy>: <reason>. This is server
 policy, not a token/permission error. ..."}` and include a corrective action plus
@@ -228,7 +294,7 @@ back after a later failure.
 
 Both creation tools accept `checklist: {"name":"Checklist","items":["SND01","SND02"]}`
 on each card. The name defaults to `Checklist`; `items` requires 1-100 nonblank
-strings, each at most 4096 bytes (the `checklist_item_create` name bound). Items
+strings, each at most 16,384 code points (the local text limit above). Items
 are created in order on the new checklist of the new card, without concurrency.
 Successful single-card output adds `checklist: {id,name,items:N}` to the card
 projection; batch entries include the same checklist summary.
@@ -354,7 +420,7 @@ currently Unix-only (including Linux and macOS); other platforms fail closed.
 8. Download storage verifies directory ownership/type, rejects symlinks, creates
    exclusively, sanitizes names and enforces a size cap.
 9. Health modes `basic`, `detailed`, `metadata`, `performance` are all local:
-   `basic` returns `ok`; `detailed` adds profile and selection-presence booleans;
+   `basic` returns `ok` and `credentialSource`; `detailed` adds profile and selection-presence booleans;
    `metadata` reports implementation/runtime/transport; `performance` reports
    uptime/request/retry counters. `policy` reports configured/effective access
    policy with one cached best-effort workspace-resolution request. No mode

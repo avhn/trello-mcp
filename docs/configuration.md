@@ -2,18 +2,19 @@
 
 The detailed reference for variables, credential precedence and storage, platform paths,
 permissions, troubleshooting and the security model. Install and client registration are in
-[setup](setup.md); tool behavior is in [tools](tools.md).
+[setup](setup.md); tool behavior is in [tools](tools.md). Commands are shown as `trello-mcp`; if it is not on
+PATH, use the absolute path the installer printed.
 
 ## Variables
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `TRELLO_API_KEY` | saved credentials | Trello API key; must be set together with `TRELLO_TOKEN` |
+| `TRELLO_API_KEY` | saved credentials | Trello API key; must be set together with `TRELLO_TOKEN`. "Environment" includes values a client or the Claude Desktop extension settings pass to the server |
 | `TRELLO_TOKEN` | saved credentials | Trello API token; an environment pair overrides the file |
 | `TRELLO_BOARD_ID` | saved selection | Initial board; changing it clears the old saved workspace |
 | `TRELLO_ALLOWED_WORKSPACES` | unrestricted | Comma-separated workspace ids or canonical names, not display names; additional server policy, not token permissions |
 | `TRELLO_TOOLS` | `all` | Comma-separated tool names or prefix groups: `workspace`, `board`, `list`, `card`, `comment`, `checklist`, `member`, `label`, `customfield`, `attachment`, `server` |
-| `TRELLO_READ_ONLY` | `0` (or saved scope `read`) | Opt-in: `1` hides all 29 mutation/transfer tools, including local-file downloads; 19 tools remain. `0` cannot override a saved read-only token |
+| `TRELLO_READ_ONLY` | `0` or `false` (or saved scope `read`) | Opt-in: `1` or `true` hides all 29 mutation/transfer tools, including local-file downloads; 19 tools remain. Any other value is an error. `0` or `false` cannot override a saved read-only token |
 | `TRELLO_DOWNLOAD_DIR` | `os.TempDir()/trello-mcp` | Absolute download directory; created as 0700, existing directories must be private and owned by the current user |
 | `TRELLO_UPLOAD_DIR` | unset (path uploads disabled) | Absolute root for local-file uploads; only regular files inside this directory may be uploaded, without following symlinks |
 | `TRELLO_MCP_CREDENTIALS` | `~/.secrets/.trello-mcp.secret` | Absolute dotenv credential file path; `auth --file PATH` overrides it for that command |
@@ -54,8 +55,12 @@ The default on every platform is `~/.secrets/.trello-mcp.secret`, resolved with
 `os.UserHomeDir()` (`%USERPROFILE%\.secrets\.trello-mcp.secret` on Windows).
 Precedence is: environment `TRELLO_API_KEY` + `TRELLO_TOKEN`, then an absolute
 `TRELLO_MCP_CREDENTIALS` file, then the default file, then `~/.secrets.env`.
-Both environment values are required together; a partial pair is an error, not a fallback. MCP client
-configs need only the full binary path, with no credential env block.
+Both environment values are required together; a partial pair is an error, not a fallback. CLI client
+configs need only the full binary path, with no credential env block. The Claude Desktop extension is the
+exception: Desktop passes its masked key and token settings as this environment pair, so they win over any
+saved file, and an environment token has unknown scope and is never assumed read-only. Do not use CLI
+`auth` to store Desktop credentials. Setup for the preview extension is in
+[setup](setup.md#claude-desktop-extension-preview-new-in-v060).
 
 The dedicated plaintext file uses unquoted dotenv:
 
@@ -119,7 +124,8 @@ Connected as alice, scope read,write
 ```
 
 For environment credentials the first line is exactly
-`Credential source: env (TRELLO_API_KEY, TRELLO_TOKEN)`. With none found:
+`Credential source: env (TRELLO_API_KEY, TRELLO_TOKEN)`. Basic and detailed `server_health` report the same
+fact as `credentialSource` (`env`, `file` or `none`), without paths or values. With none found:
 
 ```text
 No credentials in this shell or <path>. MCP clients may pass them through their own config; run `trello-mcp auth` to save them for all clients.
@@ -168,9 +174,12 @@ Fix permissions only on a path you own and intend to keep private, or select a
 new private parent with `TRELLO_MCP_CREDENTIALS`. Replace symlinks with real
 paths, and rerun as the owner rather than bypassing ownership checks.
 
-- No credentials found, or only `server_health` is exposed: the human runs `trello-mcp auth` in a private
-  terminal, checks any override, then restarts or reconnects the client. The server stays health-only until
-  a fresh configured server starts. A client may supply its own environment values not visible in your shell.
+- No credentials found, or only `server_health` is exposed: for a CLI install the human runs the installer's
+  absolute-path auth command in a private terminal and checks any override; for the Desktop extension the
+  human enters the key and token in extension settings. Then use the individual trello Reconnect action in
+  `/mcp`, restart the Desktop extension, or fully quit and reopen the client. The server stays health-only
+  until a fresh configured server starts. A client may supply its own environment values not visible in
+  your shell.
 - Permission refused: use the exact corrective message above. On Unix auth
   repairs only the default `~/.secrets` to 0700, when it is a current-user-owned real directory; it does not
   chmod custom parents or read an unsafe file to preserve its lines.
@@ -190,10 +199,13 @@ active ids. If a tool is hidden or an operation is refused, call `server_health`
 `server_health` in custom `TRELLO_TOOLS` profiles to keep this diagnostic available.
 
 Without credentials the server still initializes, registers only `server_health`, and includes this
-message in initialization instructions and every health mode: "Trello credentials not configured. The
-human must run `trello-mcp auth` in a private terminal, then restart/reconnect the MCP client. Never share
-keys, tokens or authorization URLs in chat or agent-captured commands. Only server_health is exposed until
-a fresh configured server starts." Invalid-token HTTP 401 errors include the same setup hint.
+message in initialization instructions and every health mode: "Trello credentials not configured. For CLI
+installs, the human must run the installer's quoted absolute-path auth command in a private terminal (not
+through an agent). For Claude Desktop extensions, the human must enter credentials in extension settings.
+Then use the trello server's Reconnect action in /mcp or fully quit/restart the MCP client; restart the
+Desktop extension or fully quit/reopen Desktop. Never share keys, tokens or authorization URLs in chat or
+agent-captured commands. Only server_health is exposed until a fresh configured server starts."
+Invalid-token HTTP 401 errors include the same setup hint.
 
 Policy health returns `restricted`, `allowedWorkspaces` (each configured
 `selector`, plus resolved `id` and canonical `name` when available), `readOnly`,
@@ -209,6 +221,16 @@ Workspace resolution uses one cached, best-effort request to
 `/members/me/organizations` with only `id,name`. A failed lookup leaves selectors
 unresolved without failing health. This diagnostic cache never authorizes
 operations, and names of workspaces outside the allowlist are not returned.
+
+## Text limits
+
+Human text fields (descriptions, comments, names, checklist items, name filters and custom-field text) are
+validated in Unicode code points at runtime; tool schemas omit the limit to stay small. The only documented
+upstream figure is the card description, "Up to 16384 chars" in Trello's object definitions, and Trello does not
+define how it counts Unicode. Every other field has a local 16,384 code point ceiling because Trello documents
+no limit; it is a safety bound of this server, not an observed or documented Trello maximum. Whole requests
+have separate byte caps: 1 MiB for text-bearing tools, 14 MiB for `attachment_upload`, 16 KiB otherwise. The
+per-field table is in [tools](tools.md#text-limits).
 
 ## Active selection
 
