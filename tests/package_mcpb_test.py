@@ -59,7 +59,7 @@ class BundleTests(unittest.TestCase):
             path.chmod(0o755 if name.startswith("server/") else 0o644)
 
     def args(self, **changes):
-        values = dict(target="linux-arm64", version=json.loads((ROOT / "server.json").read_text())["version"],
+        values = dict(target="linux-arm64", version=json.loads((ROOT / "packaging/registry/server.template.json").read_text())["version"],
                       output_dir=self.directory / "out", linux_binary=None, darwin_amd64=None,
                       darwin_arm64=None, windows_amd64=None, test_darwin_single_arch=False,
                       require_smoke=False)

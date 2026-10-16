@@ -79,6 +79,10 @@ class ReleaseTests(unittest.TestCase):
         for name in release.BUNDLES:
             self.bundle(name)
 
+    def test_source_template_is_not_a_root_publisher_default(self):
+        self.assertFalse((ROOT / "server.json").exists())
+        self.assertTrue((ROOT / "packaging/registry/server.template.json").is_file())
+
     def test_source_stays_metadata_only(self):
         self.assertNotIn("packages", self.metadata)
         release.source_metadata(tag="v" + self.version)
@@ -426,7 +430,7 @@ class ReleaseTests(unittest.TestCase):
     def test_default_publisher_validation_keeps_metadata_only_source_support(self, publisher):
         with mock.patch.object(sys, 'argv', ['release_manifest.py', 'publisher-validate']):
             release.main()
-        publisher.assert_called_once_with(ROOT / 'server.json')
+        publisher.assert_called_once_with(ROOT / 'packaging/registry/server.template.json')
 
     def test_registry_checksums_reject_missing_asset_or_metadata_tamper(self):
         self.all_assets()
@@ -483,13 +487,13 @@ class ReleaseTests(unittest.TestCase):
                 for variable in ("HOME", "XDG_CONFIG_HOME", "APPDATA", "LOCALAPPDATA", "USERPROFILE"):
                     self.assertEqual(list(Path(env[variable]).iterdir()), [])
         run.side_effect = execute
-        release.publisher_validate(ROOT / "server.json")
+        release.publisher_validate(ROOT / "packaging/registry/server.template.json")
         self.assertIn("/v1.8.1/", calls[0][0][-1])
         self.assertEqual(calls[1][0][1:], ["--help"])
-        self.assertEqual(calls[2][0][1:], ["validate", str(ROOT / "server.json")])
+        self.assertEqual(calls[2][0][1:], ["validate", str(ROOT / "packaging/registry/server.template.json")])
         digest.return_value = "wrong"
         with self.assertRaisesRegex(ValueError, "checksum mismatch"):
-            release.publisher_validate(ROOT / "server.json")
+            release.publisher_validate(ROOT / "packaging/registry/server.template.json")
         self.assertEqual(len(calls), 4)
         digest.return_value = "a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc"
 
@@ -499,7 +503,7 @@ class ReleaseTests(unittest.TestCase):
                 raise release.subprocess.CalledProcessError(1, args)
         run.side_effect = remote_failure
         with self.assertRaises(release.subprocess.CalledProcessError):
-            release.publisher_validate(ROOT / "server.json")
+            release.publisher_validate(ROOT / "packaging/registry/server.template.json")
 
 
 if __name__ == "__main__":

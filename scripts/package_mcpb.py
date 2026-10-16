@@ -9,7 +9,8 @@ Desktop inputs: --darwin-amd64 FILE --darwin-arm64 FILE --windows-amd64 FILE
 Linux inputs: --linux-binary FILE (matching target architecture).
 Outputs: DIR/trello-mcp_desktop.mcpb, DIR/trello-mcp_linux_amd64.mcpb or
   DIR/trello-mcp_linux_arm64.mcpb, respectively. Existing files are not replaced.
-Version must match root server.json, without the optional leading v in the arg.
+Version must match packaging/registry/server.template.json, without the optional
+leading v in the arg.
 Binaries must use -X main.version=vVERSION (or VERSION). No builds or downloads
 are performed by this script. Requires Node and locked @anthropic-ai/mcpb 2.1.2.
 
@@ -81,9 +82,9 @@ def release_version(value):
     version = value.removeprefix("v")
     if not re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", version):
         raise ValueError("version must be a stable semantic version, optionally prefixed with v")
-    metadata = json.loads((ROOT / "server.json").read_text())
+    metadata = json.loads((ROOT / "packaging/registry/server.template.json").read_text())
     if metadata["version"] != version:
-        raise ValueError("version does not match root server.json")
+        raise ValueError("version does not match packaging/registry/server.template.json")
     return version
 
 

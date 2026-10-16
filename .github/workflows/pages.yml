@@ -9,7 +9,7 @@ on:
       - 'README.md'
       - 'docs/**'
       - 'LICENSE'
-      - 'server.json'
+      - 'packaging/registry/server.template.json'
       - 'internal/tools/health.go'
       - 'internal/tools/registry.go'
       - 'internal/tools/delivery.go'

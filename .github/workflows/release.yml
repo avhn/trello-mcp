@@ -268,7 +268,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           DIST="${GITHUB_WORKSPACE:?GITHUB_WORKSPACE must be set}/dist"
-          # Registry login and publication remain held until separately authorized v1.0.0.
+          # Registry publication is a separate, owner-authorized human step; this workflow never logs in.
           gh release create "$RELEASE_TAG" \
             "$DIST/trello-mcp_linux_amd64.tar.gz" "$DIST/trello-mcp_linux_arm64.tar.gz" \
             "$DIST/trello-mcp_darwin_amd64.tar.gz" "$DIST/trello-mcp_darwin_arm64.tar.gz" \

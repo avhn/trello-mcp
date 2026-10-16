@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Generate and validate normal-release metadata and bytes. Run with python3 -I.
 
-Root server.json stays metadata-only. For each approved normal vX.Y.Z tag, inspect
-final MCPBs, generate metadata and unified checksums, verify them, and
-publisher-validate the generated server.json before approved GitHub publication. Independently verify public bytes
-and validate downloaded metadata afterward. Stop there: no registry submission.
+The metadata-only template is packaging/registry/server.template.json. For each
+approved normal vX.Y.Z tag, inspect final MCPBs, generate metadata and unified
+checksums, verify them, and publisher-validate the generated server.json before
+approved GitHub publication. Independently verify public bytes and validate
+downloaded metadata afterward. Stop there: no registry submission.
 
 Inspect all three MCPBs and include all in the unified checksums. Registry
 installation metadata lists only trello-mcp_desktop.mcpb (macOS universal and
@@ -12,13 +13,13 @@ Windows amd64). Linux MCPBs remain owner-untested beta downloads, excluded until
 support is explicitly promoted with owner evidence. This is our discovery/support
 policy, not a Registry format limitation.
 
-Only for separately authorized v1.0.0 registry publication: recheck the official
-format and publisher pin, regenerate from final bytes, verify public URL/hash and
-checksums, then mcp-publisher validate /absolute/path/to/downloaded/server.json.
-A human privately runs mcp-publisher login github for io.github.avhn/trello-mcp,
-then mcp-publisher publish /absolute/path/to/downloaded/server.json. Verify the
-returned name/version through the Registry API. Never inspect token files, add
-automated registry auth secrets, or retroactively submit pre-1.0 releases.
+Only for a release the owner separately authorizes for the registry: recheck the
+official format and publisher pin, publisher-validate the downloaded generated
+server.json, then a human privately runs mcp-publisher login github for
+io.github.avhn/trello-mcp and mcp-publisher publish with the absolute path of that
+downloaded file. Verify the name, version and package through the Registry API.
+Never inspect token files, add automated registry auth secrets, or retroactively
+submit pre-1.0 releases.
 See AGENTS.md.
 """
 
@@ -66,7 +67,7 @@ def read_json(value):
     return result
 
 
-def source_metadata(path=ROOT / "server.json", tag=None):
+def source_metadata(path=ROOT / "packaging/registry/server.template.json", tag=None):
     value = read_json(path.read_text())
     version = value.get("version", "")
     require(re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", version), "invalid stable version")
@@ -244,7 +245,7 @@ def publisher_validate(path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--metadata", type=Path, default=ROOT / "server.json")
+    parser.add_argument("--metadata", type=Path, default=ROOT / "packaging/registry/server.template.json")
     parser.add_argument("--tag")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("version")

@@ -441,7 +441,7 @@ def check_mirror(markdown, page_source):
 # ---- Versions ----
 
 def check_versions(site, health, manifest, tag=None):
-    versions = {'internal/tools/health.go': health, 'server.json': manifest}
+    versions = {'internal/tools/health.go': health, 'packaging/registry/server.template.json': manifest}
     for name, value in site.items():
         versions[f'site {name}'] = value
     for name, value in versions.items():
@@ -465,15 +465,15 @@ def check_compatibility_status(markdown, version):
 
 
 def check_manifest(manifest):
-    require(manifest.get('$schema', '').startswith('https://static.modelcontextprotocol.io/schemas/'), 'server.json schema URL')
-    require(re.fullmatch(r'[a-zA-Z0-9.-]+/[a-zA-Z0-9._-]+', manifest.get('name', '')), 'server.json name format')
-    require(manifest['name'] == 'io.github.avhn/trello-mcp', 'server.json name')
-    require(manifest.get('title') == 'trello-mcp', 'server.json title')
-    require(0 < len(manifest.get('description', '')) < 100, 'server.json description must be under 100 characters')
-    require(manifest.get('repository') == {'url': 'https://github.com/avhn/trello-mcp', 'source': 'github'}, 'server.json repository')
-    require(manifest.get('websiteUrl') == BASE, 'server.json websiteUrl')
+    require(manifest.get('$schema', '').startswith('https://static.modelcontextprotocol.io/schemas/'), 'packaging/registry/server.template.json schema URL')
+    require(re.fullmatch(r'[a-zA-Z0-9.-]+/[a-zA-Z0-9._-]+', manifest.get('name', '')), 'packaging/registry/server.template.json name format')
+    require(manifest['name'] == 'io.github.avhn/trello-mcp', 'packaging/registry/server.template.json name')
+    require(manifest.get('title') == 'trello-mcp', 'packaging/registry/server.template.json title')
+    require(0 < len(manifest.get('description', '')) < 100, 'packaging/registry/server.template.json description must be under 100 characters')
+    require(manifest.get('repository') == {'url': 'https://github.com/avhn/trello-mcp', 'source': 'github'}, 'packaging/registry/server.template.json repository')
+    require(manifest.get('websiteUrl') == BASE, 'packaging/registry/server.template.json websiteUrl')
     require('packages' not in manifest and 'remotes' not in manifest,
-            'server.json is a metadata-only source template; release packages belong in generated metadata')
+            'packaging/registry/server.template.json is a metadata-only source template; release packages belong in generated metadata')
 
 
 def local_file(reference, page_url):
@@ -1062,7 +1062,7 @@ def validate():
     # One version gate: source, manifest, every SoftwareApplication, optional release tag.
     health = re.search(r'var Version = "([^"]+)"', (ROOT / 'internal/tools/health.go').read_text())
     require(health is not None, 'Missing default Version in internal/tools/health.go')
-    manifest = json.loads((ROOT / 'server.json').read_text())
+    manifest = json.loads((ROOT / 'packaging/registry/server.template.json').read_text())
     check_manifest(manifest)
     tag = os.environ.get('RELEASE_TAG', '')
     version = check_versions(site_versions, health.group(1), manifest['version'], tag)
@@ -1072,10 +1072,10 @@ def validate():
     print(f'PASS: sitemap lists {len(urls)} canonical routes; robots, noindex 404, favicon, 1200x630 PNG, llms.txt and {len(names)} tools')
     print(f'PASS: setup page mirrors docs/setup.md ({len(items)} items, exact code text); {snippet_count} JSON/TOML snippets parse; seven-client matrix')
     print(f'PASS: README {len(lines)} lines, six-row benchmark, paste line, four badges; credential refusals documented in configuration.md')
-    print(f'PASS: version {version} matches health.go, server.json and all site pages' + (f'; RELEASE_TAG {tag} accepted' if tag else ' (no RELEASE_TAG)'))
+    print(f'PASS: version {version} matches health.go, packaging/registry/server.template.json and all site pages' + (f'; RELEASE_TAG {tag} accepted' if tag else ' (no RELEASE_TAG)'))
     print(f'PASS: read parameter table matches {len(read_rows)} registered non-write tools and the site tools page')
     print(f'PASS: mutation parameter table matches {len(mutation_rows)} registered write/transfer tools')
-    print('PASS: server.json source template checked for metadata-only shape; release package validation belongs to the pinned publisher and release_manifest.py')
+    print('PASS: packaging/registry/server.template.json source template checked for metadata-only shape; release package validation belongs to the pinned publisher and release_manifest.py')
     total = sum(file.stat().st_size for file in SITE.rglob('*') if file.is_file())
     print(f'PASS: one local CSS file ({len(css.encode())} bytes), copy.js ({len(copy_js)} bytes), home {html_sizes[SITE / "index.html"]} bytes, HTML {sum(html_sizes.values())} bytes; site {total} bytes')
 
@@ -1567,7 +1567,7 @@ class VersionTests(unittest.TestCase):
             check_versions({'index.html': 'v0.5.0'}, '0.5.0', '0.5.0')
 
     def test_manifest_stays_metadata_only(self):
-        manifest = json.loads((ROOT / 'server.json').read_text())
+        manifest = json.loads((ROOT / 'packaging/registry/server.template.json').read_text())
         check_manifest(manifest)
         for extra in ({'packages': []}, {'remotes': []}):
             with self.assertRaisesRegex(ValueError, 'metadata-only'):
@@ -1577,7 +1577,7 @@ class VersionTests(unittest.TestCase):
 
     def test_live_sources_agree(self):
         health = re.search(r'var Version = "([^"]+)"', (ROOT / 'internal/tools/health.go').read_text()).group(1)
-        self.assertEqual(json.loads((ROOT / 'server.json').read_text())['version'], health)
+        self.assertEqual(json.loads((ROOT / 'packaging/registry/server.template.json').read_text())['version'], health)
 
 
 if __name__ == '__main__':
