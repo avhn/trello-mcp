@@ -2,7 +2,7 @@
 
 Run: python3 -I scripts/site/validate.py
 Parser regression checks: python3 -I scripts/site/validate.py --self-test
-Release gate: RELEASE_TAG=v0.6.0 python3 -I scripts/site/validate.py
+Release gate: RELEASE_TAG=v0.7.0 python3 -I scripts/site/validate.py
 """
 from collections import Counter
 from html import unescape
@@ -13,6 +13,7 @@ from urllib.parse import unquote, urljoin, urlsplit
 import json
 import os
 import re
+import shlex
 import sys
 import tomllib
 import unittest
@@ -459,7 +460,7 @@ def check_manifest(manifest):
     require(manifest.get('repository') == {'url': 'https://github.com/avhn/trello-mcp', 'source': 'github'}, 'server.json repository')
     require(manifest.get('websiteUrl') == BASE, 'server.json websiteUrl')
     require('packages' not in manifest and 'remotes' not in manifest,
-            'server.json must stay metadata-only until real MCPB assets exist')
+            'server.json is a metadata-only source template; release packages belong in generated metadata')
 
 
 def local_file(reference, page_url):
@@ -510,6 +511,71 @@ def validate_snippets(name, markdown):
     return count
 
 
+def check_claude_registration(command):
+    """Check the documented forms, including the variadic --env option boundary."""
+    tokens = shlex.split(command)
+    prefix = ['claude', 'mcp', 'add', '--scope', 'user']
+    suffix = ['--transport', 'stdio', 'trello', '--', PLACEHOLDER]
+    require(tokens in (prefix + suffix, prefix + ['--env', f'TRELLO_TOOLS={PROFILE_TOOLS}'] + suffix),
+            'Claude registration must use --scope user and --transport stdio before the server name; '
+            '--env is variadic and must end at an option boundary')
+
+
+def check_source_examples(markdown):
+    # Presence only: never execute documentation or resolve the user's Go installation.
+    examples = (
+        ('sh', 'trello_mcp="$(go env GOBIN)"; if [ -z "$trello_mcp" ]; then '
+         'trello_mcp="$(go env GOPATH)"; trello_mcp="${trello_mcp%%:*}/bin"; fi; '
+         'trello_mcp="$trello_mcp/trello-mcp"; printf \'%s\\n\' "$trello_mcp"'),
+        ('powershell', '$bin = go env GOBIN; if (-not $bin) { $gopath = (go env GOPATH) '
+         "-split [IO.Path]::PathSeparator; $bin = Join-Path $gopath[0] 'bin' }; "
+         "$trelloMcp = Join-Path $bin 'trello-mcp.exe'; $trelloMcp"),
+    )
+    blocks = fenced_blocks(markdown)
+    for language, example in examples:
+        require(any(lang == language and example in body.splitlines() for lang, body in blocks),
+                f'Missing {language} source-path example')
+    for command in ('"$trello_mcp" auth logout', '& $trelloMcp auth logout'):
+        require(any(command in body.splitlines() for _, body in blocks),
+                f'Missing resolved source logout command: {command}')
+
+
+def check_desktop_contract(setup, tools_doc, manifest, health_source):
+    require('## Claude Desktop extension\n' in setup, 'Missing stable Claude Desktop extension anchor')
+    require('preview' not in setup.lower(), 'Setup must not retain the Desktop preview anchor or wording')
+    require('supports macOS and Windows amd64' in setup and 'Linux Desktop is itself a beta' in setup,
+            'Setup must distinguish supported Desktop bundles from Linux beta')
+    expected = {'ok': True, 'credentialSource': 'env', 'access': 'unverified; call workspace_find'}
+    require('"unverified; call workspace_find"' in health_source, 'Health source access guidance drift')
+    for name, text in (('setup.md', setup), ('tools.md', tools_doc)):
+        examples = []
+        for language, body in fenced_blocks(text):
+            if language != 'json':
+                continue
+            decoder, position = json.JSONDecoder(), 0
+            while position < len(body):
+                example, position = decoder.raw_decode(body, position)
+                examples.append(example)
+                position += len(body[position:]) - len(body[position:].lstrip())
+        require(expected in examples, f'{name}: missing configured basic health response')
+        require('health-only profile' in text.lower() and 'upstream read' in text,
+                f'{name}: health-only profiles cannot verify upstream access')
+    help_text = manifest['long_description']
+    require('macOS and Windows are supported.' in help_text and 'preview' not in help_text.lower(),
+            'Desktop manifest must describe supported bundles, not a preview')
+    for phrase in ('Health does not verify Trello access.', 'workspace_find {}', 'health-only profile',
+                   'No CLI auth/status or credential copying is required.',
+                   'Windows refuses local path uploads and attachment downloads even when directories are set'):
+        require(phrase in help_text, f'Desktop manifest help missing: {phrase}')
+    health_help = next(tool['description'] for tool in manifest['tools'] if tool['name'] == 'server_health')
+    require('not Trello auth' in health_help and 'workspace_find' in health_help,
+            'Desktop static health help must distinguish local config from Trello access')
+    for setting in ('download_dir', 'upload_dir'):
+        description = manifest['user_config'][setting]['description']
+        require('Windows refuses' in description and 'cannot enable' in description,
+                f'Desktop {setting} must retain Windows refusal guidance')
+
+
 def validate_clients(items):
     """Check the seven-client matrix content and native snippet shapes in setup.md."""
     start = next(i for i, item in enumerate(items) if item == ('section', 'clients'))
@@ -551,7 +617,10 @@ def validate_clients(items):
     require(vscode['type'] == 'stdio' and vscode['command'] == PLACEHOLDER, 'VS Code snippet shape')
     for item in items:
         if item[0] == 'code' and 'claude mcp add' in item[2] and item[2].startswith('claude'):
-            require('--scope user' in item[2], 'Every Claude registration uses --scope user')
+            check_claude_registration(item[2])
+    require(any(item[0] == 'code' and item[2].startswith('claude mcp add') and
+                f'--env TRELLO_TOOLS={PROFILE_TOOLS}' in item[2] for item in items),
+            'Missing Claude read-oriented profile registration')
     flat = ' '.join(flat_text(i) for i in items)
     require('private terminal' in flat and 'never run bare' in flat.lower(), 'Human-only auth handoff')
     require('server_health' in flat and 'trello-mcp auth status' in flat, 'Secret-free verification')
@@ -796,6 +865,7 @@ def validate():
     for name, text in (('README.md', readme), ('setup.md', setup), ('configuration.md', configuration),
                        ('tools.md', tools_doc), ('llms.txt', llms)):
         require(not re.search(FORBIDDEN_TEXT, text), f'Forbidden punctuation or emoji: {name}')
+        require('claude-desktop-extension-preview' not in text, f'Obsolete Desktop preview fragment: {name}')
     require(normalized(TRADEMARK) in normalized(readme), 'Missing README trademark notice')
     lines = readme.splitlines()
     require(len(lines) <= 250, f'README exceeds 250 lines: {len(lines)}')
@@ -805,6 +875,14 @@ def validate():
     require(readme.count('img.shields.io') == 4, 'README must carry exactly four Shields badges')
     items = check_mirror(setup, (SITE / 'setup/index.html').read_text())
     validate_clients(items)
+    check_source_examples(setup)
+    check_desktop_contract(setup, tools_doc,
+                           json.loads((ROOT / 'packaging/mcpb/manifest.template.json').read_text()),
+                           (ROOT / 'internal/tools/health.go').read_text())
+    for file in SITE.rglob('*'):
+        if file.suffix in {'.html', '.txt'}:
+            require('claude-desktop-extension-preview' not in file.read_text(),
+                    f'Obsolete Desktop preview fragment: {file}')
     home = pages[SITE / 'index.html']
     require(paste in [t.strip() for t in home.text('pre')], 'Home page must carry the exact paste-to-agent line')
     snippet_count = sum(validate_snippets(name, text) for name, text in (('setup.md', setup), ('configuration.md', configuration), ('tools.md', tools_doc)))
@@ -1056,6 +1134,63 @@ class MirrorTests(unittest.TestCase):
             validate_clients(parse_markdown(self.markdown.replace('### Cursor', '### Cursor IDE')))
         with self.assertRaises(ValueError):
             validate_clients(parse_markdown(self.markdown.replace('claude mcp add --scope user', 'claude mcp add', 1)))
+
+
+class SetupContractTests(unittest.TestCase):
+    setup = (ROOT / 'docs/setup.md').read_text()
+    tools = (ROOT / 'docs/tools.md').read_text()
+    manifest = json.loads((ROOT / 'packaging/mcpb/manifest.template.json').read_text())
+    health = (ROOT / 'internal/tools/health.go').read_text()
+
+    def test_profile_option_boundary(self):
+        command = (f'claude mcp add --scope user --env TRELLO_TOOLS={PROFILE_TOOLS} '
+                   f'--transport stdio trello -- "{PLACEHOLDER}"')
+        check_claude_registration(command)
+        check_claude_registration(f'claude mcp add --scope user --transport stdio trello -- "{PLACEHOLDER}"')
+        for bad in (command.replace('--transport stdio ', ''),
+                    command.replace('--transport stdio ', '').replace('--scope user', '--scope user --transport stdio'),
+                    command.replace('--scope user', '--scope local'),
+                    command.replace(' trello -- ', ' trello ')):
+            with self.subTest(command=bad), self.assertRaisesRegex(ValueError, 'option boundary'):
+                check_claude_registration(bad)
+
+    def test_source_example_presence(self):
+        check_source_examples(self.setup)
+        for old, new in (('go env GOBIN', 'go env GOPATH'),
+                         ('[IO.Path]::PathSeparator', "':'"),
+                         ('"$trello_mcp" auth logout', 'trello-mcp auth logout'),
+                         ('& $trelloMcp auth logout', 'trello-mcp auth logout')):
+            with self.subTest(old=old), self.assertRaisesRegex(ValueError, 'source'):
+                check_source_examples(self.setup.replace(old, new))
+
+    def test_desktop_and_health_contract(self):
+        check_desktop_contract(self.setup, self.tools, self.manifest, self.health)
+        for old, new in (('## Claude Desktop extension', '## Claude Desktop extension preview'),
+                         ('Linux Desktop is itself a beta', 'Linux Desktop is supported'),
+                         ('"access":"unverified; call workspace_find"', '"access":"verified"')):
+            with self.subTest(old=old), self.assertRaises(ValueError):
+                check_desktop_contract(self.setup.replace(old, new), self.tools, self.manifest, self.health)
+        for old in ('Health does not verify Trello access.', 'No CLI auth/status or credential copying is required.',
+                    'macOS and Windows are supported.', 'Windows refuses'):
+            manifest = json.loads(json.dumps(self.manifest).replace(old, 'removed'))
+            with self.subTest(old=old), self.assertRaises(ValueError):
+                check_desktop_contract(self.setup, self.tools, manifest, self.health)
+        for setting in ('download_dir', 'upload_dir'):
+            manifest = json.loads(json.dumps(self.manifest))
+            manifest['user_config'][setting]['description'] = 'Set a directory to enable transfers.'
+            with self.subTest(setting=setting), self.assertRaisesRegex(ValueError, setting):
+                check_desktop_contract(self.setup, self.tools, manifest, self.health)
+        manifest = json.loads(json.dumps(self.manifest))
+        manifest['tools'][0]['description'] = 'Validates Trello authentication.'
+        with self.assertRaisesRegex(ValueError, 'static health help'):
+            check_desktop_contract(self.setup, self.tools, manifest, self.health)
+        with self.assertRaisesRegex(ValueError, 'source access guidance'):
+            check_desktop_contract(self.setup, self.tools, self.manifest,
+                                   self.health.replace('unverified; call workspace_find', 'verified'))
+        with self.assertRaisesRegex(ValueError, 'health response'):
+            check_desktop_contract(self.setup, self.tools.replace('"credentialSource":"env"',
+                                                                '"credentialSource":"file"'),
+                                   self.manifest, self.health)
 
 
 class ReadParameterTests(unittest.TestCase):

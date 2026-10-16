@@ -29,50 +29,55 @@ Set up trello-mcp by following https://raw.githubusercontent.com/avhn/trello-mcp
 
 ## Quick start
 
-1. Install the binary (above) and note its absolute path; it installs into `~/.local/bin` by default. The
+1. Install the binary (above) and note its absolute path: POSIX defaults to `~/.local/bin`, Windows
+   PowerShell to `%LOCALAPPDATA%\Programs\trello-mcp`. The
    installer prints quoted absolute-path commands for auth, status, version and registration; use those.
 2. Register it with your client. Claude Code, user scope:
 
    ```sh
-   claude mcp add --scope user --transport stdio trello -- "$HOME/.local/bin/trello-mcp"
+   claude mcp add --scope user --transport stdio trello -- "/absolute/path/to/trello-mcp"
    ```
 
+   Replace the quoted placeholder with the concrete installed path; prefer the printed registration.
    Claude Desktop, Codex CLI and desktop, ChatGPT desktop, OpenCode, Cursor and VS Code snippets,
    with exact file locations and reload steps, are in [docs/setup.md](docs/setup.md).
 3. Run the printed absolute-path `trello-mcp auth` yourself in a private terminal. It validates your Trello API key and token and saves
    them to `~/.secrets/.trello-mcp.secret`; write access is the default and `--read-only` opts out.
    Never run it where an agent captures the output or paste keys, tokens or authorization links into chat.
 4. Use the trello server's Reconnect action in `/mcp` or restart the client, then call `server_health`
-   (it reports `credentialSource`). Until then only `server_health` is exposed.
+   for local presence/source, metadata for version and policy for restrictions. Then call `workspace_find {}`
+   for actual Trello access: health `ok` and `credentialSource` do not validate auth. Empty success still
+   proves the read worked. Until a fresh configured server starts only `server_health` is exposed.
 
-Claude Desktop users can try a packaged extension, new in v0.6.0 and a preview on the `desktop-v0.6.0`
-pre-release. It needs no terminal, but you create a Trello key and token in a browser; it is not directory
-listed and not a one-click install. Steps are in
-[docs/setup.md](docs/setup.md#claude-desktop-extension-preview-new-in-v060).
+Claude Desktop bundles support macOS and Windows amd64 (owner-tested at v0.6.0); Linux Desktop remains beta.
+Download from [normal releases](https://github.com/avhn/trello-mcp/releases/latest), verify the checksum and
+install/update manually. Setup needs no terminal (only the checksum check does); create the key/token in a browser and use
+extension settings, not CLI auth. They are not directory listed or one-click. Removal uses Desktop controls,
+not CLI logout; settings deletion/migration and token revocation are not guaranteed. See
+[docs/setup.md](docs/setup.md#claude-desktop-extension).
 
 Update, rollback, uninstall and revocation are in [docs/setup.md](docs/setup.md#update-roll-back-and-uninstall).
 Variables, credential precedence and permissions are in [docs/configuration.md](docs/configuration.md).
 
 ## How it compares
 
-A short, sourced comparison with two other Trello MCP servers. It describes each design; it is not a
-capability or token-efficiency ranking, and the benchmark below does not execute either of them.
+Selective comparison, checked 2026-10-16. Two sourced alternatives, not an exhaustive survey or a
+ranking of capabilities or token efficiency. The benchmark below does not execute either alternative.
 
 | | This project | [Atlassian official](https://github.com/atlassian/trello-mcp-server) | [delorenj 1.8.1](https://github.com/delorenj/mcp-server-trello/blob/v1.8.1/src/index.ts) |
 | --- | --- | --- | --- |
 | Transport | Local stdio | Hosted remote HTTP at `mcp.trello.com/v1` | Local stdio |
 | Auth | User-managed API key and token | OAuth 2.0 | API key and token |
 | Runtime | Native Go binary | Hosted; no local runtime | JavaScript entrypoint; package declares Bun >=1.0.0 |
-| Scope | Every board the token can see; optional workspace allowlist | Workspaces approved on the OAuth consent screen | Every board the token can see |
+| Scope | Accessible open boards, including guest boards; optional workspace allowlist | Workspaces approved on the OAuth consent screen | Every board the token can see |
 | Tool inventory (not parity) | 48 by default, [10 in a profile](#read-oriented-profile) | Capability categories published, no tool count | 57 direct registrations in pinned source |
 | Response shaping | Curated compact text JSON | Not evaluated | Pretty JSON with [card-list previews and size controls](https://github.com/delorenj/mcp-server-trello/blob/v1.8.1/src/card-list-preview.ts) |
 
-Atlassian's [support page](https://support.atlassian.com/trello/docs/connect-trello-to-ai-assistants-with-trello-mcp/)
-documents selecting multiple workspaces on its OAuth consent screen, and a community announcement dated
-2026-09-28 describes a multi-workspace update (its date was corroborated through a search index; the
-announcement body was not retrieved). That does not
-establish whether guest-only boards are accessible, so no guest-board exclusion is claimed. Here `board_find`
-lists every board your token can see, including guest boards, unless you narrow it with a workspace allowlist.
+Atlassian's current [support page](https://support.atlassian.com/trello/docs/connect-trello-to-ai-assistants-with-trello-mcp/)
+documents multiple connected workspaces, reading/adding/editing comments, activity history/summaries,
+fetching/creating/updating custom fields (Standard/Premium/Enterprise), and reading attachments or attaching
+web URLs, not local files. It does not establish guest-only board access, so no exclusion is claimed.
+Here `board_find` lists accessible open boards, including guest boards, subject to the workspace allowlist.
 
 ## Usage
 
@@ -113,7 +118,7 @@ Synthetic raw pretty JSON is a reproducible reference, not measured output from 
 
 | Startup cost | Default (48 tools) | Read-oriented discovery (10 tools) |
 | --- | --- | --- |
-| tools/list | 20771 chars (~5193 tokens) | 4344 chars (~1086 tokens) |
+| tools/list | 20801 chars (~5200 tokens) | 4374 chars (~1094 tokens) |
 | Initialize instructions | 140 chars (~35 tokens) | 141 chars (~35 tokens) |
 | Initialize result (including instructions) | 304 chars (~76 tokens) | 305 chars (~76 tokens) |
 
@@ -160,6 +165,10 @@ sent as query parameters and verified from the response. Activity is flat, suppo
 carry a 16,384 code point limit; only the card description limit is documented by Trello, the rest are
 labeled local ceilings in [docs/tools.md](docs/tools.md#text-limits).
 
+Through v1.0.0, the stability intent covers tool names, `TRELLO_TOOLS` selection syntax, local-health
+semantics and the v0.7.0 configured basic/detailed fields. Values, documentation, packaging, descriptions
+and Linux beta status can change; incompatible changes require explicit review in the v1.0.0 audit.
+
 ## Security
 
 - Credentials live in a private file (`~/.secrets/.trello-mcp.secret`, 0600 in a 0700 directory) or in a
@@ -169,11 +178,12 @@ labeled local ceilings in [docs/tools.md](docs/tools.md#text-limits).
   labels, custom fields, members and attachments are checked against their actual parents; supplied
   board ids are constraints, not authorization. Unverifiable ownership fails closed.
 - Server-policy denials are distinct from upstream failures and never reveal resolved ids or names;
-  `server_health` with `detail: "policy"` explains the effective policy.
+  `server_health` with `detail: "policy"` explains restrictions, not validated authentication.
 - Path uploads are off unless `TRELLO_UPLOAD_DIR` is set and are confined to regular files below it;
   downloads use a private directory, OAuth headers, no redirects and a 10 MiB cap.
 - Requests have deadlines, credentials are scrubbed from errors, and 429 retries are bounded.
-- Windows refuses local path uploads and attachment downloads because their ownership checks need Unix.
+- Windows refuses local path uploads and attachment downloads even with directories set. Base64 uploads
+  and URL attachments remain alternatives subject to write/profile policy.
 - Logout removes the saved keys but does not revoke the token at Trello; revoke it there separately.
 
 The full model, refusals and troubleshooting are in [docs/configuration.md](docs/configuration.md).
@@ -203,10 +213,9 @@ The tag message is the release description: `git tag -s --cleanup=verbatim vX.Y.
 
 ### Distribution
 
-`server.json` is MCP Registry metadata (metadata only, no package entry). Release binaries are the supported
-install path. The release workflow also builds Claude Desktop preview bundles (`.mcpb`, pinned CLI 2.1.2),
-which the owner publishes separately on a pre-release after testing on real machines; they are not
-registered or directory listed, and there is no one-click Desktop install yet.
+Normal releases include native CLI binaries, Claude Desktop bundles (`.mcpb`, pinned CLI 2.1.2) and
+checksums. macOS and Windows amd64 bundles are supported; Linux Desktop is beta. Install and update bundles
+manually using the setup guide. They are not directory listed and there is no one-click Desktop install.
 
 ## License
 

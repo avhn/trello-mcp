@@ -15,8 +15,8 @@ PATH, use the absolute path the installer printed.
 | `TRELLO_ALLOWED_WORKSPACES` | unrestricted | Comma-separated workspace ids or canonical names, not display names; additional server policy, not token permissions |
 | `TRELLO_TOOLS` | `all` | Comma-separated tool names or prefix groups: `workspace`, `board`, `list`, `card`, `comment`, `checklist`, `member`, `label`, `customfield`, `attachment`, `server` |
 | `TRELLO_READ_ONLY` | `0` or `false` (or saved scope `read`) | Opt-in: `1` or `true` hides all 29 mutation/transfer tools, including local-file downloads; 19 tools remain. Any other value is an error. `0` or `false` cannot override a saved read-only token |
-| `TRELLO_DOWNLOAD_DIR` | `os.TempDir()/trello-mcp` | Absolute download directory; created as 0700, existing directories must be private and owned by the current user |
-| `TRELLO_UPLOAD_DIR` | unset (path uploads disabled) | Absolute root for local-file uploads; only regular files inside this directory may be uploaded, without following symlinks |
+| `TRELLO_DOWNLOAD_DIR` | `os.TempDir()/trello-mcp` | Absolute download directory; created as 0700, existing directories must be private and owned by the current user. Windows refuses downloads even when set |
+| `TRELLO_UPLOAD_DIR` | unset (path uploads disabled) | Absolute root for local-file uploads; only regular files inside this directory may be uploaded, without following symlinks. Windows refuses path uploads even when set |
 | `TRELLO_MCP_CREDENTIALS` | `~/.secrets/.trello-mcp.secret` | Absolute dotenv credential file path; `auth --file PATH` overrides it for that command |
 | Shared fallback | `~/.secrets.env` | Read only the three Trello keys if no earlier source exists; auth never modifies it |
 | `TRELLO_TOKEN_SCOPE` (file only) | unknown, writable | `read` forces read-only; `read,write` permits writes subject to server policy |
@@ -59,8 +59,13 @@ Both environment values are required together; a partial pair is an error, not a
 configs need only the full binary path, with no credential env block. The Claude Desktop extension is the
 exception: Desktop passes its masked key and token settings as this environment pair, so they win over any
 saved file, and an environment token has unknown scope and is never assumed read-only. Do not use CLI
-`auth` to store Desktop credentials. Setup for the preview extension is in
-[setup](setup.md#claude-desktop-extension-preview-new-in-v060).
+`auth` to store Desktop credentials. Setup for the supported macOS/Windows extension is in
+[setup](setup.md#claude-desktop-extension). Linux Desktop remains beta. Updates are manual: verify the
+release checksum, install the newer bundle, check settings with supported controls and restart. Settings
+retention or migration is not guaranteed. To remove it, use supported controls in Settings > Extensions,
+manage any retained sensitive settings there and revoke access at Trello separately. Removal does not
+promise deletion of secure-storage entries or revocation. CLI logout is not Desktop cleanup; never
+inspect or delete keychain/credential databases.
 
 The dedicated plaintext file uses unquoted dotenv:
 
@@ -125,7 +130,15 @@ Connected as alice, scope read,write
 
 For environment credentials the first line is exactly
 `Credential source: env (TRELLO_API_KEY, TRELLO_TOKEN)`. Basic and detailed `server_health` report the same
-fact as `credentialSource` (`env`, `file` or `none`), without paths or values. With none found:
+source as `credentialSource` (`env`, `file` or `none`), without paths or values, not validated
+authentication. Configured basic/detailed health includes `access: "unverified; call workspace_find"`;
+`ok: true` means local configuration is present. Use basic for presence/source, metadata for version,
+policy for effective restrictions, then `workspace_find {}` for an actual Trello read. Policy labels
+are best effort and do not validate auth. Successful empty results prove the read worked, not that a
+selector matches. A permitted `board_find` can serve custom profiles without `workspace_find`;
+health-only profiles cannot verify access. Change profile and reconnect if appropriate, never bypass
+restrictions. CLI status describes that invocation, not Desktop environment credentials. Desktop users
+need no CLI auth/status or credential copying. With none found:
 
 ```text
 No credentials in this shell or <path>. MCP clients may pass them through their own config; run `trello-mcp auth` to save them for all clients.
@@ -183,8 +196,13 @@ paths, and rerun as the owner rather than bypassing ownership checks.
 - Permission refused: use the exact corrective message above. On Unix auth
   repairs only the default `~/.secrets` to 0700, when it is a current-user-owned real directory; it does not
   chmod custom parents or read an unsafe file to preserve its lines.
-- 401 token rejected: reconnect with `trello-mcp auth`; check token expiry,
-  revocation and the matching API key. 403 can indicate insufficient permission.
+- 401 token rejected: CLI users rerun the printed absolute-path auth command privately; Desktop users
+  update extension settings and restart. Check token expiry, revocation and the matching API key.
+  403 can indicate insufficient permission; network and rate-limit failures are distinct from auth rejection.
+- Upstream JSON response exceeds 8 MiB: card snapshot filtering and paging happen after retrieval, so
+  smaller `limit` or `nameFilter` cannot shrink that upstream response. A narrower `listId` or summary
+  `includeDesc: false` may help but cannot guarantee recovery; omission is invalid with full detail.
+  This is the upstream JSON limit, not the MCP output cap.
 - Wrong workspace denial: inspect `server_health` with `detail: "policy"`
   and correct `TRELLO_ALLOWED_WORKSPACES` or the object selection. Server policy
   is distinct from a rejected token.
@@ -230,14 +248,16 @@ upstream figure is the card description, "Up to 16384 chars" in Trello's object 
 define how it counts Unicode. Every other field has a local 16,384 code point ceiling because Trello documents
 no limit; it is a safety bound of this server, not an observed or documented Trello maximum. Whole requests
 have separate byte caps: 1 MiB for text-bearing tools, 14 MiB for `attachment_upload`, 16 KiB otherwise. The
-per-field table is in [tools](tools.md#text-limits).
+per-field table is in [tools](tools.md#text-limits). Live checks accepted 16,384 ASCII characters for
+card names/descriptions, comments and checklist item names; only descriptions have supplementary-character
+round-trip evidence. These observations are not upstream maxima or Unicode evidence for other fields.
 
 ## Active selection
 
 - `workspace_use` and `board_use` update local defaults, even in read-only mode.
 - Selecting a workspace clears the active board. Selecting a board sets its
   owning workspace.
-- `board_find` enumerates all account boards, including guest boards, unless an
+- `board_find` enumerates accessible open account boards, including guest boards, unless an
   explicit `workspaceId` narrows the search.
 - Explicit `boardId` values work independently of the active selection.
 - `board_create` requires an explicit or active `workspaceId` and verifies it.
@@ -289,9 +309,10 @@ per-field table is in [tools](tools.md#text-limits).
 - Defensive HTTP handling. Requests have deadlines, redirects are refused,
   credentials are scrubbed from errors, and upstream error bodies are never
   returned.
-- Windows limitations. Local path uploads and attachment downloads are refused (fail closed), because
-  their filesystem ownership and path checks require Unix. Base64 uploads and URL attachments remain
-  available when read-only mode is off.
+- Windows limitations. Local path uploads and attachment downloads are refused even when directories
+  are configured; setting directories cannot enable them. Base64 uploads and URL attachments remain
+  alternatives subject to write/profile policy. Transfers fail closed because their filesystem ownership
+  and path checks require Unix.
 
 ## Rate limits and retries
 

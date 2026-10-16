@@ -103,9 +103,10 @@ client. Never request keys, tokens or authorization links in chat. See
   output schema. Writes return `{id,name?,url?}` or `{ok:true}`, never raw objects;
   card creation can also include checklist progress and an error.
 - `card_find` (default `detail: "summary"`) returns IDs, ownership, labels, members, dates,
-  status and a description preview of at most 200 characters with `descTruncated`, but no `url`.
-  `detail: "full"` adds `url`; `card_get` keeps `url` at both detail levels. This summary change is
-  intentional before 1.0. Filters, authorization, IDs and `next` cursors are identical in both modes.
+  status and a description preview of at most 200 code points with `descTruncated`, but no `url`.
+  `detail: "full"` adds `url`, `start` and `dateLastActivity` but still limits collection descriptions to
+  200 code points. `card_get` keeps `url` and untruncated descriptions at both levels; full adds
+  checklists and members. Filters, authorization, IDs and `next` cursors are identical in both modes.
 - `card_find` accepts `includeDesc`, a boolean defaulting to `true`. `includeDesc: false` drops `desc` and
   `descTruncated` from summaries for triage, listing or paging; it is rejected together with
   `detail: "full"`. Filters, ownership checks, IDs, retained values and `next` cursors do not change, and
@@ -115,7 +116,9 @@ client. Never request keys, tokens or authorization links in chat. See
 - `card_find` `before` is a card ID returned earlier in the same filtered snapshot, never a date.
   Dates and malformed IDs are rejected before any request; syntactically valid IDs are checked against
   the freshly fetched filtered snapshot and rejected if absent. `mine: true` selects account-wide assigned cards and
-  cannot be combined with `boardId` or `listId`. `state` accepts `complete` or `incomplete`.
+  cannot be combined with `boardId` or `listId`. Board, list and mine modes discover open cards only,
+  with no archive selector. An authorized `card_get` can still retrieve a known archived card ID from
+  history; empty discovery does not imply deletion.
 - Unknown arguments name the key, object location and allowed keys. Duplicate
   arguments name the key and location; type errors name the field and expected type.
 
@@ -129,7 +132,7 @@ checked against the registration and runtime schema by the repository validator.
 | --- | --- | --- | --- |
 | `workspace_find` | none | `nameFilter` | none |
 | `workspace_use` | `workspaceId` | none | local selection; clears the active board |
-| `board_find` | none | `workspaceId`, `nameFilter` | all accessible boards unless `workspaceId` narrows |
+| `board_find` | none | `workspaceId`, `nameFilter` | accessible open boards, including guest boards, unless `workspaceId` narrows |
 | `board_use` | `boardId` | none | local selection |
 | `board_get` | none | `boardId`, `detail` | `detail`: `summary` or `full` |
 | `board_activity` | none | `boardId`, `limit`, `since`, `before`, `filter` | `limit`: default 20, max 1000; `filter`: default `all` |
@@ -148,7 +151,11 @@ checked against the registration and runtime schema by the repository validator.
 | `server_health` | none | `detail` | `detail`: `basic`, `detailed`, `metadata`, `performance` or `policy` |
 
 `card_find` cursors and action cursors differ. A `card_find` `before` is a card ID from the same filtered
-snapshot and `mine` cannot be combined with `boardId` or `listId`. Activity, history and comment `before` and
+snapshot and `mine` cannot be combined with `boardId` or `listId`. Trello JSON responses have an 8 MiB
+upstream limit, before local filtering and snapshot paging. `limit` and `nameFilter` run after retrieval
+and cannot shrink that upstream response. A narrower `listId` or summary `includeDesc: false` may help,
+but does not guarantee recovery; omission is invalid with full detail. Smaller local pages are not a fix
+for this limit, which is not an MCP output cap. Activity, history and comment `before` and
 `since` take an action ID or an RFC 3339 date, and `filter` applies upstream before paging.
 
 ```json
@@ -156,6 +163,10 @@ snapshot and `mine` cannot be combined with `boardId` or `listId`. Activity, his
 {"cardId":"c1","detail":"full","extraFields":["votes"]}
 {"listId":"l1","includeDesc":false,"limit":50}
 ```
+
+`card_get` with `view: "markdown"` returns only `{markdown:string}`, rendering name, description, URL,
+due and checklist text. It does not render IDs, members, labels, start/activity or extras. Request JSON
+for metadata or `extraFields`, even though a Markdown-plus-extras call can fetch those fields.
 
 ## Text limits
 
@@ -170,7 +181,10 @@ limits to keep the catalog small; the runtime check and its error message state 
 | Comment `text`, card, list, board, checklist, checklist item, label and attachment names, `checklist.items` entries, custom-field text and `nameFilter` | 16,384 code points | Trello documents no limit; local ceiling, not an observed Trello maximum |
 
 A ceiling marked local is this server's own safety bound. It may be lower or higher than what Trello accepts;
-the card description row is the only one with a documented upstream figure. Request bodies have independent
+the card description row is the only one with a documented upstream figure. Live checks accepted 16,384
+ASCII characters for card names/descriptions, comments and checklist item names; only descriptions also
+have supplementary-character round-trip evidence. These observations are not upstream maxima or Unicode
+evidence for the other fields. Request bodies have independent
 aggregate caps: 1 MiB of JSON for tools that carry enlarged text, cards, checklists or custom-field values,
 14 MiB for `attachment_upload` and 16 KiB for everything else. A maximal 16,384 code point value of
 supplementary characters written as literal JSON surrogate escapes takes 196,608 bytes and fits, but the whole
@@ -201,7 +215,21 @@ Call `server_health` with `detail: "policy"` for compact text-only JSON containi
 Custom profiles should include `server` or `server_health` to retain diagnostics.
 The health `detail` enum is `basic`, `detailed`, `metadata`, `performance`, `policy`.
 `basic` and `detailed` also report `credentialSource` as `env`, `file` or `none`; it never contains a
-path, key or token. An environment source includes credentials supplied by a Claude Desktop extension.
+path, key or token. An environment source includes credentials supplied by a Claude Desktop extension. Source means where
+credentials came from, not validated authentication. Configured basic and detailed responses include
+`access: "unverified; call workspace_find"`; `ok: true` means local configuration is present.
+
+```json
+{"ok":true,"credentialSource":"env","access":"unverified; call workspace_find"}
+```
+
+Use basic health for presence/source, metadata for the installed version, and policy for effective
+restrictions, then call `workspace_find {}` for an actual Trello read. A successful empty result proves
+the upstream read worked, not that a selector matches. Distinguish authentication, permission, network
+and rate-limit failures using the scrubbed errors. Custom profiles can use a permitted upstream read
+such as `board_find`; health-only profiles cannot verify access. Adjust the profile and reconnect if
+appropriate, never bypass restrictions. Desktop users need no CLI auth/status or credential copying;
+CLI status describes only that invocation. A successful read never upgrades health to enduring validation.
 
 Policy denials use `{"error":"access denied by <policy>: <reason>. This is server
 policy, not a token/permission error. ..."}` and include a corrective action plus
@@ -378,7 +406,9 @@ root, including `..` escapes, are refused. The root is opened without following
 symlinks, and each child component is opened relative to a pinned directory
 descriptor without following symlinks. Dot-files and dot-directories inside the
 root are allowed. Path verification requires Unix (including Linux and macOS);
-other platforms refuse path uploads. Base64 uploads still work without
+Windows and other unsupported platforms refuse path uploads even with a configured directory.
+Configuring directories cannot enable Windows local path uploads or attachment downloads. Base64
+uploads and URL attachments remain alternatives subject to write/profile policy. Base64 uploads still work without
 `TRELLO_UPLOAD_DIR` and require `fileName`.
 
 Filenames are sanitized and MIME types validated. Both directions have a 10 MiB
@@ -420,7 +450,8 @@ currently Unix-only (including Linux and macOS); other platforms fail closed.
 8. Download storage verifies directory ownership/type, rejects symlinks, creates
    exclusively, sanitizes names and enforces a size cap.
 9. Health modes `basic`, `detailed`, `metadata`, `performance` are all local:
-   `basic` returns `ok` and `credentialSource`; `detailed` adds profile and selection-presence booleans;
+   configured `basic` returns `ok`, `credentialSource` and the unverified `access` pointer;
+   `detailed` adds read-only/restriction and selection-presence booleans;
    `metadata` reports implementation/runtime/transport; `performance` reports
    uptime/request/retry counters. `policy` reports configured/effective access
    policy with one cached best-effort workspace-resolution request. No mode

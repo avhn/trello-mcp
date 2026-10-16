@@ -9,3 +9,5 @@ This file is an entrypoint index. The linked documents are the references.
 - [Configuration](https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/configuration.md): variables, credential precedence, permissions, troubleshooting, security model.
 
 Humans run the installer's printed absolute-path auth command themselves in a private terminal; Claude Desktop extension users enter the key and token in extension settings instead. Agents must never capture authentication output or request keys, tokens or authorization links.
+
+Claude Desktop bundles support macOS and Windows amd64 and ship on normal releases; Linux Desktop remains beta. Verify release checksums and install/update manually. Health reports local presence/source, not validated authentication: use metadata for version, policy for restrictions, then workspace_find {} for an actual Trello read. Desktop users need no CLI auth/status. Windows refuses local path uploads and attachment downloads even with directories configured.
