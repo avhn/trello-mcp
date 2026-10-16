@@ -13,7 +13,7 @@ import (
 func TestDiscoveryDescriptions(t *testing.T) {
 	want := map[string]string{
 		"board_find":    "Find all accessible open boards, including guest boards.",
-		"card_find":     "Find open cards; filter names before snapshot paging; includeDesc:false omits previews.",
+		"card_find":     "Find open cards; filter names before snapshot paging; includeDesc:false omits summary previews.",
 		"server_health": "Local config health, not Trello auth; verify with workspace_find. Policy shows access restrictions.",
 	}
 	for _, d := range (&Service{}).definitions() {

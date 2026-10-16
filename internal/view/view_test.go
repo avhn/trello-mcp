@@ -222,3 +222,63 @@ func TestActionPageListNames(t *testing.T) {
 		t.Error("list name cache crossed pages or mutated source")
 	}
 }
+
+func TestActionPageUnknownNames(t *testing.T) {
+	actions := []Action{
+		{Data: ActionData{Card: &Named{ID: "shared"}, List: &Named{ID: "shared"}, ListBefore: &Named{ID: "l1"}, ListAfter: &Named{ID: "l1"}}},
+		{Data: ActionData{Card: &Named{ID: "shared", Name: "Same"}, List: &Named{ID: "shared", Name: "Same"}, ListBefore: &Named{ID: "l1", Name: "Before"}, ListAfter: &Named{ID: "l1", Name: "Before"}}},
+		{Data: ActionData{Card: &Named{ID: "shared", Name: "Same"}, List: &Named{ID: "shared"}, ListBefore: &Named{ID: "l1"}, ListAfter: &Named{ID: "l1"}}},
+		{Data: ActionData{Card: &Named{ID: "shared"}, List: &Named{ID: "shared"}, ListBefore: &Named{ID: "l1", Name: "Before"}, ListAfter: &Named{ID: "l1", Name: "Renamed"}}},
+		{Data: ActionData{Card: &Named{ID: "shared", Name: "Same"}, List: &Named{ID: "shared", Name: "Same"}, ListBefore: &Named{ID: "l1", Name: "Renamed"}, ListAfter: &Named{Name: "No id"}}},
+		{Data: ActionData{Card: &Named{ID: "shared", Name: "Renamed"}, List: &Named{ID: "shared", Name: "Renamed"}, ListBefore: &Named{ID: "shared", Name: "Second"}, ListAfter: &Named{ID: "shared", Name: "Third"}}},
+		{Data: ActionData{Card: &Named{ID: "shared", Name: "Renamed"}, List: &Named{ID: "shared", Name: "Third"}, ListAfter: &Named{Name: "No id"}}},
+	}
+	wantNames := [][4]string{
+		{"", "", "", ""},
+		{"Same", "Same", "Before", ""},
+		{"", "", "", ""},
+		{"", "", "", "Renamed"},
+		{"", "", "", "No id"},
+		{"Renamed", "Renamed", "Second", "Third"},
+		{"", "", "", "No id"},
+	}
+	original, err := json.Marshal(actions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		got := ProjectActions(actions, "b1")
+		for i, item := range got {
+			want := ProjectAction(actions[i], "b1")
+			want.Card, want.List, want.ListBefore, want.ListAfter = wantNames[i][0], wantNames[i][1], wantNames[i][2], wantNames[i][3]
+			if !reflect.DeepEqual(item, want) {
+				t.Errorf("action %d: got %+v, want %+v", i, item, want)
+			}
+			encoded, err := json.Marshal(item)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(encoded, &fields); err != nil {
+				t.Fatal(err)
+			}
+			for j, key := range []string{"card", "list", "listBefore", "listAfter"} {
+				_, present := fields[key]
+				if present != (wantNames[i][j] != "") {
+					t.Errorf("action %d: incorrect omission of %s: %s", i, key, encoded)
+				}
+			}
+		}
+	}
+	for i, action := range actions {
+		// A fresh page still deduplicates shared list slots within its first action.
+		want := ProjectActions([]Action{action}, "b1")[0]
+		if got := ProjectActions(actions[i:], "b1")[0]; !reflect.DeepEqual(got, want) {
+			t.Errorf("page starting at %d reused names: got %+v, want %+v", i, got, want)
+		}
+	}
+	after, err := json.Marshal(actions)
+	if err != nil || string(after) != string(original) {
+		t.Fatalf("projection changed input: %s, err=%v", after, err)
+	}
+}

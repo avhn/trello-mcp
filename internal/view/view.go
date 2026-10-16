@@ -338,10 +338,11 @@ func ProjectAction(a Action, boardID string) Activity {
 	return out
 }
 
-// ProjectActions emits card and list names on their first occurrence and whenever
-// they change within this page. Every page is independently readable, with no cache
-// across requests; an omitted name means the last name for that id in this page.
-// List names are shared across list, listBefore and listAfter references.
+// ProjectActions omits repeated nonempty card/list names for an ID within this page.
+// An omitted name reuses the last supplied name for that ID, else it is unknown.
+// Absent names do not clear the cache; each call starts fresh. Cards and lists have
+// separate caches; list, listBefore and listAfter share one, in that order.
+// Names without IDs cannot be deduplicated.
 func ProjectActions(actions []Action, boardID string) []Activity {
 	out := make([]Activity, len(actions))
 	cards, lists := make(map[string]string), make(map[string]string)
