@@ -12,10 +12,11 @@ const executable = process.argv[2];
 if (!executable) throw new Error('Pass a Chromium executable path');
 const profile = await mkdtemp(join(root, '.browser-'));
 const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png' };
-// Exact same-origin request allowlist: the five pages, the missing-page 404 and four shared assets.
+// Exact same-origin request allowlist: pages, shared assets and generated benchmark charts.
 const allowedPaths = new Set(['/trello-mcp/', '/trello-mcp/setup/', '/trello-mcp/tools/', '/trello-mcp/security/',
   '/trello-mcp/404.html', '/trello-mcp/missing-page/', '/trello-mcp/assets/style.css', '/trello-mcp/assets/copy.js',
-  '/trello-mcp/assets/favicon.svg']);
+  '/trello-mcp/assets/favicon.svg', '/trello-mcp/assets/benchmark-cards.svg',
+  '/trello-mcp/assets/benchmark-responses.svg', '/trello-mcp/assets/benchmark-definitions.svg']);
 const server = createServer(async (request, response) => {
   let path = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
   let status = 200;
@@ -248,6 +249,7 @@ try {
               documentWidth: document.documentElement.scrollWidth,
               bodyWidth: document.body.scrollWidth,
               h1: document.querySelectorAll('h1').length,
+              images: [...document.images].every(img => img.complete && img.naturalWidth > 0 && img.alt.trim()),
               contrast: Math.min(...samples.map(([fg, bg]) => contrast(fg, bg))),
               title: document.title,
             };
@@ -255,7 +257,7 @@ try {
         });
         if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails));
         const value = result.result.value;
-        if (value.documentWidth > width || value.bodyWidth > width || value.h1 !== 1 || value.contrast < 4.5 ||
+        if (value.documentWidth > width || value.bodyWidth > width || value.h1 !== 1 || !value.images || value.contrast < 4.5 ||
             value.headerTargetCount !== 4 || value.headerTargetFailures.length || value.headerSpacingFailures.length) {
           throw new Error(`${color} ${width}px ${path || '/'}: ${JSON.stringify(value)}`);
         }

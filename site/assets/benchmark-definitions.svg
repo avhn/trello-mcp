@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="226" viewBox="0 0 400 226" role="img" aria-labelledby="title desc">
+<title id="title">Tool definitions</title><desc id="desc">Claude tokens from /context, one session. Node not measured. Lower is smaller. trello-mcp (48 tools) 8,107, Official (15 tools) 19,664</desc>
+<style>svg{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172e2b;background:#f7f8f3}text{fill:currentColor;font-size:16px}.title{font-size:21px;font-weight:700}.sub{font-size:14px}.group{font-weight:650}.s0{fill:#176249}.s1{fill:#6776a5}.s2{fill:#a56a2c}.axis{stroke:#9cafa4}@media(prefers-color-scheme: dark){svg{color:#e4eee7;background:#111d1b}.s0{fill:#a4d6ab}.s1{fill:#aab9ef}.s2{fill:#edba7d}.axis{stroke:#6c8778}}</style>
+<text x="24" y="32" class="title">Tool definitions</text>
+<text x="24" y="56" class="sub">Claude tokens from /context, one session. Node</text>
+<text x="24" y="76" class="sub">not measured. Lower is smaller.</text>
+<text x="24" y="108">trello-mcp (48 tools)</text>
+<text x="376" y="108" text-anchor="end">8,107</text>
+<rect class="s0" x="24" y="118" width="145.121" height="12" rx="2"/>
+<text x="24" y="161">Official (15 tools)</text>
+<text x="376" y="161" text-anchor="end">19,664</text>
+<rect class="s1" x="24" y="171" width="352.000" height="12" rx="2"/>
+<path class="axis" d="M24 113V188"/>
+<text x="24" y="207" class="sub">0</text>
+</svg>

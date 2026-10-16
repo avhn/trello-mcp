@@ -65,7 +65,8 @@ pre code { padding: 0; border: 0; background: transparent; }
 .copy:hover { border-color: var(--accent); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .faq h3 { font-size: 1.1rem; }
-.table-wrap { max-width: 100%; }
+img { display: block; max-width: 100%; height: auto; margin-block: 1rem; }
+.table-wrap { max-width: 100%; overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-size: .9rem; }
 caption { text-align: left; font-weight: 700; padding-block: 0 .75rem; }
 th, td { padding: .8rem .65rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="283" viewBox="0 0 400 283" role="img" aria-labelledby="title desc">
+<title id="title">16 cards in one list</title><desc id="desc">16 cards in one list, response characters: trello-mcp 6,754, Official 29,141, Node 1.8.1 45,335</desc>
+<style>svg{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172e2b;background:#f7f8f3}text{fill:currentColor;font-size:16px}.title{font-size:21px;font-weight:700}.sub{font-size:14px}.group{font-weight:650}.s0{fill:#176249}.s1{fill:#6776a5}.s2{fill:#a56a2c}.axis{stroke:#9cafa4}@media(prefers-color-scheme: dark){svg{color:#e4eee7;background:#111d1b}.s0{fill:#a4d6ab}.s1{fill:#aab9ef}.s2{fill:#edba7d}.axis{stroke:#6c8778}}</style>
+<text x="24" y="32" class="title">16 cards in one list</text>
+<text x="24" y="56" class="sub">Response text, characters. Lower is smaller.</text>
+<text x="24" y="88" class="group">Summary mode</text>
+<text x="24" y="112">trello-mcp</text>
+<text x="376" y="112" text-anchor="end">6,754</text>
+<rect class="s0" x="24" y="122" width="52.441" height="12" rx="2"/>
+<text x="24" y="165">Official</text>
+<text x="376" y="165" text-anchor="end">29,141</text>
+<rect class="s1" x="24" y="175" width="226.263" height="12" rx="2"/>
+<text x="24" y="218">Node 1.8.1</text>
+<text x="376" y="218" text-anchor="end">45,335</text>
+<rect class="s2" x="24" y="228" width="352.000" height="12" rx="2"/>
+<path class="axis" d="M24 117V245"/>
+<text x="24" y="264" class="sub">0</text>
+</svg>

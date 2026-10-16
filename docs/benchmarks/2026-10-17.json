@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-17",
+  "board_cards": 144,
+  "servers": {
+    "ours": {"name": "trello-mcp", "version": "1.0.3", "commit": "cb40466", "capture": "Repository build; same read calls on one private work board"},
+    "official": {"name": "Official", "endpoint": "https://mcp.trello.com/v1", "version": "Hosted version on 2026-10-17", "capture": "OAuth in Claude Code; tool results captured verbatim from a headless Claude Code session"},
+    "node": {"name": "Node 1.8.1", "package": "@delorenj/mcp-server-trello", "version": "1.8.1", "capture": "via npx"}
+  },
+  "rows": [
+    {"id": "boards", "label": "Boards list, per returned board", "unit": "characters/board", "values": [150, 622, 8682], "denominators": {"board_counts": [16, 15, 29], "node_closed_boards": 13}, "caveat": "Rounded totals/count over different board sets; ours includes a guest board in another organization not reached by official"},
+    {"id": "cards_summary", "label": "16 cards, summary", "unit": "characters", "values": [6754, 29141, 45335], "denominators": {"n": 16}},
+    {"id": "cards_full", "label": "16 cards, full", "unit": "characters", "values": [9112, 29141, 45335], "denominators": {"n": 16}, "caveat": "Summary/full select trello-mcp's mode; competitor values are the same call results"},
+    {"id": "actions", "label": "50 board actions", "unit": "characters", "values": [15494, 55331, 71008], "denominators": {"n": 50}},
+    {"id": "details", "label": "One card's details", "unit": "characters", "values": [2825, 2662, 16350], "denominators": {"n": 1}},
+    {"id": "comments", "label": "Comments on that card, 2 comments", "unit": "characters", "values": [586, 1089, 3232], "denominators": {"n": 2}}
+  ],
+  "definitions": {
+    "unit": "Claude tokens", "values": [8107, 19664, null], "tool_counts": [48, 15, null],
+    "capture": "Claude Code /context in one session; rows over 1k display-rounded to 0.1k",
+    "tools_list": {"unit": "characters", "ours": 20583, "node": 33766},
+    "caveat": "Node could not be loaded into /context; tools/list character counts are a separate comparison, not token estimates"
+  },
+  "percent_rule": "round(100*(1 - ours/theirs)); per-board values are rounded totals/count as given",
+  "caveats": [
+    "One board, one day, one account; private data prevents others rerunning on the same board",
+    "Same read calls, but projections and returned board sets differ; response sizes are returned-text characters, not tokens",
+    "Card details and comments use one card with two comments; official returned less text for details",
+    "Official results reflect its hosted version on the measurement date",
+    "chars/4 underestimates tool-definition tokens: 20583/4 is about 5146, versus 8107 reported"
+  ]
+}
