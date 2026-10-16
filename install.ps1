@@ -20,7 +20,7 @@ Downloads and SHA-256 checksums must succeed; no automatic source build occurs.
 Advanced/test override: TRELLO_MCP_RELEASE_BASE_URL accepts HTTPS or an absolute fixture directory.
 Pin TRELLO_MCP_VERSION when using offline fixtures to avoid latest-release networking.
 Installation adds only the destination to the user PATH; no client configuration is changed.
-Run trello-mcp auth yourself in a private terminal (not through an agent), then restart or reconnect the MCP client.
+Run the printed absolute-path auth command yourself in a private terminal (not through an agent), then use trello Reconnect in /mcp or fully quit/restart the MCP client.
 Setup: https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md
 '@
         return
@@ -114,13 +114,18 @@ Setup: https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md
         Write-Output 'Open a new terminal to use the updated user PATH. MCP clients can use the full path below.'
         Write-Output 'Windows refuses path uploads and attachment downloads (fail closed). Base64 uploads remain available.'
 
-        $quotedExe = "'" + $exe.Replace("'", "''") + "'"
+        # PowerShell also ends single-quoted strings at U+2018-U+201B; double each quote character.
+        $quotedExe = "'" + ($exe -replace "['\u2018\u2019\u201A\u201B]", '$0$0') + "'"
         Write-Output @"
 
-Run trello-mcp auth yourself in a private terminal (not through an agent), then restart or reconnect the MCP client.
+Run the printed absolute-path auth command yourself in a private terminal (not through an agent), then use trello Reconnect in /mcp or fully quit/restart the MCP client.
 Installed executable: $exe
+Auth: & $quotedExe auth
+Read-only auth: & $quotedExe auth --read-only
+Status: & $quotedExe auth status
+Version: & $quotedExe --version
 Credentials: %USERPROFILE%\.secrets\.trello-mcp.secret; override with absolute TRELLO_MCP_CREDENTIALS or auth --file PATH.
-Read-only opt-in: TRELLO_READ_ONLY=1 or trello-mcp auth --read-only.
+Read-only opt-in: TRELLO_READ_ONLY=1 or the read-only auth command above.
 
 Register with Claude Code (user scope, in PowerShell):
 claude mcp add --scope user --transport stdio trello -- $quotedExe

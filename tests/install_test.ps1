@@ -175,7 +175,7 @@ Write-Output 'CALLER_ALIVE'
     $env:PROCESSOR_ARCHITEW6432 = ''
     $env:TEMP = $runTemp
     $env:TMP = $runTemp
-    $env:INSTALL_DIR = Join-Path $temp "bin with 'quote"
+    $env:INSTALL_DIR = Join-Path $temp ("bin with 'quote " + [char]0x2019 + 'curly')
     $script:fakeUserPath = '%LOCALAPPDATA%\Existing;C:\Other'
     $script:pathWrites = 0
     $script:latestCalls = 0
@@ -184,12 +184,13 @@ Write-Output 'CALLER_ALIVE'
     Assert-True ((Get-Content -LiteralPath $exe -Raw).Trim() -eq $synthetic) 'wrong installed binary'
     Assert-True ($script:pathWrites -eq 1) 'success did not add user PATH once'
     Assert-True ($script:fakeUserPath -eq ('%LOCALAPPDATA%\Existing;C:\Other;' + $env:INSTALL_DIR)) 'existing PATH was not preserved'
-    Assert-True ($output.Contains('Run trello-mcp auth yourself in a private terminal (not through an agent), then restart or reconnect the MCP client.')) 'missing private-human-terminal auth handoff'
+    Assert-True ($output.Contains('Run the printed absolute-path auth command yourself in a private terminal (not through an agent), then use trello Reconnect in /mcp or fully quit/restart the MCP client.')) 'missing private-human-terminal auth handoff'
     Assert-True ($output.Contains('TRELLO_MCP_CREDENTIALS')) 'missing credential path guidance'
     Assert-True ($output.Contains('%USERPROFILE%\.secrets\.trello-mcp.secret')) 'missing default credential path'
-    Assert-True ($output.Contains('TRELLO_READ_ONLY=1 or trello-mcp auth --read-only')) 'missing read-only opt-in'
+    Assert-True ($output.Contains('TRELLO_READ_ONLY=1 or the read-only auth command above')) 'missing read-only opt-in'
     Assert-True (-not ($output.Contains('YOUR_API_KEY') -or $output.Contains('YOUR_TOKEN') -or $output.Contains('--env') -or $output.Contains('mcpServers'))) 'installer must link canonical client setup, not duplicate it'
-    $registration = "claude mcp add --scope user --transport stdio trello -- '" + $exe.Replace("'", "''") + "'"
+    $quotedExe = "'" + ($exe -replace "['\u2018\u2019\u201A\u201B]", '$0$0') + "'"
+    $registration = "claude mcp add --scope user --transport stdio trello -- $quotedExe"
     Assert-True ($output.Contains($registration)) 'missing scoped PowerShell-quoted registration'
     # Parse the printed command using a synthetic function, never a real client.
     # PowerShell consumes the end-of-parameters token before a function sees it, and only
@@ -201,6 +202,30 @@ Write-Output 'CALLER_ALIVE'
         Assert-True ($received[7] -eq $exe) 'registration executable did not round trip'
     }
     Invoke-Expression $registration
+    foreach ($command in @("Auth: & $quotedExe auth", "Read-only auth: & $quotedExe auth --read-only", "Status: & $quotedExe auth status", "Version: & $quotedExe --version")) {
+        Assert-True ($output.Contains($command)) "missing absolute handoff: $command"
+        $parseErrors = $null
+        $tokens = $null
+        $ast = [Management.Automation.Language.Parser]::ParseInput(($command -split ': ', 2)[1], [ref]$tokens, [ref]$parseErrors)
+        Assert-True ($parseErrors.Count -eq 0) 'printed command did not parse'
+        $call = $ast.EndBlock.Statements[0].PipelineElements[0]
+        Assert-True ($call.InvocationOperator -eq [Management.Automation.Language.TokenKind]::Ampersand) 'missing PowerShell call operator'
+        Assert-True ($call.CommandElements[0].Value -eq $exe) 'absolute executable did not round trip'
+    }
+    # Execute only status/version through a synthetic function at the printed path.
+    # Auth is parsed above but never run.
+    $stubPath = 'Function:\' + $exe
+    Set-Item -LiteralPath $stubPath -Value {
+        if (($args -join ' ') -eq 'auth status') { return 'synthetic status' }
+        if (($args -join ' ') -eq '--version') { return 'synthetic version' }
+        throw 'unexpected synthetic lifecycle command'
+    }
+    try {
+        Assert-True ((Invoke-Expression "& $quotedExe auth status") -eq 'synthetic status') 'status handoff did not run'
+        Assert-True ((Invoke-Expression "& $quotedExe --version") -eq 'synthetic version') 'version handoff did not run'
+    } finally {
+        Remove-Item -LiteralPath $stubPath
+    }
     Assert-True ($output.Contains('new terminal') -and $output.Contains('fail closed')) 'missing PATH or Windows guidance'
     Assert-True ($output.Contains('https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md')) 'missing canonical setup link'
     Write-Output 'PASS success, normalized tag, configuration escaping and auth guidance'

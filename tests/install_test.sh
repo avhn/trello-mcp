@@ -6,7 +6,14 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' 0
 trap 'exit 1' HUP INT TERM
 mkdir "$tmp/bin" "$tmp/source" "$tmp/archives" "$tmp/checksums" "$tmp/runs"
-printf 'synthetic release binary\n' > "$tmp/source/trello-mcp"
+cat > "$tmp/source/trello-mcp" <<'EOF'
+#!/bin/sh
+case "$*" in
+    --version) printf 'synthetic version\n' ;;
+    'auth status') printf 'synthetic status\n' ;;
+    *) printf 'FAIL: unexpected synthetic command\n' >&2; exit 1 ;;
+esac
+EOF
 for platform in linux_amd64 darwin_arm64; do
     tar -czf "$tmp/archives/trello-mcp_$platform.tar.gz" -C "$tmp/source" trello-mcp
 done
@@ -141,8 +148,8 @@ run_case() {
     [ -z "$(ls -A "$run/temp")" ] || { printf 'FAIL %s: temporary files remain\n' "$name"; exit 1; }
     if [ "$expected" = pass ]; then
         [ -x "$destination/$binary" ]
-        grep -Fq 'Run trello-mcp auth yourself in a private terminal (not through an agent), then restart or reconnect the MCP client.' "$run/out"
-        grep -Fq 'TRELLO_READ_ONLY=1 or trello-mcp auth --read-only' "$run/out"
+        grep -Fq 'Run the printed absolute-path auth command yourself in a private terminal (not through an agent), then use trello Reconnect in /mcp or fully quit/restart the MCP client.' "$run/out"
+        grep -Fq 'TRELLO_READ_ONLY=1 or the read-only auth command above' "$run/out"
         grep -Fq 'TRELLO_MCP_CREDENTIALS' "$run/out"
         grep -Fq 'https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md' "$run/out"
         grep -Fq 'claude mcp add --scope user --transport stdio trello -- ' "$run/out"
@@ -162,6 +169,24 @@ run_case() {
             }
             . "$1"
         ' sh "$run/registration.sh"
+        # Parse auth without executing it. Only status/version use the synthetic binary.
+        sed -n 's/^Auth: /set -- /p; s/^Read-only auth: /set -- /p' "$run/out" > "$run/auth.sh"
+        EXPECTED_BINARY="$expected_binary" sh -c '
+            count=0
+            while IFS= read -r command; do
+                eval "$command"
+                [ "$1" = "$EXPECTED_BINARY" ] && [ "$2" = auth ] || exit 1
+                case "$count" in 0) [ "$#" -eq 2 ] ;; 1) [ "$#" -eq 3 ] && [ "$3" = --read-only ] ;; esac || exit 1
+                count=$((count + 1))
+            done < "$1"
+            [ "$count" -eq 2 ]
+        ' sh "$run/auth.sh"
+        if [ "$os" != MINGW64_NT ]; then
+            sed -n 's/^Status: //p; s/^Version: //p' "$run/out" > "$run/lifecycle.sh"
+            env -i PATH="$tmp/bin:/usr/bin:/bin" HOME="$run/home" sh "$run/lifecycle.sh" > "$run/lifecycle.out"
+            grep -Fxq 'synthetic status' "$run/lifecycle.out"
+            grep -Fxq 'synthetic version' "$run/lifecycle.out"
+        fi
         cmp "$tmp/source/$binary" "$destination/$binary"
         assert_not_logged '^go ' "$run/log"
     else
@@ -192,7 +217,7 @@ for mode in --help -h --unknown unknown; do
         "$shell" "$root/install.sh" "$mode" < /dev/null > "$tmp/runs/arguments.out" 2> "$tmp/runs/arguments.err"; then
         case "$mode" in --help|-h) ;; *) printf 'FAIL accepted %s\n' "$mode"; exit 1 ;; esac
         grep -Fq 'TRELLO_MCP_VERSION' "$tmp/runs/arguments.out"
-        grep -Fq 'Run trello-mcp auth yourself in a private terminal (not through an agent), then restart or reconnect the MCP client.' "$tmp/runs/arguments.out"
+        grep -Fq 'Run the printed absolute-path auth command yourself in a private terminal (not through an agent), then use trello Reconnect in /mcp or fully quit/restart the MCP client.' "$tmp/runs/arguments.out"
     else
         case "$mode" in --help|-h) cat "$tmp/runs/arguments.err"; exit 1 ;; esac
         grep -Fq 'unknown argument' "$tmp/runs/arguments.err"

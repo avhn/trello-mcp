@@ -25,7 +25,7 @@ TRELLO_MCP_VERSION selects an exact release tag; omitted means latest release.
 Downloads and SHA-256 checksums must succeed; no automatic source build occurs.
 Advanced/test download overrides are not supported by this POSIX installer.
 No credentials or client configuration are read or changed; PATH is not changed.
-Run trello-mcp auth yourself in a private terminal (not through an agent), then restart or reconnect the MCP client.
+Run the printed absolute-path auth command yourself in a private terminal (not through an agent), then use trello Reconnect in /mcp or fully quit/restart the MCP client.
 Setup: https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md
 EOF
     exit 0
@@ -154,15 +154,22 @@ client_binary="$install_dir/$binary"
 if [ "$os" = windows ] && command -v cygpath >/dev/null 2>&1; then
     client_binary=$(cygpath -w "$client_binary") || fail 'could not convert the Windows executable path'
 fi
-printf '\nRun trello-mcp auth yourself in a private terminal (not through an agent), then restart or reconnect the MCP client.\n'
+# Reuse one single-argument quote for every human command and registration.
+quote_argument() {
+    printf "'"
+    printf '%s' "$1" | sed "s/'/'\\\\''/g"
+    printf "'"
+}
+quoted_binary=$(quote_argument "$client_binary")
+printf '\nRun the printed absolute-path auth command yourself in a private terminal (not through an agent), then use trello Reconnect in /mcp or fully quit/restart the MCP client.\n'
 printf 'Installed executable: %s\n' "$client_binary"
+printf 'Auth: %s auth\n' "$quoted_binary"
+printf 'Read-only auth: %s auth --read-only\n' "$quoted_binary"
+printf 'Status: %s auth status\n' "$quoted_binary"
+printf 'Version: %s --version\n' "$quoted_binary"
 printf 'Credentials: ~/.secrets/.trello-mcp.secret; override with absolute TRELLO_MCP_CREDENTIALS or auth --file PATH.\n'
-printf 'Read-only opt-in: TRELLO_READ_ONLY=1 or trello-mcp auth --read-only.\n'
+printf 'Read-only opt-in: TRELLO_READ_ONLY=1 or the read-only auth command above.\n'
 printf '\nRegister with Claude Code (user scope):\n'
-printf 'claude mcp add --scope user --transport stdio trello -- '
-# Quote the installed path as a single shell argument, including embedded quotes.
-printf "'"
-printf '%s' "$client_binary" | sed "s/'/'\\\\''/g"
-printf "'\n"
+printf 'claude mcp add --scope user --transport stdio trello -- %s\n' "$quoted_binary"
 printf '\nSetup, other clients and explicit local/project scope alternatives:\n'
 printf 'https://raw.githubusercontent.com/avhn/trello-mcp/main/docs/setup.md\n'
