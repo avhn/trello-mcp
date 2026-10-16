@@ -75,8 +75,8 @@ async function press(key, code, keyCode, text) {
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
-// One representative page at one viewport. The clipboard is a synthetic stub, never the machine clipboard.
-async function copyChecks(origin) {
+// Each content route at one viewport. The clipboard is a synthetic stub, never the machine clipboard.
+async function copyChecks(origin, path) {
   const width = 1024;
   await command('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
   const stub = await command('Page.addScriptToEvaluateOnNewDocument', { source: `
@@ -85,7 +85,7 @@ async function copyChecks(origin) {
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
       writeText: text => window.__mode === 'reject' ? Promise.reject(new Error('denied')) : (window.__copied.push(text), Promise.resolve()),
     } });` });
-  const url = `${origin}/trello-mcp/setup/`;
+  const url = `${origin}/trello-mcp/${path}`;
   await navigate(url);
   const shape = await evaluate(`(() => {
     const codes = [...document.querySelectorAll('pre > code')];
@@ -99,7 +99,8 @@ async function copyChecks(origin) {
       leaked: codes.some(c => /\\bCopy\\b|Copied/.test(c.textContent)),
     };
   })()`);
-  assert(shape.codes > 10 && shape.codes === shape.buttons, `Copy buttons do not cover every code block: ${JSON.stringify(shape)}`);
+  assert(shape.codes > (path === 'setup/' ? 10 : 0) && shape.codes === shape.buttons,
+    `${path || '/'}: copy buttons do not cover every code block: ${JSON.stringify(shape)}`);
   assert(shape.typed && shape.paired && shape.live && !shape.leaked && shape.labels === shape.buttons, `Copy markup is wrong: ${JSON.stringify(shape)}`);
   const exact = await evaluate(`(async () => {
     const codes = [...document.querySelectorAll('pre > code')];
@@ -265,14 +266,21 @@ try {
       }
     }
   }
-  await copyChecks(origin);
+  const copyPaths = ['', 'setup/', 'tools/', 'security/'];
+  for (const path of copyPaths) {
+    try {
+      await copyChecks(origin, path);
+    } catch (error) {
+      throw new Error(`${path || '/'}: ${error.message}`, { cause: error });
+    }
+  }
   const unexpected = [...requests].filter(url => !(url.startsWith(origin + '/') && allowedPaths.has(new URL(url).pathname)));
   if (unexpected.length) throw new Error(`Unexpected page requests: ${unexpected.join(', ')}`);
   if (errors.length) throw new Error(`Browser errors: ${errors.join(', ')}`);
   console.log(`PASS: ${checked} browser checks at ${widths.join('/')}px in light/dark mode, no horizontal overflow, sampled text contrast >= 4.5:1`);
   console.log('PASS: all header links have >= 44x44px targets and >= 4px separation');
   console.log('PASS: custom 404 keeps project-root assets; requests match the same-origin allowlist; no browser exceptions');
-  console.log('PASS: setup page copy buttons cover every code block with exact text, repeat clicks, Enter/Space, rejection, missing API and no-JS reading');
+  console.log(`PASS: copy buttons on ${copyPaths.map(path => '/trello-mcp/' + path).join(', ')} cover every code block with exact text, repeat clicks, Enter/Space, rejection, missing API and no-JS reading`);
 } finally {
   clearTimeout(timeout);
   socket?.close();

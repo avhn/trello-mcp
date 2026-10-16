@@ -2,7 +2,7 @@
 
 Run: python3 -I scripts/site/validate.py
 Parser regression checks: python3 -I scripts/site/validate.py --self-test
-Release gate: RELEASE_TAG=v0.7.0 python3 -I scripts/site/validate.py
+Release gate: RELEASE_TAG=v0.8.0 python3 -I scripts/site/validate.py
 """
 from collections import Counter
 from html import unescape
@@ -150,6 +150,8 @@ class Page(HTMLParser):
         require(self.stack and self.stack[-1] == tag,
                 f'Unexpected closing {tag}; open elements: {self.stack}')
         self.stack.pop()
+        if tag == 'section':
+            self.blocks.append(('/section', {}, ''))
         if tag in CAPTURE:
             require(self.captures and self.captures[-1][0] == tag, f'Invalid capture nesting: {tag}')
             name, attrs, parts = self.captures.pop()
@@ -543,7 +545,8 @@ def check_source_examples(markdown):
 def check_desktop_contract(setup, tools_doc, manifest, health_source):
     require('## Claude Desktop extension\n' in setup, 'Missing stable Claude Desktop extension anchor')
     require('preview' not in setup.lower(), 'Setup must not retain the Desktop preview anchor or wording')
-    require('supports macOS and Windows amd64' in setup and 'Linux Desktop is itself a beta' in setup,
+    require('supports macOS and Windows amd64' in setup and 'Windows on Arm is not claimed.' in setup
+            and 'Linux Desktop is itself a beta' in setup,
             'Setup must distinguish supported Desktop bundles from Linux beta')
     expected = {'ok': True, 'credentialSource': 'env', 'access': 'unverified; call workspace_find'}
     require('"unverified; call workspace_find"' in health_source, 'Health source access guidance drift')
@@ -561,7 +564,7 @@ def check_desktop_contract(setup, tools_doc, manifest, health_source):
         require('health-only profile' in text.lower() and 'upstream read' in text,
                 f'{name}: health-only profiles cannot verify upstream access')
     help_text = manifest['long_description']
-    require('macOS and Windows are supported.' in help_text and 'preview' not in help_text.lower(),
+    require('macOS and Windows amd64 are supported; Windows on Arm is not claimed.' in help_text and 'preview' not in help_text.lower(),
             'Desktop manifest must describe supported bundles, not a preview')
     for phrase in ('Health does not verify Trello access.', 'workspace_find {}', 'health-only profile',
                    'No CLI auth/status or credential copying is required.',
@@ -574,6 +577,42 @@ def check_desktop_contract(setup, tools_doc, manifest, health_source):
         description = manifest['user_config'][setting]['description']
         require('Windows refuses' in description and 'cannot enable' in description,
                 f'Desktop {setting} must retain Windows refusal guidance')
+
+
+def check_faq(page, schema):
+    visible, answer = [], None
+    for tag, attrs, text in page.blocks:
+        if tag in {'h2', 'h3', '/section'}:
+            answer = None
+            if tag == 'h3' and attrs.get('id', '').startswith('question-'):
+                answer = []
+                visible.append((text, answer))
+        elif tag == 'p' and answer is not None:
+            answer.append(normalized(text))
+    visible = [(question, ' '.join(answer)) for question, answer in visible]
+    names = [entry['name'] for entry in schema['mainEntity']]
+    require(len(set(names)) == len(names), 'FAQPage schema repeats a question')
+    expected = [(entry['name'], normalized(entry['acceptedAnswer']['text'])) for entry in schema['mainEntity']]
+    require(visible == expected, 'Visible FAQ and FAQPage schema list different question and answer pairs')
+
+
+def check_canonical(page, url, is_404, prefix):
+    require(('robots' in page.meta) == is_404, f'{prefix}: only the 404 page is noindex')
+    if is_404:
+        require(page.meta['robots'] == 'noindex', f'{prefix}: robots must be noindex')
+    canonicals = [attrs.get('href') for tag, attrs in page.elements
+                  if tag == 'link' and attrs.get('rel') == 'canonical']
+    require(canonicals == ([] if is_404 else [url]), f'{prefix}: canonical mismatch')
+
+
+def check_batch_errors(tools_doc, tools_text):
+    doc = normalized(tools_doc.replace('`', ''))
+    require('Single-call partial results set MCP isError; batches put error and unconfirmed on entries, '
+            'not on the envelope, so isError stays false for a batch with partial entries.' in doc,
+            'tools.md: missing batch error exception')
+    require('Single-call partial results set MCP isError; batches put error and unconfirmed on entries, '
+            'not the envelope, so inspect every items[] entry and read back before retrying.' in normalized(tools_text),
+            'tools page: missing batch error exception')
 
 
 def validate_clients(items):
@@ -612,9 +651,11 @@ def validate_clients(items):
     require(opencode['type'] == 'local' and opencode['command'] == [PLACEHOLDER], 'OpenCode snippet shape')
     require('~/.cursor/mcp.json' in prose['Cursor'] and '.cursor/mcp.json' in prose['Cursor'], 'Cursor locations')
     require(json.loads(codes['Cursor'][0][2])['mcpServers']['trello']['command'] == PLACEHOLDER, 'Cursor snippet shape')
-    require('.vscode/mcp.json' in prose['VS Code'] and 'MCP: Open User Configuration' in prose['VS Code'], 'VS Code locations')
-    vscode = json.loads(codes['VS Code'][0][2])['servers']['trello']
-    require(vscode['type'] == 'stdio' and vscode['command'] == PLACEHOLDER, 'VS Code snippet shape')
+    for path in ('~/.copilot/mcp-config.json', '$COPILOT_HOME/mcp-config.json',
+                 '.vscode/mcp.json', 'MCP: Open User Configuration'):
+        require(path in prose['VS Code'], f'VS Code location missing: {path}')
+    vscode = json.loads(codes['VS Code'][0][2])
+    require(vscode == {'mcpServers': {'trello': {'command': PLACEHOLDER}}}, 'VS Code snippet shape')
     for item in items:
         if item[0] == 'code' and 'claude mcp add' in item[2] and item[2].startswith('claude'):
             check_claude_registration(item[2])
@@ -782,11 +823,7 @@ def validate():
         descriptions.append(description)
         require(page.meta.get('viewport') == 'width=device-width, initial-scale=1', f'{prefix}: viewport')
         require(page.meta.get('theme-color'), f'{prefix}: theme color')
-        require(('robots' in page.meta) == (file == SITE / '404.html'), f'{prefix}: only the 404 page is noindex')
-        if 'robots' in page.meta:
-            require(page.meta['robots'] == 'noindex', f'{prefix}: robots must be noindex')
-        canonicals = [attrs.get('href') for tag, attrs in page.elements if tag == 'link' and attrs.get('rel') == 'canonical']
-        require(canonicals == [url], f'{prefix}: canonical mismatch')
+        check_canonical(page, url, file == SITE / '404.html', prefix)
         for key, value in {
             'og:type': 'website', 'og:title': title[0], 'og:description': description,
             'og:url': url, 'og:image': BASE + 'assets/social.png', 'og:image:width': '1200',
@@ -820,13 +857,7 @@ def validate():
                 require(schema['itemListElement'][-1]['item'] == url, f'{prefix}: breadcrumb URL')
             if schema['@type'] == 'FAQPage':
                 require(file == SITE / 'security/index.html', 'FAQ schema belongs on the security page')
-                visible = {text: i for i, text in enumerate(page.text('h3'))}
-                paragraphs = [normalized(p) for p in page.text('p')]
-                for question in schema['mainEntity']:
-                    require(question['name'] in visible, f'FAQ question is not visible: {question["name"]}')
-                    require(normalized(question['acceptedAnswer']['text']) in paragraphs, f'FAQ answer is not visible: {question["name"]}')
-                faq_headings = [attrs for tag, attrs, _ in page.blocks if tag == 'h3' and attrs.get('id', '').startswith('question-')]
-                require(len(faq_headings) == len(schema['mainEntity']), 'Visible FAQ and FAQPage schema list different questions')
+                check_faq(page, schema)
         require(types['FAQPage'] == (file == SITE / 'security/index.html'), f'{prefix}: FAQ schema')
         for snippet in page.text('pre'):
             if snippet.lstrip().startswith('{'):
@@ -958,6 +989,7 @@ def validate():
     for text_name, text in (('tools.md', tools_doc), ('configuration.md', configuration)):
         require('Trello documents no limit' in normalized(text) and 'Up to 16384 chars' in normalized(text), f'{text_name}: text-limit evidence labels')
     tools_text = ' '.join(tools_page.text('p'))
+    check_batch_errors(tools_doc, tools_text)
     require('filter' in details['board_activity'] and 'filter' in details['card_history'], 'Activity tools must document filter')
     require('summary' in tools_text and 'full' in tools_text and 'url' in tools_text, 'Tools page must explain summary versus full detail')
 
@@ -1096,6 +1128,16 @@ class MirrorTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'Setup mirror differs|has .* items'):
                     check_mirror(self.markdown, self.source.replace(old, new, 1))
 
+    def test_vscode_path_and_root_mutations(self):
+        for old, new in (('~/.copilot/mcp-config.json', '~/.copilot/wrong.json'),
+                         ('$COPILOT_HOME/mcp-config.json', '$COPILOT_HOME/wrong.json'),
+                         ('{"mcpServers":{"trello":{"command":"/absolute/path/to/trello-mcp"}}}',
+                          '{"servers":{"trello":{"type":"stdio","command":"/absolute/path/to/trello-mcp"}}}')):
+            with self.subTest(old=old):
+                self.assertIn(old, self.markdown)
+                with self.assertRaisesRegex(ValueError, 'VS Code'):
+                    validate_clients(parse_markdown(self.markdown.replace(old, new)))
+
     def test_one_edit_in_markdown_fails(self):
         with self.assertRaises(ValueError):
             check_mirror(self.markdown.replace('--scope user', '--scope local', 1), self.source)
@@ -1167,11 +1209,13 @@ class SetupContractTests(unittest.TestCase):
         check_desktop_contract(self.setup, self.tools, self.manifest, self.health)
         for old, new in (('## Claude Desktop extension', '## Claude Desktop extension preview'),
                          ('Linux Desktop is itself a beta', 'Linux Desktop is supported'),
+                         ('Windows amd64', 'Windows'),
+                         ('Windows on Arm is not claimed.', 'Windows on Arm is supported.'),
                          ('"access":"unverified; call workspace_find"', '"access":"verified"')):
             with self.subTest(old=old), self.assertRaises(ValueError):
                 check_desktop_contract(self.setup.replace(old, new), self.tools, self.manifest, self.health)
         for old in ('Health does not verify Trello access.', 'No CLI auth/status or credential copying is required.',
-                    'macOS and Windows are supported.', 'Windows refuses'):
+                    'macOS and Windows amd64 are supported; Windows on Arm is not claimed.', 'Windows refuses'):
             manifest = json.loads(json.dumps(self.manifest).replace(old, 'removed'))
             with self.subTest(old=old), self.assertRaises(ValueError):
                 check_desktop_contract(self.setup, self.tools, manifest, self.health)
@@ -1191,6 +1235,70 @@ class SetupContractTests(unittest.TestCase):
             check_desktop_contract(self.setup, self.tools.replace('"credentialSource":"env"',
                                                                 '"credentialSource":"file"'),
                                    self.manifest, self.health)
+
+
+class CanonicalTests(unittest.TestCase):
+    def page(self, source):
+        page = Page()
+        page.feed(source)
+        page.finish()
+        return page
+
+    def test_content_routes_require_own_single_canonical(self):
+        for route in ROUTES:
+            url = BASE + route
+            canonical = f'<link rel="canonical" href="{url}">'
+            check_canonical(self.page(canonical), url, False, route)
+            for source in ('', canonical * 2, f'<link rel="canonical" href="{BASE}404.html">',
+                           canonical + '<meta name="robots" content="noindex">'):
+                with self.subTest(route=route, source=source), self.assertRaises(ValueError):
+                    check_canonical(self.page(source), url, False, route)
+
+    def test_404_requires_noindex_and_no_canonical(self):
+        source = '<meta name="robots" content="noindex">'
+        url = BASE + '404.html'
+        check_canonical(self.page(source), url, True, '404.html')
+        for bad in ('', source.replace('noindex', 'index'), source + f'<link rel="canonical" href="{url}">'):
+            with self.subTest(source=bad), self.assertRaises(ValueError):
+                check_canonical(self.page(bad), url, True, '404.html')
+
+
+    def test_faq_pairs_must_match_in_order(self):
+        def faq(*pairs):
+            return {'mainEntity': [{'name': q, 'acceptedAnswer': {'text': a}} for q, a in pairs]}
+        source = '<h3 id="question-1">Q1</h3><p>A1</p><h3 id="question-2">Q2</h3><p>A2</p>'
+        check_faq(self.page(source), faq(('Q1', 'A1'), ('Q2', 'A2')))
+        for bad in (faq(('Q1', 'A2'), ('Q2', 'A1')), faq(('Q1', 'A1')), faq(('Q1', 'A1'), ('Q1', 'A1')),
+                    faq(('Q2', 'A2'), ('Q1', 'A1')), faq(('Q1', 'A1'), ('Q2', 'A2'), ('Q3', 'A3'))):
+            with self.subTest(schema=bad), self.assertRaises(ValueError):
+                check_faq(self.page(source), bad)
+        extra = source.replace('<p>A1</p>', '<p>A1</p><p>Contradiction.</p>')
+        with self.assertRaises(ValueError):
+            check_faq(self.page(extra), faq(('Q1', 'A1'), ('Q2', 'A2')))
+        for tail in ('<h2>Next</h2><p>Unrelated.</p></section>', '</section><footer><p>Unrelated.</p></footer>'):
+            check_faq(self.page('<section>' + source + tail), faq(('Q1', 'A1'), ('Q2', 'A2')))
+
+
+class BatchErrorTests(unittest.TestCase):
+    def test_batch_exception_and_safety_mutations(self):
+        doc = (ROOT / 'docs/tools.md').read_text()
+        page = Page()
+        page.feed((SITE / 'tools/index.html').read_text())
+        page.finish()
+        text = ' '.join(page.text('p'))
+        check_batch_errors(doc, text)
+        for old, new in (('stays false', 'stays true'), ('on entries', 'on the envelope'),
+                         ('Single-call partial results set', 'Single-call partial results never set')):
+            with self.subTest(old=old):
+                self.assertIn(old, doc)
+                with self.assertRaisesRegex(ValueError, 'batch error exception'):
+                    check_batch_errors(doc.replace(old, new), text)
+        for old, new in (('not the envelope', 'on the envelope'),
+                         ('inspect every items[] entry', 'retry the batch')):
+            with self.subTest(old=old):
+                self.assertIn(old, text)
+                with self.assertRaisesRegex(ValueError, 'batch error exception'):
+                    check_batch_errors(doc, text.replace(old, new))
 
 
 class ReadParameterTests(unittest.TestCase):
