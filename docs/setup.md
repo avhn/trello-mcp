@@ -211,30 +211,22 @@ Use MCP: List Servers to start, stop, restart or show output.
 <!-- section:desktop -->
 ## Claude Desktop extension
 
-The packaged extension supports macOS and Windows amd64, owner-tested at v0.6.0. Download bundles from GitHub releases, verify checksums, and install/update manually. Registry discovery is separate from Desktop installation. Other clients use the CLI; browser authorization is human-only.
+Download `trello-mcp_desktop.mcpb` from the [latest release](https://github.com/avhn/trello-mcp/releases/latest); check SHA-256 against that release's `checksums.txt` before installing. It supports macOS and Windows amd64; Windows on Arm is not claimed. Linux Desktop is itself a beta (CPU-specific bundles).
 
-- Download from the [latest release](https://github.com/avhn/trello-mcp/releases/latest). Use `trello-mcp_desktop.mcpb` for macOS and Windows amd64; there is no CPU choice. Windows on Arm is not claimed.
-- Linux Desktop is itself a beta. Bundles are owner-untested and excluded from Registry installation metadata. Use the CLI installer or pick `trello-mcp_linux_amd64.mcpb` or `trello-mcp_linux_arm64.mcpb` to match your CPU. Secure-storage support on Linux is unverified.
-- Compare the file's SHA-256 with the `checksums.txt` on that release before installing (macOS `shasum -a 256 FILE`, Windows `Get-FileHash FILE`). Updates are manual: download the newer bundle and install it again.
-
-Steps for a person at Claude Desktop:
-
-1. In your browser open [Trello Power-Up administration](https://trello.com/power-ups/admin), create a personal Power-Up if needed, and generate a personal API key in its Trello Auth or API key area.
-2. In your browser only, replace `YOUR_KEY` in the template below, open it, approve access and copy the token. For a read-only token use `scope=read`. The Power-Up page's own Token link may use different parameters.
-3. In Claude Desktop choose Settings > Extensions > Advanced settings > Extension Developer > Install Extension, select the downloaded `.mcpb` file and approve it.
-4. Paste the key and token only into the extension's masked API key and token fields. Optionally set allowed workspaces, read-only mode and the download and upload directories, then save.
-5. Restart the extension. If Desktop does not pick the settings up, fully quit and reopen it. Follow Verify below: `server_health` reports local configuration and `credentialSource: "env"`, not validated Trello access; `workspace_find {}` performs the real read. No CLI auth or status command is needed.
+1. Install via Settings > Extensions > Advanced settings > Extension Developer > Install Extension.
+2. Create your personal API key at [Trello Power-Up administration](https://trello.com/power-ups/admin).
+3. In your browser, replace `YOUR_KEY` below with that key, open the URL and approve access; for read-only, replace `scope=read,write` with `scope=read`.
+4. Paste key and token into masked fields; save and restart the extension, then ask Claude to run `workspace_find {}`.
 
 ```text
 https://trello.com/1/authorize?key=YOUR_KEY&scope=read,write&expiration=30days&name=trello-mcp&response_type=token
 ```
 
-- Never share the key, token or your personalized authorization URL in chat, logs or agent-captured commands. There is no shared application key and no server-printed URL.
-- The URL template asks for read and write access that expires after 30 days. When it expires, repeat steps 2 and 4 and restart the extension. A token with expiration `never` must be revoked by hand; uninstalling the extension does not revoke any token. Revoke in your Trello account's authorized applications.
-- The read-only toggle and the workspace allowlist restrict this server only, not the token's authority. Use a `scope=read` token for read-only access at Trello.
-- Desktop keeps sensitive fields in OS secure storage, but the running server still receives them as environment variables, which take priority over saved credential files. Do not run CLI auth to store Desktop credentials. An environment token has unknown scope and is not assumed read-only.
-- On Unix, an empty download directory keeps the temporary-directory default; an empty upload directory keeps path uploads off. Windows refuses local path uploads and attachment downloads even when directories are set; configuring directories cannot enable them. Base64 uploads and URL attachments remain alternatives subject to write/profile policy. Read-only accepts `true` or `false` here and `1` or `0` in a client environment.
-- Update manually by verifying and installing the newer bundle. Its identity remains `trello-mcp`, but settings retention or migration is not guaranteed. Check settings using supported Desktop controls, restart the extension, then repeat Verify. Never inspect secure-storage databases or copy credentials to CLI files.
+Never share your key, token or personalized authorization URL in chat, logs or agent-captured commands. No shared application key is provided.
+
+Tokens expire after 30 days: repeat step 3 for a new token, replace the token in settings and restart. Uninstalling does not revoke tokens; revoke them in your Trello account's authorized applications.
+
+Read-only and workspace settings restrict this server, not token permissions. See [configuration](https://github.com/avhn/trello-mcp/blob/main/docs/configuration.md) and Verify below.
 <!-- /section:desktop -->
 
 <!-- section:profile -->

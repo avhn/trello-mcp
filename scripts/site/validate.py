@@ -577,10 +577,24 @@ def check_desktop_contract(setup, tools_doc, manifest, health_source):
     help_text = manifest['long_description']
     require('macOS and Windows amd64 are supported; Windows on Arm is not claimed.' in help_text and 'preview' not in help_text.lower(),
             'Desktop manifest must describe supported bundles, not a preview')
-    for phrase in ('Health does not verify Trello access.', 'workspace_find {}', 'health-only profile',
-                   'No CLI auth/status or credential copying is required.',
-                   'Windows refuses local path uploads and attachment downloads even when directories are set'):
-        require(phrase in help_text, f'Desktop manifest help missing: {phrase}')
+    # Keep onboarding compact; detailed health and lifecycle guidance lives in the docs.
+    desktop = setup.split('<!-- section:desktop -->', 1)[1].split('<!-- /section:desktop -->', 1)[0]
+    for name, text, renewal_step in (('manifest', help_text, 2), ('setup', desktop, 3)):
+        for phrase in ('https://trello.com/power-ups/admin',
+                       'https://trello.com/1/authorize?key=YOUR_KEY&scope=read,write&expiration=30days&name=trello-mcp&response_type=token',
+                       'scope=read', 'masked', 'restart', 'workspace_find {}',
+                       'Never share your key, token or personalized authorization URL in chat, logs or agent-captured commands.',
+                       'No shared application key is provided.',
+                       'Tokens expire after 30 days: repeat step ' + str(renewal_step) + ' for a new token',
+                       'replace the token in settings and restart.',
+                       "Uninstalling does not revoke tokens; revoke them in your Trello account's authorized applications."):
+            require(phrase in text, f'Desktop {name} help missing: {phrase}')
+        require('replace scope=read,write with scope=read' in text.replace('`', ''),
+                f'Desktop {name} must explain token-level read-only scope')
+    require('https://avhn.github.io/trello-mcp/setup/' in help_text, 'Desktop manifest help link missing')
+    require('not token permissions' in desktop, 'Desktop setup must distinguish server policy from token permissions')
+    require('without changing token permissions' in manifest['user_config']['read_only']['description'],
+            'Desktop read-only setting must distinguish server policy from token permissions')
     health_help = next(tool['description'] for tool in manifest['tools'] if tool['name'] == 'server_health')
     require('not Trello auth' in health_help and 'workspace_find' in health_help,
             'Desktop static health help must distinguish local config from Trello access')
@@ -1273,6 +1287,24 @@ class SetupContractTests(unittest.TestCase):
             with self.subTest(old=old), self.assertRaisesRegex(ValueError, 'source'):
                 check_source_examples(self.setup.replace(old, new))
 
+    def test_compact_desktop_safety_contract(self):
+        # Both entry points must explain fresh-token recovery and Trello-side revocation.
+        for phrase in ('https://trello.com/power-ups/admin', 'masked', 'workspace_find {}',
+                       'Never share your key, token or personalized authorization URL in chat, logs or agent-captured commands.',
+                       'No shared application key is provided.', 'for a new token', 'Tokens expire after 30 days',
+                       'replace scope=read,write with scope=read',
+                       'replace the token in settings and restart.',
+                       'Uninstalling does not revoke tokens',
+                       "revoke them in your Trello account's authorized applications."):
+            setup_phrase = ('replace `scope=read,write` with `scope=read`'
+                            if phrase.startswith('replace scope=') else phrase)
+            with self.subTest(source='setup', phrase=phrase), self.assertRaises(ValueError):
+                check_desktop_contract(self.setup.replace(setup_phrase, 'removed'), self.tools, self.manifest, self.health)
+            manifest = json.loads(json.dumps(self.manifest))
+            manifest['long_description'] = manifest['long_description'].replace(phrase, 'removed')
+            with self.subTest(source='manifest', phrase=phrase), self.assertRaises(ValueError):
+                check_desktop_contract(self.setup, self.tools, manifest, self.health)
+
     def test_desktop_and_health_contract(self):
         check_desktop_contract(self.setup, self.tools, self.manifest, self.health)
         for old, new in (('## Claude Desktop extension', '## Claude Desktop extension preview'),
@@ -1282,8 +1314,8 @@ class SetupContractTests(unittest.TestCase):
                          ('"access":"unverified; call workspace_find"', '"access":"verified"')):
             with self.subTest(old=old), self.assertRaises(ValueError):
                 check_desktop_contract(self.setup.replace(old, new), self.tools, self.manifest, self.health)
-        for old in ('Health does not verify Trello access.', 'No CLI auth/status or credential copying is required.',
-                    'macOS and Windows amd64 are supported; Windows on Arm is not claimed.', 'Windows refuses'):
+        for old in ('macOS and Windows amd64 are supported; Windows on Arm is not claimed.', 'Windows refuses',
+                    'without changing token permissions', 'https://avhn.github.io/trello-mcp/setup/'):
             manifest = json.loads(json.dumps(self.manifest).replace(old, 'removed'))
             with self.subTest(old=old), self.assertRaises(ValueError):
                 check_desktop_contract(self.setup, self.tools, manifest, self.health)

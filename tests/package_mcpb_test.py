@@ -138,41 +138,38 @@ class BundleTests(unittest.TestCase):
                     self.assertIn("compatible Claude Desktop Linux beta host and secure storage",
                                   manifest["long_description"])
 
-    def test_generated_help_qualifies_health_and_manual_updates(self):
-        for target in packaging.TARGETS:
-            with self.subTest(target=target):
-                help_text = packaging.manifest("6.7.8", target)["long_description"]
-                for required in ("credentials must be present before health metadata or policy fields exist",
-                                 "every unconfigured detail returns the same four-field setup response",
-                                 "Health does not verify Trello access", "workspace_find {} for a real Trello read",
-                                 "A 401 can mean", "missing scope (especially write)",
-                                 "not proof of an invalid token", "A 403 can mean",
-                                 "checksums.txt from the same release", "install it manually",
-                                 "extension identity trello-mcp", "Check settings through supported controls",
-                                 "settings retention or migration is not guaranteed",
-                                 "Restart the extension", "repeat the verification above"):
-                    self.assertIn(required, help_text)
-                self.assertNotIn("retain your settings", help_text)
-                self.assertLess(help_text.index("verify the downloaded bundle"),
-                                help_text.index("then install it manually"))
+    def test_detailed_health_and_update_guidance_remains_in_docs(self):
+        setup = (ROOT / "docs/setup.md").read_text()
+        verify = setup.split("<!-- section:verify -->")[1].split("<!-- /section:verify -->")[0]
+        for required in ("Credentials must be present before health metadata or policy fields exist",
+                         "every unconfigured detail returns the same four-field setup response",
+                         "does not validate authentication", "`workspace_find {}` to verify a real Trello read",
+                         "A 401 can mean", "missing scope (especially write)",
+                         "not proof of an invalid token", "A 403 points to",
+                         "Network and rate-limit errors differ"):
+            self.assertIn(required, verify)
+        configuration = " ".join((ROOT / "docs/configuration.md").read_text().split())
+        for required in ("extension identity `trello-mcp`", "`checksums.txt` from the same release before installing",
+                         "check settings using supported controls", "restart and repeat [Verify]",
+                         "Settings retention or migration is not guaranteed", "OS secure storage",
+                         "Linux Desktop remains beta; secure-storage support is unverified"):
+            self.assertIn(required, configuration)
+        self.assertNotIn("retain your settings", configuration)
 
     def test_windows_transfer_warnings_cannot_be_enabled_by_settings(self):
         for target in packaging.TARGETS:
             with self.subTest(target=target):
                 manifest = packaging.manifest("6.7.8", target)
-                for setting, operation in (("download_dir", "attachment downloads"),
-                                           ("upload_dir", "local path uploads")):
+                for setting, operation in (("download_dir", "downloads"),
+                                           ("upload_dir", "path uploads")):
                     description = manifest["user_config"][setting]["description"]
                     self.assertIn(f"Windows refuses {operation}", description)
-                    self.assertIn("even when this directory is set", description)
-                    self.assertIn("configuring it cannot enable them", description)
-                    self.assertIn("Restart", description)
-                help_text = manifest["long_description"]
-                self.assertIn("Windows refuses local path uploads and attachment downloads", help_text)
-                self.assertIn("even when directories are set; configuring directories cannot enable them", help_text)
-                for text in (help_text, manifest["user_config"]["upload_dir"]["description"]):
-                    self.assertIn("Base64 uploads and URL attachments remain alternatives", text)
-                    self.assertIn("subject to write permissions and tool-profile policy", text)
+                    self.assertIn("this setting cannot enable them", description)
+        configuration = (ROOT / "docs/configuration.md").read_text()
+        for required in ("Local path uploads and attachment downloads are refused even when directories",
+                         "setting directories cannot enable them", "Base64 uploads and URL attachments remain",
+                         "alternatives subject to write/profile policy"):
+            self.assertIn(required, configuration)
 
     def test_settings_and_substitution_contract(self):
         manifest = packaging.manifest("6.7.8", "desktop")
@@ -203,36 +200,48 @@ class BundleTests(unittest.TestCase):
         manifest = packaging.manifest("6.7.8", "desktop")
         help_text = manifest["long_description"]
         for required in ("https://trello.com/power-ups/admin", "key=YOUR_KEY&scope=read,write&expiration=30days",
-                         "scope=read", "masked", "30 days", "Revoke", "does not revoke",
-                         "not the token", "OS secure storage", "manual updates", "restart",
-                         "Extension Developer > Install Extension"):
+                         "replace scope=read,write with scope=read", "masked", "save and restart",
+                         "Never share your key, token or personalized authorization URL in chat, logs or agent-captured commands.",
+                         "No shared application key is provided.",
+                         "Tokens expire after 30 days: repeat step 2 for a new token, replace the token in settings and restart.",
+                         "Uninstalling does not revoke tokens; revoke them in your Trello account's authorized applications.",
+                         "https://avhn.github.io/trello-mcp/setup/"):
             self.assertIn(required, help_text)
+        self.assertIn("without changing token permissions", manifest["user_config"]["read_only"]["description"])
         self.assertEqual(manifest["privacy_policies"], ["https://www.atlassian.com/legal/privacy-policy"])
+
+    def test_onboarding_copy_stays_compact(self):
+        manifest = packaging.manifest("6.7.8", "desktop")
+        self.assertLessEqual(len(manifest["long_description"].split()), 150)
+        self.assertLessEqual(sum(len(setting["description"].split())
+                                 for setting in manifest["user_config"].values()), 100)
+        for setting in manifest["user_config"].values():
+            description = setting["description"]
+            self.assertEqual(description.count("."), 1)
+            self.assertTrue(description.endswith("."))
+        setup = (ROOT / "docs/setup.md").read_text()
+        desktop = setup.split("<!-- section:desktop -->")[1].split("<!-- /section:desktop -->")[0]
+        self.assertLessEqual(len(desktop.split()), 190)
 
     def test_help_verifies_desktop_access_without_cli_credentials(self):
         manifest = packaging.manifest("6.7.8", "desktop")
         self.assertEqual(manifest["tools"][0]["description"],
                          "Local config health, not Trello auth; verify with workspace_find. "
                          "Policy shows access restrictions.")
-        help_text = manifest["long_description"]
-        for required in ("basic checks local credential presence/source",
-                         "metadata shows the installed version", "policy shows effective restrictions",
-                         "Health does not verify Trello access", "workspace_find {} for a real Trello read",
-                         "successful empty items result proves that upstream read worked",
-                         "not that a workspace selector matches", "A 401 can mean",
-                         "not proof of an invalid token", "A 403 can mean",
-                         "Network and rate-limit failures are separate", "permitted existing upstream read such as board_find",
-                         "health-only profile cannot verify access", "change the profile and reconnect",
-                         "never bypass restrictions", "No CLI auth/status or credential copying is required",
-                         "CLI status describes only that CLI invocation, not Desktop credentials",
-                         "remove or disable the extension in Settings > Extensions",
-                         "retained sensitive settings using supported controls",
-                         "Do not use CLI logout as Desktop cleanup",
-                         "removal does not promise deletion of OS secure-storage entries"):
-            self.assertIn(required, help_text)
-        self.assertLess(help_text.index("basic checks"), help_text.index("metadata shows"))
-        self.assertLess(help_text.index("metadata shows"), help_text.index("policy shows"))
-        self.assertLess(help_text.index("policy shows"), help_text.index("Then call workspace_find"))
+        self.assertIn("Ask Claude to run workspace_find {} to verify Trello access", manifest["long_description"])
+        setup = (ROOT / "docs/setup.md").read_text().replace("`", "")
+        for required in ("detail: \"metadata\"", "detail: \"policy\"", "not that a workspace selector matches",
+                         "permitted existing upstream read such as board_find", "health-only profile cannot verify access",
+                         "change the profile and reconnect", "never bypass restrictions",
+                         "Desktop extension users need no CLI auth/status or credential copying",
+                         "not Desktop's environment", "remove or disable it using supported controls in Settings > Extensions",
+                         "retained sensitive settings there using supported controls",
+                         "do not use CLI logout as Desktop cleanup",
+                         "Uninstall does not promise deletion of secure-storage entries or revocation"):
+            self.assertIn(required, setup)
+        self.assertLess(setup.index("Call server_health {}"), setup.index('detail: "metadata"'))
+        self.assertLess(setup.index('detail: "metadata"'), setup.index('detail: "policy"'))
+        self.assertLess(setup.index('detail: "policy"'), setup.index("Call workspace_find {}"))
 
     def test_native_headers_and_symlink_rejection(self):
         for system, arches in (("linux", ("amd64", "arm64")), ("darwin", ("amd64", "arm64")),

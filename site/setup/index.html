@@ -160,29 +160,17 @@ command = "/absolute/path/to/trello-mcp"</code></pre>
 </section>
 <section data-section="desktop">
 <h2 id="claude-desktop-extension">Claude Desktop extension</h2>
-<p>The packaged extension supports macOS and Windows amd64, owner-tested at v0.6.0. Download bundles from GitHub releases, verify checksums, and install/update manually. Registry discovery is separate from Desktop installation. Other clients use the CLI; browser authorization is human-only.</p>
-<ul>
-<li>Download from the <a href="https://github.com/avhn/trello-mcp/releases/latest">latest release</a>. Use <code>trello-mcp_desktop.mcpb</code> for macOS and Windows amd64; there is no CPU choice. Windows on Arm is not claimed.</li>
-<li>Linux Desktop is itself a beta. Bundles are owner-untested and excluded from Registry installation metadata. Use the CLI installer or pick <code>trello-mcp_linux_amd64.mcpb</code> or <code>trello-mcp_linux_arm64.mcpb</code> to match your CPU. Secure-storage support on Linux is unverified.</li>
-<li>Compare the file's SHA-256 with the <code>checksums.txt</code> on that release before installing (macOS <code>shasum -a 256 FILE</code>, Windows <code>Get-FileHash FILE</code>). Updates are manual: download the newer bundle and install it again.</li>
-</ul>
-<p>Steps for a person at Claude Desktop:</p>
+<p>Download <code>trello-mcp_desktop.mcpb</code> from the <a href="https://github.com/avhn/trello-mcp/releases/latest">latest release</a>; check SHA-256 against that release's <code>checksums.txt</code> before installing. It supports macOS and Windows amd64; Windows on Arm is not claimed. Linux Desktop is itself a beta (CPU-specific bundles).</p>
 <ol>
-<li>In your browser open <a href="https://trello.com/power-ups/admin">Trello Power-Up administration</a>, create a personal Power-Up if needed, and generate a personal API key in its Trello Auth or API key area.</li>
-<li>In your browser only, replace <code>YOUR_KEY</code> in the template below, open it, approve access and copy the token. For a read-only token use <code>scope=read</code>. The Power-Up page's own Token link may use different parameters.</li>
-<li>In Claude Desktop choose Settings &gt; Extensions &gt; Advanced settings &gt; Extension Developer &gt; Install Extension, select the downloaded <code>.mcpb</code> file and approve it.</li>
-<li>Paste the key and token only into the extension's masked API key and token fields. Optionally set allowed workspaces, read-only mode and the download and upload directories, then save.</li>
-<li>Restart the extension. If Desktop does not pick the settings up, fully quit and reopen it. Follow Verify below: <code>server_health</code> reports local configuration and <code>credentialSource: "env"</code>, not validated Trello access; <code>workspace_find {}</code> performs the real read. No CLI auth or status command is needed.</li>
+<li>Install via Settings &gt; Extensions &gt; Advanced settings &gt; Extension Developer &gt; Install Extension.</li>
+<li>Create your personal API key at <a href="https://trello.com/power-ups/admin">Trello Power-Up administration</a>.</li>
+<li>In your browser, replace <code>YOUR_KEY</code> below with that key, open the URL and approve access; for read-only, replace <code>scope=read,write</code> with <code>scope=read</code>.</li>
+<li>Paste key and token into masked fields; save and restart the extension, then ask Claude to run <code>workspace_find {}</code>.</li>
 </ol>
 <pre><code class="language-text">https://trello.com/1/authorize?key=YOUR_KEY&amp;scope=read,write&amp;expiration=30days&amp;name=trello-mcp&amp;response_type=token</code></pre>
-<ul>
-<li>Never share the key, token or your personalized authorization URL in chat, logs or agent-captured commands. There is no shared application key and no server-printed URL.</li>
-<li>The URL template asks for read and write access that expires after 30 days. When it expires, repeat steps 2 and 4 and restart the extension. A token with expiration <code>never</code> must be revoked by hand; uninstalling the extension does not revoke any token. Revoke in your Trello account's authorized applications.</li>
-<li>The read-only toggle and the workspace allowlist restrict this server only, not the token's authority. Use a <code>scope=read</code> token for read-only access at Trello.</li>
-<li>Desktop keeps sensitive fields in OS secure storage, but the running server still receives them as environment variables, which take priority over saved credential files. Do not run CLI auth to store Desktop credentials. An environment token has unknown scope and is not assumed read-only.</li>
-<li>On Unix, an empty download directory keeps the temporary-directory default; an empty upload directory keeps path uploads off. Windows refuses local path uploads and attachment downloads even when directories are set; configuring directories cannot enable them. Base64 uploads and URL attachments remain alternatives subject to write/profile policy. Read-only accepts <code>true</code> or <code>false</code> here and <code>1</code> or <code>0</code> in a client environment.</li>
-<li>Update manually by verifying and installing the newer bundle. Its identity remains <code>trello-mcp</code>, but settings retention or migration is not guaranteed. Check settings using supported Desktop controls, restart the extension, then repeat Verify. Never inspect secure-storage databases or copy credentials to CLI files.</li>
-</ul>
+<p>Never share your key, token or personalized authorization URL in chat, logs or agent-captured commands. No shared application key is provided.</p>
+<p>Tokens expire after 30 days: repeat step 3 for a new token, replace the token in settings and restart. Uninstalling does not revoke tokens; revoke them in your Trello account's authorized applications.</p>
+<p>Read-only and workspace settings restrict this server, not token permissions. See <a href="https://github.com/avhn/trello-mcp/blob/main/docs/configuration.md">configuration</a> and Verify below.</p>
 </section>
 <section data-section="profile">
 <h2 id="optional-read-oriented-profile">Optional read-oriented profile</h2>

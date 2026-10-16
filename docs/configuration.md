@@ -60,15 +60,30 @@ Precedence is: environment `TRELLO_API_KEY` + `TRELLO_TOKEN`, then an absolute
 `TRELLO_MCP_CREDENTIALS` file, then the default file, then `~/.secrets.env`.
 Both environment values are required together; a partial pair is an error, not a fallback. CLI client
 configs need only the full binary path, with no credential env block. The Claude Desktop extension is the
-exception: Desktop passes its masked key and token settings as this environment pair, so they win over any
-saved file, and an environment token has unknown scope and is never assumed read-only. Do not use CLI
-`auth` to store Desktop credentials. Setup for the supported macOS and Windows amd64 extension (Windows
-on Arm is not claimed) is in [setup](setup.md#claude-desktop-extension). Linux Desktop remains beta. Updates are manual: verify the
-release checksum, install the newer bundle, check settings with supported controls and restart. Settings
-retention or migration is not guaranteed. To remove it, use supported controls in Settings > Extensions,
-manage any retained sensitive settings there and revoke access at Trello separately. Removal does not
-promise deletion of secure-storage entries or revocation. CLI logout is not Desktop cleanup; never
-inspect or delete keychain/credential databases.
+exception: Desktop protects sensitive settings with OS secure storage but passes its masked key and token
+to the running server as this environment pair, so they win over any saved file. An environment token has
+unknown scope and is never assumed read-only. Do not use CLI `auth` to store Desktop credentials.
+Setup for the supported macOS and Windows amd64 extension (Windows on Arm is not claimed) is in
+[setup](setup.md#claude-desktop-extension). Linux Desktop remains beta; secure-storage support is
+unverified. Linux bundles are owner-untested and excluded from Registry installation metadata: choose
+`trello-mcp_linux_amd64.mcpb` or `trello-mcp_linux_arm64.mcpb` for your CPU, or use the CLI installer.
+Registry discovery is separate from Desktop installation; other clients use the CLI.
+
+Updates are manual: keep the extension identity `trello-mcp`, verify the newer bundle against
+`checksums.txt` from the same release before installing, then check settings using supported controls,
+restart and repeat [Verify](setup.md#verify). For checksum commands use `shasum -a 256 FILE` on macOS
+or `Get-FileHash FILE` on Windows. Settings retention or migration is not guaranteed. To remove it,
+use supported controls in Settings > Extensions, manage any retained sensitive settings there and revoke
+access at Trello separately. Removal does not promise deletion of secure-storage entries or revocation.
+CLI logout is not Desktop cleanup; never inspect or delete keychain/credential databases.
+
+For browser authorization, create a personal Power-Up if needed and generate your key in its Trello
+Auth/API-key area. Use the URL template in [setup](setup.md#claude-desktop-extension), not the Power-Up's
+Token link, which may use different parameters. The template requests read/write access for 30 days;
+replace `scope=read,write` with `scope=read` for a token that cannot write. To renew, authorize again
+in your browser, replace the expired token in extension settings, save and restart the extension.
+Fully quit and reopen Desktop if needed. Never-expiring tokens require manual revocation in your
+Trello account's authorized applications, even after uninstalling. No shared application key is provided.
 
 The dedicated plaintext file uses unquoted dotenv:
 

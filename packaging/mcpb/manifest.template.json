@@ -3,7 +3,7 @@
   "name": "trello-mcp",
   "display_name": "trello-mcp",
   "description": "Local Trello tools with compact responses, workspace allowlists and read-only opt-in.",
-  "long_description": "Independent Trello integration, not affiliated with Atlassian. macOS and Windows amd64 are supported; Windows on Arm is not claimed. Setup is terminal-free, but browser authorization is required.\n\n1. In your own browser, open https://trello.com/power-ups/admin and create a personal Power-Up if needed. In its Trello Auth/API-key area, generate a personal API key. Paste that key only into this extension's masked API key field.\n2. In your browser only, replace YOUR_KEY in https://trello.com/1/authorize?key=YOUR_KEY&scope=read,write&expiration=30days&name=trello-mcp&response_type=token with that key, open the URL, approve access and paste the token only into the masked token field. The Power-Up Token link may use different parameters. For a read-only token, change scope=read,write to scope=read before opening the URL. Never share your key, token or personalized authorization URL in chat, logs or agent-captured commands. No shared application key or CLI installation is needed.\n3. Optionally restrict workspaces and enable read-only mode, then save settings and restart the extension. Fully quit and reopen Claude Desktop if needed.\n\nThe token template requests read/write access and expires after 30 days. Renew an expired token in extension settings and restart. The read-only toggle limits this server, not the token's permissions. The workspace allowlist also limits only this server, not the token's underlying authority. Desktop protects sensitive settings with OS secure storage; the running server still receives them in its environment. Never-expiring tokens require manual revocation. Revoke access using Trello account settings' authorized-app Revoke control. Uninstalling this extension does not revoke tokens. To uninstall, remove or disable the extension in Settings > Extensions, manage any retained sensitive settings using supported controls and revoke Trello access. Do not use CLI logout as Desktop cleanup; removal does not promise deletion of OS secure-storage entries.\n\nDownload directory: empty uses the temporary-directory default on supported platforms. Upload directory: empty keeps path uploads disabled. Directory settings must be absolute paths when set. Windows refuses local path uploads and attachment downloads even when directories are set; configuring directories cannot enable them. Base64 uploads and URL attachments remain alternatives, subject to write permissions and tool-profile policy. Do not put secrets in these directories.\n\nVerify in Claude Desktop with server_health: credentials must be present before health metadata or policy fields exist; every unconfigured detail returns the same four-field setup response. With credentials configured, basic checks local credential presence/source, metadata shows the installed version, and policy shows effective restrictions. Health does not verify Trello access. Then call workspace_find {} for a real Trello read. A successful empty items result proves that upstream read worked, not that a workspace selector matches. A 401 can mean an expired or revoked token, a missing scope (especially write) or no access to that object, so it is not proof of an invalid token. If workspace_find {} succeeds, the token is valid for that read; check object access or write scope. A 403 can mean insufficient permission, scope or account policy; it is not proof of an invalid token. Network and rate-limit failures are separate; use the reported error to distinguish them. For a custom profile without workspace_find, use a permitted existing upstream read such as board_find. A health-only profile cannot verify access; change the profile and reconnect if necessary, never bypass restrictions. No CLI auth/status or credential copying is required. CLI status describes only that CLI invocation, not Desktop credentials.\n\nManual install: Settings > Extensions > Advanced settings > Extension Developer > Install Extension. GitHub bundles require manual updates. Before installing an update, verify the downloaded bundle against checksums.txt from the same release, then install it manually through the same controls. Keep the extension identity trello-mcp when updating. Check settings through supported controls; settings retention or migration is not guaranteed. Restart the extension after settings changes or updates and repeat the verification above. CLI auth remains available for other MCP clients, but do not use it to save Desktop environment credentials.\n\nSetup and troubleshooting: https://avhn.github.io/trello-mcp/setup/",
+  "long_description": "Independent Trello integration, not affiliated with Atlassian. macOS and Windows amd64 are supported; Windows on Arm is not claimed.\n\n1. Create your personal API key at https://trello.com/power-ups/admin.\n2. In your browser, replace YOUR_KEY with that key in https://trello.com/1/authorize?key=YOUR_KEY&scope=read,write&expiration=30days&name=trello-mcp&response_type=token, open it, approve access and copy the token. For a read-only token, replace scope=read,write with scope=read.\n3. Paste the key and token into the masked fields, save and restart the extension.\n4. Ask Claude to run workspace_find {} to verify Trello access.\n\nNever share your key, token or personalized authorization URL in chat, logs or agent-captured commands. No shared application key is provided.\n\nTokens expire after 30 days: repeat step 2 for a new token, replace the token in settings and restart. Uninstalling does not revoke tokens; revoke them in your Trello account's authorized applications.\n\nHelp: https://avhn.github.io/trello-mcp/setup/",
   "author": {
     "name": "Mert Dede",
     "url": "https://github.com/avhn"
@@ -47,42 +47,42 @@
     "api_key": {
       "type": "string",
       "title": "Trello API key",
-      "description": "Required personal key from https://trello.com/power-ups/admin, in your Power-Up's Trello Auth/API-key area. Browser-only setup is explained above. Never share it in chat.",
+      "description": "Your personal API key from Trello Power-Up administration (step 1).",
       "required": true,
       "sensitive": true
     },
     "token": {
       "type": "string",
       "title": "Trello token",
-      "description": "Required personal token from the browser authorization URL above. The template requests read/write access for 30 days; scope=read makes a read-only token. Renew here when expired. Never share the token or personalized URL in chat.",
+      "description": "Your personal token from the browser authorization in step 2.",
       "required": true,
       "sensitive": true
     },
     "allowed_workspaces": {
       "type": "string",
       "title": "Allowed workspaces (optional)",
-      "description": "Comma-separated workspace IDs or canonical short names (from the workspace URL), not display names. Empty permits all accessible workspaces. Nonempty lists restrict this server only; token authority is unchanged. Empty entries are rejected.",
+      "description": "Comma-separated workspace IDs or URL short names, not display names; empty allows all accessible workspaces within token permissions.",
       "required": false,
       "default": ""
     },
     "read_only": {
       "type": "boolean",
       "title": "Read-only mode",
-      "description": "Hide write tools in this server. Off by default. This toggle does not change token permissions; use a scope=read token for token-level read-only access.",
+      "description": "Hide write and transfer tools in this server only, without changing token permissions.",
       "required": false,
       "default": false
     },
     "download_dir": {
       "type": "directory",
       "title": "Attachment download directory (optional)",
-      "description": "Absolute directory for downloaded attachments on supported platforms. Empty retains the temporary-directory default. Windows refuses attachment downloads even when this directory is set; configuring it cannot enable them. Restart after changing settings.",
+      "description": "Absolute download directory (empty uses temporary storage); Windows refuses downloads and this setting cannot enable them.",
       "required": false,
       "default": ""
     },
     "upload_dir": {
       "type": "directory",
       "title": "Attachment upload directory (optional)",
-      "description": "Absolute directory permitted for path uploads on supported platforms. Empty keeps path uploads disabled. Windows refuses local path uploads even when this directory is set; configuring it cannot enable them. Base64 uploads and URL attachments remain alternatives, subject to write permissions and tool-profile policy. Select only a directory you intend this server to read. Restart after changing settings.",
+      "description": "Absolute path-upload directory (empty disables path uploads); Windows refuses path uploads and this setting cannot enable them.",
       "required": false,
       "default": ""
     }
