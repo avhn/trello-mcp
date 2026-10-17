@@ -12,6 +12,8 @@
 </p>
 
 <!-- measured:start -->
+**16 cards in one list**. Response text, characters. Lower is smaller.
+
 <picture><source media="(prefers-color-scheme: dark)" srcset="site/assets/benchmark-cards-dark.svg"><img src="site/assets/benchmark-cards-light.svg" alt="16 cards in one list, response characters: trello-mcp 6,754, Official 29,141, Node 1.8.1 45,335" width="400"></picture>
 
 77% less response text than the official server for this call (summary mode). Measured 2026-10-17 on one private work board with 144 cards; characters, not tokens. Full mode: 9,112 (69% fewer). For one card's details the official server returned less: 2,662 vs 2,825. [All results and method](#measured-comparison).
@@ -37,7 +39,11 @@ Clients and Claude Desktop: [docs/setup.md](docs/setup.md).
 <!-- measured:start -->
 ## Measured comparison
 
+**Measured response text**. Chars; independent zero-based row scales.
+
 <picture><source media="(prefers-color-scheme: dark)" srcset="site/assets/benchmark-responses-dark.svg"><img src="site/assets/benchmark-responses-light.svg" alt="Five response comparisons; independent row scales" width="400"></picture>
+
+**Tool definitions**. Claude tokens from /context, one session. Node not measured. Lower is smaller.
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="site/assets/benchmark-definitions-dark.svg"><img src="site/assets/benchmark-definitions-light.svg" alt="Claude definition tokens; Node unmeasured" width="400"></picture>
 

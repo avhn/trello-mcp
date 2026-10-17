@@ -3,7 +3,6 @@
 Run: python3 -I scripts/site/generate_benchmarks.py [--check]
 Only aggregate measurements belong in the input, never private Trello payloads.
 """
-from functools import lru_cache
 from html import escape
 from pathlib import Path
 import argparse
@@ -14,16 +13,19 @@ ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / 'docs/benchmarks/2026-10-17.json'
 MARKER = re.compile(r'<!-- measured:start -->\n.*?<!-- measured:end -->', re.S)
 CHARTS = ('benchmark-cards.svg', 'benchmark-responses.svg', 'benchmark-definitions.svg')
-FONT = json.loads(Path(__file__).with_name('fonts').joinpath('inter.json').read_text())
-# Text, green, blue-violet, amber, axis. Backgrounds are validation targets only;
-# every SVG is transparent. Fixed palettes follow GitHub, adaptive ones the site.
+HEADINGS = dict(zip(CHARTS, (
+    ('16 cards in one list', 'Response text, characters. Lower is smaller.'),
+    ('Measured response text', 'Chars; independent zero-based row scales.'),
+    ('Tool definitions', 'Claude tokens from /context, one session. Node not measured. Lower is smaller.'),
+)))
+# Text, green, blue-violet, amber, axis. Panels match code blocks on each host.
 PALETTES = {
     'site-light': ('#172e2b', '#176249', '#6776a5', '#a56a2c', '#718778'),
     'site-dark': ('#e4eee7', '#a4d6ab', '#aab9ef', '#edba7d', '#6c8778'),
     'light': ('#1f2328', '#176249', '#6776a5', '#a56a2c', '#718778'),
     'dark': ('#e6edf3', '#a4d6ab', '#aab9ef', '#edba7d', '#6c8778'),
 }
-BACKGROUNDS = {'site-light': '#f7f8f3', 'site-dark': '#111d1b', 'light': '#ffffff', 'dark': '#0d1117'}
+BACKGROUNDS = {'site-light': '#edf1eb', 'site-dark': '#20322d', 'light': '#f6f8fa', 'dark': '#151b23'}
 
 
 def variant(name, theme):
@@ -149,6 +151,13 @@ def image(name, alt, html=False, height=None):
             f'<img src="site/assets/{variant(name, "light")}" alt="{escape(alt, quote=True)}" width="400"></picture>')
 
 
+def chart_image(name, alt, html=False, height=None):
+    title, subtitle = HEADINGS[name]
+    heading = (f'<p><strong>{escape(title)}</strong>. {escape(subtitle)}</p>\n' if html
+               else f'**{title}**. {subtitle}\n\n')
+    return heading + image(name, alt, html, height)
+
+
 def hero_description(data):
     values = next(row['values'] for row in data['rows'] if row['id'] == 'cards_summary')
     names = [data['servers'][key]['name'] for key in ('ours', 'official', 'node')]
@@ -159,31 +168,35 @@ def hero_description(data):
 def blocks(data, html=False):
     headers = ['Call', 'trello-mcp', 'Official', 'Node 1.8.1', 'vs Official', 'vs Node']
     heights = {name: re.search(r' height="(\d+)"', content).group(1) for name, content in assets(data).items()}
-    hero = image(CHARTS[0], hero_description(data), html, heights[CHARTS[0]])
+    hero = chart_image(CHARTS[0], hero_description(data), html, heights[CHARTS[0]])
     text = caption(data)
     if html:
+        text = (text.replace('than the official server for this call (summary mode)', 'vs official (summary mode)')
+                .replace('on one private work board with', 'on a private board with').replace('Full mode:', 'Full:')
+                .replace("For one card's details the official server returned less:", 'For one card, official returned less:'))
         hero += f'\n<p>{text} <a href="#measured-comparison">All results and method</a>.</p>'
     else:
         hero += f'\n\n{text} [All results and method](#measured-comparison).'
-    charts = [image(CHARTS[1], 'Five response comparisons; independent row scales', html, heights[CHARTS[1]]),
-              image(CHARTS[2], 'Claude definition tokens; Node unmeasured', html, heights[CHARTS[2]])]
+    charts = [chart_image(CHARTS[1], 'Five response comparisons; independent row scales', html, heights[CHARTS[1]]),
+              chart_image(CHARTS[2], 'Claude definition tokens; Node unmeasured', html, heights[CHARTS[2]])]
     if html:
         counts = data['rows'][0]['denominators']
-        compact = ('One private board, day and account. '
-                   f'{data["servers"]["ours"]["commit"]} (v{data["servers"]["ours"]["version"]}); hosted OAuth, '
-                   f'verbatim headless Claude Code results; Node {data["servers"]["node"]["version"]} via npx. '
+        compact = ('One private board/day/account. '
+                   f'{data["servers"]["ours"]["commit"]} (v{data["servers"]["ours"]["version"]}); verbatim headless Claude Code '
+                   f'OAuth results; Node {data["servers"]["node"]["version"]} via npx. '
                    f'Boards: {"/".join(map(str, counts["board_counts"]))} '
                    f'({counts["node_closed_boards"]} closed in Node; ours adds a guest board). '
                    f'<a href="{README}">Full method</a>.')
         chars = data['definitions']['tools_list']
-        compact_definitions = ('Claude /context tokens, rounded above 1k. Node not in /context; '
+        compact_definitions = ('Rows over 1k rounded to 0.1k; '
                                f'tools/list {fmt(chars["ours"])} vs {fmt(chars["node"])} chars '
                                f'({comparison(chars["ours"], chars["node"])}).')
         compact_rows = [[row[0].replace('characters', 'chars'), *row[1:]] for row in table_rows(data)]
         detail = ('<section aria-labelledby="measured-comparison"><h2 id="measured-comparison">Measured comparison</h2>\n'
                   + '\n'.join(charts) + '\n<p>' + compact_definitions + '</p>\n'
                   + html_table(headers, compact_rows) + '\n<p>' + compact + '</p>\n'
-                  + ''.join(f'<p>{escape(p)}</p>' for p in OWNER)
+                  + '<p>I built trello-mcp for lighter, easier Trello use with AI assistants.</p>'
+                  '<p>Tool definitions and responses consume task context; growing context can reduce AI output quality.</p>'
                   + f'<p>Features, {data["date"]}: trello-mcp / <a href="{OFFICIAL}">Official</a> / '
                   f'<a href="{NODE}">Node 1.8.1</a>.</p>'
                   + ''.join(f'<p><strong>{row[0]}:</strong> ' + ' / '.join(escape(cell) for cell in row[1:]) + '.</p>'
@@ -200,162 +213,52 @@ def blocks(data, html=False):
     return [f'<!-- measured:start -->\n{content}\n<!-- measured:end -->' for content in (hero, detail)]
 
 
-def number(value):
-    return format(round(value, 2) or 0, '.2f').rstrip('0').rstrip('.')
-
-
-def text_width(text, size=15, weight=500):
-    font = FONT['weights'][str(weight)]
-    return sum(font['glyphs'][char]['advance'] for char in text) * size / font['unitsPerEm']
-
-
-def wrap_text(text, width=352, size=13.5):
-    """Wrap at words using the same Inter advances as the outlines, not character counts."""
-    lines = []
-    for word in text.split():
-        if not lines or text_width(lines[-1] + ' ' + word, size) > width:
-            lines.append(word)
-        else:
-            lines[-1] += ' ' + word
-    return lines
-
-
-@lru_cache(maxsize=None)
-def glyph_commands(char, weight):
-    path = FONT['weights'][str(weight)]['glyphs'][char]['path']
-    return [(part[0], tuple(map(float, part[1:].split())))
-            for part in re.findall(r'[MLQCZ][^MLQCZ]*', path)]
-
-
-def glyph_id(char, weight):
-    return {500: 'm', 600: 's', 700: 'b'}[weight] + format(ord(char), 'x')
-
-
-@lru_cache(maxsize=None)
-def glyph_path(char, weight):
-    """Compact an outline in font units, shared across every occurrence and size."""
-    parts = []
-    current = start = (0, 0)
-    control = None
-    previous = None
-    for command, points in glyph_commands(char, weight):
-        if command == 'Z':
-            parts.append('Z')
-            current = start
-            control = previous = None
-            continue
-        choices = [command + ' '.join(map(number, points)).replace(' -', '-')]
-        relative = [value - current[i % 2] for i, value in enumerate(points)]
-        choices.append(command.lower() + ' '.join(map(number, relative)).replace(' -', '-'))
-        if command == 'M':
-            start = points
-        elif command == 'L':
-            if points[0] == current[0]:
-                choices.extend(('V' + number(points[1]), 'v' + number(relative[1])))
-            if points[1] == current[1]:
-                choices.extend(('H' + number(points[0]), 'h' + number(relative[0])))
-        elif command == 'Q' and control is not None:
-            # TrueType implied on-curve midpoints permit SVG smooth quadratics,
-            # preserving every control point rather than approximating the font.
-            if points[:2] == tuple(2 * current[i] - control[i] for i in range(2)):
-                choices.extend(('T' + ' '.join(map(number, points[2:])),
-                                't' + ' '.join(map(number, relative[2:])).replace(' -', '-')))
-        spellings = []
-        for choice in choices:
-            kind = choice[0]
-            if kind == previous or (previous, kind) in {('M', 'L'), ('m', 'l')}:
-                body = choice[1:]
-                separator = '' if body.startswith('-') else ' '
-                spellings.append((separator + body, kind))
-            else:
-                spellings.append((choice, kind))
-        spelling, previous = min(spellings, key=lambda item: len(item[0]))
-        parts.append(spelling)
-        control = points[:2] if command == 'Q' else None
-        current = points[-2:]
-    return ''.join(parts)
-
-
-@lru_cache(maxsize=512)
-def glyph_uses(text, weight):
-    parts = []
-    advance = 0
-    for char in text:
-        if char != ' ':
-            position = f' x="{advance}"' if advance else ''
-            parts.append(f'<use href="#{glyph_id(char, weight)}"{position}/>')
-        advance += FONT['weights'][str(weight)]['glyphs'][char]['advance']
-    return ''.join(parts)
-
-
-def glyph_definitions(used, shared):
-    return ('<defs>' + ''.join(f'<path id="{glyph_id(char, weight)}" d="{glyph_path(char, weight)}"/>'
-                              for weight, char in sorted(used))
-            + ''.join(f'<g id="{name}">{glyph_uses(text, 500)}</g>' for text, name in shared.items()) + '</defs>')
-
-
-@lru_cache(maxsize=512)
-def text_run(text, x, y, size=15, weight=500, css='text', right=False, reference=None):
-    """Place font-unit glyphs with whole-pixel run origins, snapped after alignment."""
-    font = FONT['weights'][str(weight)]
-    if right:
-        x -= text_width(text, size, weight)
-    # Retain the exact scale for all three sizes with the 2048-unit Inter em.
-    scale = format(size / font['unitsPerEm'], '.12f').rstrip('0').lstrip('0')
-    content = f'<use href="#{reference}"/>' if reference else glyph_uses(text, weight)
-    return (f'<g class="{css}" transform="translate({round(x)} {round(y)})scale({scale} -{scale})">'
-            + content + '</g>')
+def text(value, x, y, css='name'):
+    anchor = ' text-anchor="end"' if css == 'value' else ''
+    return f'<text x="{x}" y="{y}" class="{css}"{anchor}>{escape(value)}</text>'
 
 
 def palette_style(theme):
     ink, green, blue, amber, axis = PALETTES[theme]
-    return (f'svg{{color:{ink}}}.s0{{fill:{green}}}.s1{{fill:{blue}}}'
-            f'.s2{{fill:{amber}}}.axis{{stroke:{axis}}}')
+    return (f'svg{{color:{ink}}}.panel{{fill:{BACKGROUNDS[theme]}}}.s0{{fill:{green}}}'
+            f'.s1{{fill:{blue}}}.s2{{fill:{amber}}}.axis{{stroke:{axis}}}')
+
+
+def chart_style(theme):
+    return ('svg{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;'
+            'font-size:15px;font-weight:500}text{fill:currentColor}.value,.group{font-weight:600}'
+            '.value{font-variant-numeric:tabular-nums}.zero{font-size:13px}.axis{fill:none;stroke-width:1}'
+            + (palette_style(theme) if theme else palette_style('site-light')
+               + '@media(prefers-color-scheme: dark){' + palette_style('site-dark') + '}'))
 
 
 def svg(title, subtitle, groups, names, description=None, theme=None):
-    """Zero-based linear bars; groups have independent maxima, direct labels and values."""
-    used = set()
-    # Reuse the three server labels too when the chart has multiple row groups.
-    shared = {name: f'n{i}' for i, name in enumerate(names)} if len(groups) > 1 else {}
-
-    def text(value, x, y, size=15, weight=500, css='text', right=False):
-        used.update((weight, char) for char in value if char != ' ')
-        reference = shared.get(value) if weight == 500 else None
-        return text_run(value, x, y, size, weight, css, right, reference)
-
-    subtitle_lines = wrap_text(subtitle)
-    subtitle_extra = (len(subtitle_lines) - 1) * 20
-    height = 82 + subtitle_extra + sum((42 if label else 18) + len(values) * 53 for label, values in groups)
+    """Code-block panels, zero-based bars, native text and independent group scales."""
+    height = 22 + sum((24 if label else 0) + len(values) * 53 + 18 for label, values in groups)
     if description is None:
         description = subtitle + ' ' + '; '.join(
             (label + ': ' if label else '') + ', '.join(f'{name} {fmt(v)}' for name, v in zip(names, values))
             for label, values in groups)
+    radius = 6 if theme else 8
     parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="400" height="{height}" viewBox="0 0 400 {height}" role="img" aria-labelledby="title desc">',
              f'<title id="title">{escape(title)}</title><desc id="desc">{escape(description)}</desc>',
-             '<style>.text,.title,.sub,.group{fill:currentColor}.axis{fill:none;stroke-width:1}'
-             + (palette_style(theme) if theme else palette_style('site-light')
-                + '@media(prefers-color-scheme: dark){' + palette_style('site-dark') + '}') + '</style>',
-             text(title, 24, 32, 20, 700, 'title')]
-    parts.extend(text(line, 24, 56 + i * 20, 13.5, css='sub')
-                 for i, line in enumerate(subtitle_lines))
-    y = 88 + subtitle_extra
+             '<style>' + chart_style(theme) + '</style>',
+             f'<rect class="panel" x="0" y="0" width="400" height="{height}" rx="{radius}"/>']
+    y = 28
     for label, values in groups:
         if label:
-            parts.append(text(label, 24, y, weight=600, css='group'))
+            parts.append(text(label, 16, y, 'group'))
             y += 24
         axis = []
         for i, (name, value) in enumerate(zip(names, values)):
-            width = 352 * value / max(values)
-            parts.extend([text(name, 24, y),
-                          text(fmt(value), 376, y, weight=600, right=True),
-                          f'<rect class="s{i}" x="24" y="{y + 10}" width="{width:.3f}" height="14" rx="3"/>'])
-            axis.append(f'M23.5 {y + 10}v14')
+            width = round(368 * value / max(values))
+            parts.extend([text(name, 16, y), text(fmt(value), 384, y, 'value'),
+                          f'<rect class="s{i}" x="16" y="{y + 10}" width="{width}" height="14" rx="3"/>'])
+            axis.append(f'M16.5 {y + 10}v14')
             y += 53
         parts.append(f'<path class="axis" d="{"".join(axis)}"/>')
-        parts.append(text('0', 24, y - 7, 13.5, css='sub'))
+        parts.append(text('0', 16, y - 7, 'zero'))
         y += 18
-    parts.insert(3, glyph_definitions(used, shared))
     parts.append('</svg>\n')
     return '\n'.join(parts)
 
@@ -367,10 +270,10 @@ def assets(data):
                         rows[k]['values']) for k in ('boards', 'cards_summary', 'actions', 'details', 'comments')]
     defs = data['definitions']
     specifications = [
-        ('16 cards in one list', 'Response text, characters. Lower is smaller.',
-         [('Summary mode', rows['cards_summary']['values'])], names, hero_description(data)),
-        ('Measured response text', 'Chars; independent zero-based row scales.', response_groups, names, None),
-        ('Tool definitions', 'Claude tokens from /context, one session. Node not measured. Lower is smaller.',
+        (*HEADINGS[CHARTS[0]],
+         [('', rows['cards_summary']['values'])], names, hero_description(data)),
+        (*HEADINGS[CHARTS[1]], response_groups, names, None),
+        (*HEADINGS[CHARTS[2]],
          [('', defs['values'][:2])],
          [f'{names[i]} ({defs["tool_counts"][i]} tools)' for i in range(2)], None),
     ]
