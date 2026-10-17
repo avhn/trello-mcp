@@ -521,7 +521,7 @@ def validate_svg(source, chart=False):
             require(not any('background' in key.lower() for key in node.attrib),
                     'Chart backgrounds are forbidden')
             if tag == 'rect':
-                require(node.get('class') in {'s0', 's1', 's2'} and node.get('height') == '12',
+                require(node.get('class') in {'s0', 's1', 's2'} and node.get('height') == '14',
                         'Chart rectangles must be bars, not backgrounds')
         for key, value in node.attrib.items():
             name = key.rsplit('}', 1)[-1].lower()
@@ -1262,7 +1262,7 @@ class BenchmarkTests(unittest.TestCase):
                     if node.tag.endswith('rect'):
                         current_y = int(node.get('y'))
                         expected = ET.fromstring(GENERATE_BENCHMARKS.text_run(
-                            f'{next(values):,}', 376, current_y - 10, right=True))
+                            f'{next(values):,}', 376, current_y - 10, weight=600, right=True))
                         self.assertEqual(children[i - 1].attrib, expected.attrib)
                         self.assertEqual([node.attrib for node in children[i - 1]],
                                          [node.attrib for node in expected])
@@ -1290,10 +1290,10 @@ class BenchmarkTests(unittest.TestCase):
         self.assertEqual(' '.join(lines),
                          'Claude tokens from /context, one session. Node not measured. Lower is smaller.')
         self.assertGreater(len(lines), 1)
-        self.assertTrue(all(GENERATE_BENCHMARKS.text_width(line, 14) <= 352 for line in lines))
+        self.assertTrue(all(GENERATE_BENCHMARKS.text_width(line, 13.5) <= 352 for line in lines))
         for first, second in zip(lines, lines[1:]):
-            self.assertGreater(GENERATE_BENCHMARKS.text_width(first + ' ' + second.split()[0], 14), 352)
-        expected = [ET.fromstring(GENERATE_BENCHMARKS.text_run(line, 24, 56 + i * 20, 14, css='sub'))
+            self.assertGreater(GENERATE_BENCHMARKS.text_width(first + ' ' + second.split()[0], 13.5), 352)
+        expected = [ET.fromstring(GENERATE_BENCHMARKS.text_run(line, 24, 56 + i * 20, 13.5, css='sub'))
                     for i, line in enumerate(lines)]
         actual = [node for node in root if node.get('class') == 'sub'][:-1]
         self.assertEqual([(node.attrib, [child.attrib for child in node]) for node in actual],
@@ -1354,7 +1354,7 @@ class BenchmarkTests(unittest.TestCase):
         font = GENERATE_BENCHMARKS.FONT
         self.assertEqual(font['family'], 'Inter')
         self.assertEqual(font['release'], 'v4.1')
-        self.assertEqual(set(font['weights']), {'400', '600', '700'})
+        self.assertEqual(set(font['weights']), {'500', '600', '700'})
         for weight, data in font['weights'].items():
             with self.subTest(weight=weight):
                 self.assertEqual(set(data['glyphs']), {chr(code) for code in range(0x20, 0x7f)})
@@ -1364,12 +1364,12 @@ class BenchmarkTests(unittest.TestCase):
                     self.assertEqual(bool(glyph['path']), char != ' ')
                     self.assertRegex(glyph['path'], r'^[MLQCZ0-9. -]*$')
                 text = '16 cards, 29,141'
-                size = 16
+                size = 15
                 width = sum(data['glyphs'][char]['advance'] for char in text) * size / data['unitsPerEm']
                 self.assertEqual(GENERATE_BENCHMARKS.text_width(text, size, int(weight)), width)
                 self.assertEqual(GENERATE_BENCHMARKS.text_run(text, 376, 100, weight=int(weight), right=True),
                                  GENERATE_BENCHMARKS.text_run(text, 376 - width, 100, weight=int(weight)))
-        self.assertNotEqual(GENERATE_BENCHMARKS.text_run('Inter', 24, 32, weight=400),
+        self.assertNotEqual(GENERATE_BENCHMARKS.text_run('Inter', 24, 32, weight=500),
                             GENERATE_BENCHMARKS.text_run('Inter', 24, 32, weight=700))
         # Equal-length strings need different wrapping with proportional glyph advances.
         self.assertEqual(len(GENERATE_BENCHMARKS.wrap_text('iiii iiii', width=40)), 1)
@@ -1387,15 +1387,15 @@ class BenchmarkTests(unittest.TestCase):
                 glyph_refs = {node.get('href')[1:] for node in root.findall('.//{*}use')
                               if node.get('href')[1:] in ids}
                 self.assertEqual(set(ids), glyph_refs)
-                self.assertEqual(ids, sorted(ids, key=lambda value: ({'r': 400, 's': 600, 'b': 700}[value[0]],
+                self.assertEqual(ids, sorted(ids, key=lambda value: ({'m': 500, 's': 600, 'b': 700}[value[0]],
                                                                     int(value[1:], 16))))
                 for node in paths:
-                    weight = {'r': 400, 's': 600, 'b': 700}[node.get('id')[0]]
+                    weight = {'m': 500, 's': 600, 'b': 700}[node.get('id')[0]]
                     char = chr(int(node.get('id')[1:], 16))
                     self.assertEqual(node.get('d'), GENERATE_BENCHMARKS.glyph_path(char, weight))
-                # Small subtitles and full-size labels share one regular 'r' outline.
-                self.assertEqual(ids.count('r72'), 1)
-                self.assertGreater(sum(node.get('href') == '#r72' for node in root.findall('.//{*}use')), 1)
+                # Small subtitles and full-size labels share one Medium 'r' outline.
+                self.assertEqual(ids.count('m72'), 1)
+                self.assertGreater(sum(node.get('href') == '#m72' for node in root.findall('.//{*}use')), 1)
                 for node in root.findall('{*}path'):
                     self.assertEqual(node.get('class'), 'axis')
                 if 'responses' in name:
@@ -1403,10 +1403,69 @@ class BenchmarkTests(unittest.TestCase):
                     for i in range(3):
                         self.assertEqual(sum(node.get('href') == f'#n{i}' for node in root.findall('.//{*}use')), 5)
         run = ET.fromstring(GENERATE_BENCHMARKS.text_run('A A', 24, 32))
-        self.assertEqual([node.get('href') for node in run], ['#r41', '#r41'])
-        font = GENERATE_BENCHMARKS.FONT['weights']['400']
+        self.assertEqual([node.get('href') for node in run], ['#m41', '#m41'])
+        font = GENERATE_BENCHMARKS.FONT['weights']['500']
         self.assertEqual(run[1].get('x'), str(font['glyphs']['A']['advance'] + font['glyphs'][' ']['advance']))
-        self.assertIn('scale(.0078125 -.0078125)', run.get('transform'))
+        self.assertIn('scale(.00732421875 -.00732421875)', run.get('transform'))
+
+    def test_semibold_numeric_figures_are_tabular(self):
+        fonts = GENERATE_BENCHMARKS.FONT['weights']
+        self.assertEqual(fonts['500']['source'], 'Inter-Medium.ttf')
+        self.assertFalse(fonts['500']['tabularFigures'])
+        semibold = fonts['600']
+        self.assertEqual(semibold['tabularFigures']['0'], 'zero.tf')
+        self.assertEqual(semibold['tabularFigures']['1'], 'one.tf')
+        self.assertEqual(semibold['tabularFigures'][','], 'comma.tf')
+        self.assertEqual(len({semibold['glyphs'][str(i)]['advance'] for i in range(10)}), 1)
+        self.assertEqual(GENERATE_BENCHMARKS.text_width('11,111', weight=600),
+                         GENERATE_BENCHMARKS.text_width('88,888', weight=600))
+
+    def test_text_weights_sizes_and_pixel_snapping(self):
+        for name, source in GENERATE_BENCHMARKS.assets(self.data).items():
+            with self.subTest(chart=name):
+                root = ET.fromstring(source)
+                children = list(root)
+                for i, node in enumerate(children):
+                    if not node.tag.endswith('g') or not node.get('class'):
+                        continue
+                    match = re.fullmatch(r'translate\((-?\d+) (-?\d+)\)scale\(([.\d]+) (-[.\d]+)\)',
+                                         node.get('transform'))
+                    self.assertIsNotNone(match)
+                    css = node.get('class')
+                    size = {'title': 20, 'sub': 13.5, 'group': 15, 'text': 15}[css]
+                    self.assertEqual(float(match[3]), size / 2048)
+                    self.assertEqual(float(match[4]), -size / 2048)
+                    if css == 'text':
+                        prefix = '#s' if children[i + 1].tag.endswith('rect') else ('#m', '#n')
+                    else:
+                        prefix = {'title': '#b', 'sub': '#m', 'group': '#s'}[css]
+                    self.assertTrue(all(child.get('href').startswith(prefix) for child in node))
+        run = ET.fromstring(GENERATE_BENCHMARKS.text_run('29,141', 376.2, 112.6, weight=600, right=True))
+        x = round(376.2 - GENERATE_BENCHMARKS.text_width('29,141', weight=600))
+        self.assertTrue(run.get('transform').startswith(f'translate({x} 113)'))
+        self.assertIn('translate(333 112)', GENERATE_BENCHMARKS.text_run('Name', 332.59, 112.1))
+
+    def test_bar_only_axis_and_integer_rectangles(self):
+        for name, source in GENERATE_BENCHMARKS.assets(self.data).items():
+            with self.subTest(chart=name):
+                root = ET.fromstring(source)
+                bars = root.findall('{*}rect')
+                expected = []
+                for bar in bars:
+                    for key in ('x', 'y', 'height'):
+                        self.assertRegex(bar.get(key), r'^\d+$')
+                    self.assertEqual(bar.get('x'), '24')
+                    self.assertEqual(bar.get('height'), '14')
+                    self.assertEqual(bar.get('rx'), '3')
+                    expected.append(int(bar.get('y')))
+                actual = []
+                for axis in root.findall('{*}path'):
+                    self.assertEqual(axis.get('class'), 'axis')
+                    segments = re.findall(r'M23\.5 (\d+)v14', axis.get('d'))
+                    self.assertEqual(axis.get('d'), ''.join(f'M23.5 {y}v14' for y in segments))
+                    actual.extend(map(int, segments))
+                self.assertEqual(actual, expected)
+                self.assertIn('.axis{fill:none;stroke-width:1}', source)
 
     def test_fixed_and_adaptive_palettes(self):
         check_chart_palettes()

@@ -10,9 +10,11 @@ Create a /tmp venv and install fonttools==4.67.0 there. From the repository
 
 Only the three static upright TTFs and LICENSE.txt are read. No downloaded
 code is executed. Output paths default to this script's directory. The JSON
-contains font-unit SVG paths and hmtx advances; layout deliberately uses
-advances only, not Inter's multi-lookup GPOS shaping/kerning. No fonttools
-or font files are needed to generate the charts from the checked-in JSON.
+contains font-unit SVG paths and hmtx advances for Medium, SemiBold and
+Bold. SemiBold numeric characters use the simple GSUB tnum substitutions
+(including the numeric comma), or default forms if the feature is complex.
+Layout uses advances only, not Inter's multi-lookup GPOS shaping/kerning.
+No fonttools or font files are needed to generate from the checked-in JSON.
 """
 from pathlib import Path
 import argparse
@@ -54,16 +56,40 @@ class OutlinePen(BasePen):
         raise ValueError('Expected closed glyph contours')
 
 
+def tabular_figures(font):
+    """Follow only unconditional single-substitution tnum lookups, otherwise skip."""
+    if 'GSUB' not in font:
+        return {}
+    table = font['GSUB'].table
+    indices = [index for record in table.FeatureList.FeatureRecord if record.FeatureTag == 'tnum'
+               for index in record.Feature.LookupListIndex]
+    if not indices:
+        return {}
+    cmap = font.getBestCmap()
+    figures = {char: cmap[ord(char)] for char in '0123456789,'}
+    for index in dict.fromkeys(indices):
+        lookup = table.LookupList.Lookup[index]
+        if lookup.LookupType != 1 or lookup.LookupFlag or len(lookup.SubTable) != 1:
+            return {}
+        mapping = lookup.SubTable[0].mapping
+        figures = {char: mapping.get(name, name) for char, name in figures.items()}
+    if (any(figures[char] == cmap[ord(char)] for char in '0123456789')
+            or len({font['hmtx'][figures[char]][0] for char in '0123456789'}) != 1):
+        return {}
+    return figures
+
+
 def extract(directory):
     result = {'family': 'Inter', 'release': 'v4.1', 'license': 'OFL-1.1', 'weights': {}}
-    for weight, name in ((400, 'Regular'), (600, 'SemiBold'), (700, 'Bold')):
+    for weight, name in ((500, 'Medium'), (600, 'SemiBold'), (700, 'Bold')):
         path = directory / 'extras/ttf' / f'Inter-{name}.ttf'
         with TTFont(path) as font:
             glyphs = font.getGlyphSet()
             cmap = font.getBestCmap()
+            figures = tabular_figures(font) if weight == 600 else {}
             outlines = {}
             for code in range(0x20, 0x7f):
-                glyph_name = cmap[code]
+                glyph_name = figures.get(chr(code), cmap[code])
                 pen = OutlinePen(glyphs)
                 glyphs[glyph_name].draw(pen)
                 outlines[chr(code)] = {'advance': font['hmtx'][glyph_name][0],
@@ -72,6 +98,7 @@ def extract(directory):
                 'unitsPerEm': font['head'].unitsPerEm,
                 'source': path.name,
                 'sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
+                'tabularFigures': figures,
                 'glyphs': outlines,
             }
     return json.dumps(result, ensure_ascii=True, separators=(',', ':')) + '\n'

@@ -204,12 +204,12 @@ def number(value):
     return format(round(value, 2) or 0, '.2f').rstrip('0').rstrip('.')
 
 
-def text_width(text, size=16, weight=400):
+def text_width(text, size=15, weight=500):
     font = FONT['weights'][str(weight)]
     return sum(font['glyphs'][char]['advance'] for char in text) * size / font['unitsPerEm']
 
 
-def wrap_text(text, width=352, size=14):
+def wrap_text(text, width=352, size=13.5):
     """Wrap at words using the same Inter advances as the outlines, not character counts."""
     lines = []
     for word in text.split():
@@ -228,7 +228,7 @@ def glyph_commands(char, weight):
 
 
 def glyph_id(char, weight):
-    return {400: 'r', 600: 's', 700: 'b'}[weight] + format(ord(char), 'x')
+    return {500: 'm', 600: 's', 700: 'b'}[weight] + format(ord(char), 'x')
 
 
 @lru_cache(maxsize=None)
@@ -291,19 +291,19 @@ def glyph_uses(text, weight):
 def glyph_definitions(used, shared):
     return ('<defs>' + ''.join(f'<path id="{glyph_id(char, weight)}" d="{glyph_path(char, weight)}"/>'
                               for weight, char in sorted(used))
-            + ''.join(f'<g id="{name}">{glyph_uses(text, 400)}</g>' for text, name in shared.items()) + '</defs>')
+            + ''.join(f'<g id="{name}">{glyph_uses(text, 500)}</g>' for text, name in shared.items()) + '</defs>')
 
 
 @lru_cache(maxsize=512)
-def text_run(text, x, y, size=16, weight=400, css='text', right=False, reference=None):
-    """Place glyph references using font-unit advances; only run origins are rounded."""
+def text_run(text, x, y, size=15, weight=500, css='text', right=False, reference=None):
+    """Place font-unit glyphs with whole-pixel run origins, snapped after alignment."""
     font = FONT['weights'][str(weight)]
     if right:
         x -= text_width(text, size, weight)
     # Retain the exact scale for all three sizes with the 2048-unit Inter em.
-    scale = format(size / font['unitsPerEm'], '.11f').rstrip('0').lstrip('0')
+    scale = format(size / font['unitsPerEm'], '.12f').rstrip('0').lstrip('0')
     content = f'<use href="#{reference}"/>' if reference else glyph_uses(text, weight)
-    return (f'<g class="{css}" transform="translate({number(x)} {number(y)})scale({scale} -{scale})">'
+    return (f'<g class="{css}" transform="translate({round(x)} {round(y)})scale({scale} -{scale})">'
             + content + '</g>')
 
 
@@ -319,9 +319,9 @@ def svg(title, subtitle, groups, names, description=None, theme=None):
     # Reuse the three server labels too when the chart has multiple row groups.
     shared = {name: f'n{i}' for i, name in enumerate(names)} if len(groups) > 1 else {}
 
-    def text(value, x, y, size=16, weight=400, css='text', right=False):
+    def text(value, x, y, size=15, weight=500, css='text', right=False):
         used.update((weight, char) for char in value if char != ' ')
-        reference = shared.get(value) if weight == 400 else None
+        reference = shared.get(value) if weight == 500 else None
         return text_run(value, x, y, size, weight, css, right, reference)
 
     subtitle_lines = wrap_text(subtitle)
@@ -333,26 +333,27 @@ def svg(title, subtitle, groups, names, description=None, theme=None):
             for label, values in groups)
     parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="400" height="{height}" viewBox="0 0 400 {height}" role="img" aria-labelledby="title desc">',
              f'<title id="title">{escape(title)}</title><desc id="desc">{escape(description)}</desc>',
-             '<style>.text,.title,.sub,.group{fill:currentColor}.axis{fill:none}'
+             '<style>.text,.title,.sub,.group{fill:currentColor}.axis{fill:none;stroke-width:1}'
              + (palette_style(theme) if theme else palette_style('site-light')
                 + '@media(prefers-color-scheme: dark){' + palette_style('site-dark') + '}') + '</style>',
-             text(title, 24, 32, 21, 700, 'title')]
-    parts.extend(text(line, 24, 56 + i * 20, 14, css='sub')
+             text(title, 24, 32, 20, 700, 'title')]
+    parts.extend(text(line, 24, 56 + i * 20, 13.5, css='sub')
                  for i, line in enumerate(subtitle_lines))
     y = 88 + subtitle_extra
     for label, values in groups:
         if label:
             parts.append(text(label, 24, y, weight=600, css='group'))
             y += 24
-        top = y + 5
+        axis = []
         for i, (name, value) in enumerate(zip(names, values)):
             width = 352 * value / max(values)
             parts.extend([text(name, 24, y),
-                          text(fmt(value), 376, y, right=True),
-                          f'<rect class="s{i}" x="24" y="{y + 10}" width="{width:.3f}" height="12" rx="2"/>'])
+                          text(fmt(value), 376, y, weight=600, right=True),
+                          f'<rect class="s{i}" x="24" y="{y + 10}" width="{width:.3f}" height="14" rx="3"/>'])
+            axis.append(f'M23.5 {y + 10}v14')
             y += 53
-        parts.append(f'<path class="axis" d="M24 {top}V{y - 26}"/>')
-        parts.append(text('0', 24, y - 7, 14, css='sub'))
+        parts.append(f'<path class="axis" d="{"".join(axis)}"/>')
+        parts.append(text('0', 24, y - 7, 13.5, css='sub'))
         y += 18
     parts.insert(3, glyph_definitions(used, shared))
     parts.append('</svg>\n')
