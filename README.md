@@ -12,7 +12,7 @@
 </p>
 
 <!-- measured:start -->
-![16 cards in one list, response characters: trello-mcp 6,754, Official 29,141, Node 1.8.1 45,335](site/assets/benchmark-cards.svg)
+<picture><source media="(prefers-color-scheme: dark)" srcset="site/assets/benchmark-cards-dark.svg"><img src="site/assets/benchmark-cards-light.svg" alt="16 cards in one list, response characters: trello-mcp 6,754, Official 29,141, Node 1.8.1 45,335" width="400"></picture>
 
 77% less response text than the official server for this call (summary mode). Measured 2026-10-17 on one private work board with 144 cards; characters, not tokens. Full mode: 9,112 (69% fewer). For one card's details the official server returned less: 2,662 vs 2,825. [All results and method](#measured-comparison).
 <!-- measured:end -->
@@ -37,9 +37,9 @@ Clients and Claude Desktop: [docs/setup.md](docs/setup.md).
 <!-- measured:start -->
 ## Measured comparison
 
-![Five response comparisons; independent row scales](site/assets/benchmark-responses.svg)
+<picture><source media="(prefers-color-scheme: dark)" srcset="site/assets/benchmark-responses-dark.svg"><img src="site/assets/benchmark-responses-light.svg" alt="Five response comparisons; independent row scales" width="400"></picture>
 
-![Claude definition tokens; Node unmeasured](site/assets/benchmark-definitions.svg)
+<picture><source media="(prefers-color-scheme: dark)" srcset="site/assets/benchmark-definitions-dark.svg"><img src="site/assets/benchmark-definitions-light.svg" alt="Claude definition tokens; Node unmeasured" width="400"></picture>
 
 Claude Code /context in one session; rows over 1k display-rounded to 0.1k. Node could not be loaded into /context. Separately, tools/list: 20,583 vs 33,766 characters (39% fewer vs Node), not tokens.
 

@@ -3,17 +3,34 @@
 Run: python3 -I scripts/site/generate_benchmarks.py [--check]
 Only aggregate measurements belong in the input, never private Trello payloads.
 """
+from functools import lru_cache
 from html import escape
 from pathlib import Path
 import argparse
 import json
 import re
-from textwrap import wrap
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / 'docs/benchmarks/2026-10-17.json'
 MARKER = re.compile(r'<!-- measured:start -->\n.*?<!-- measured:end -->', re.S)
 CHARTS = ('benchmark-cards.svg', 'benchmark-responses.svg', 'benchmark-definitions.svg')
+FONT = json.loads(Path(__file__).with_name('fonts').joinpath('inter.json').read_text())
+# Text, green, blue-violet, amber, axis. Backgrounds are validation targets only;
+# every SVG is transparent. Fixed palettes follow GitHub, adaptive ones the site.
+PALETTES = {
+    'site-light': ('#172e2b', '#176249', '#6776a5', '#a56a2c', '#718778'),
+    'site-dark': ('#e4eee7', '#a4d6ab', '#aab9ef', '#edba7d', '#6c8778'),
+    'light': ('#1f2328', '#176249', '#6776a5', '#a56a2c', '#718778'),
+    'dark': ('#e6edf3', '#a4d6ab', '#aab9ef', '#edba7d', '#6c8778'),
+}
+BACKGROUNDS = {'site-light': '#f7f8f3', 'site-dark': '#111d1b', 'light': '#ffffff', 'dark': '#0d1117'}
+
+
+def variant(name, theme):
+    return name.replace('.svg', f'-{theme}.svg')
+
+
+GENERATED_CHARTS = (*CHARTS, *(variant(name, theme) for name in CHARTS for theme in ('light', 'dark')))
 ROW_IDS = ('boards', 'cards_summary', 'cards_full', 'actions', 'details', 'comments')
 OFFICIAL = 'https://github.com/atlassian/trello-mcp-server'
 NODE = 'https://github.com/delorenj/mcp-server-trello/blob/v1.8.1/src/index.ts'
@@ -128,7 +145,8 @@ def html_table(header, rows):
 def image(name, alt, html=False, height=None):
     if html:
         return f'<img src="/trello-mcp/assets/{name}" alt="{escape(alt, quote=True)}" width="400" height="{height}">'
-    return f'![{alt}](site/assets/{name})'
+    return (f'<picture><source media="(prefers-color-scheme: dark)" srcset="site/assets/{variant(name, "dark")}">'
+            f'<img src="site/assets/{variant(name, "light")}" alt="{escape(alt, quote=True)}" width="400"></picture>')
 
 
 def hero_description(data):
@@ -182,9 +200,131 @@ def blocks(data, html=False):
     return [f'<!-- measured:start -->\n{content}\n<!-- measured:end -->' for content in (hero, detail)]
 
 
-def svg(title, subtitle, groups, names, description=None):
+def number(value):
+    return format(round(value, 2) or 0, '.2f').rstrip('0').rstrip('.')
+
+
+def text_width(text, size=16, weight=400):
+    font = FONT['weights'][str(weight)]
+    return sum(font['glyphs'][char]['advance'] for char in text) * size / font['unitsPerEm']
+
+
+def wrap_text(text, width=352, size=14):
+    """Wrap at words using the same Inter advances as the outlines, not character counts."""
+    lines = []
+    for word in text.split():
+        if not lines or text_width(lines[-1] + ' ' + word, size) > width:
+            lines.append(word)
+        else:
+            lines[-1] += ' ' + word
+    return lines
+
+
+@lru_cache(maxsize=None)
+def glyph_commands(char, weight):
+    path = FONT['weights'][str(weight)]['glyphs'][char]['path']
+    return [(part[0], tuple(map(float, part[1:].split())))
+            for part in re.findall(r'[MLQCZ][^MLQCZ]*', path)]
+
+
+def glyph_id(char, weight):
+    return {400: 'r', 600: 's', 700: 'b'}[weight] + format(ord(char), 'x')
+
+
+@lru_cache(maxsize=None)
+def glyph_path(char, weight):
+    """Compact an outline in font units, shared across every occurrence and size."""
+    parts = []
+    current = start = (0, 0)
+    control = None
+    previous = None
+    for command, points in glyph_commands(char, weight):
+        if command == 'Z':
+            parts.append('Z')
+            current = start
+            control = previous = None
+            continue
+        choices = [command + ' '.join(map(number, points)).replace(' -', '-')]
+        relative = [value - current[i % 2] for i, value in enumerate(points)]
+        choices.append(command.lower() + ' '.join(map(number, relative)).replace(' -', '-'))
+        if command == 'M':
+            start = points
+        elif command == 'L':
+            if points[0] == current[0]:
+                choices.extend(('V' + number(points[1]), 'v' + number(relative[1])))
+            if points[1] == current[1]:
+                choices.extend(('H' + number(points[0]), 'h' + number(relative[0])))
+        elif command == 'Q' and control is not None:
+            # TrueType implied on-curve midpoints permit SVG smooth quadratics,
+            # preserving every control point rather than approximating the font.
+            if points[:2] == tuple(2 * current[i] - control[i] for i in range(2)):
+                choices.extend(('T' + ' '.join(map(number, points[2:])),
+                                't' + ' '.join(map(number, relative[2:])).replace(' -', '-')))
+        spellings = []
+        for choice in choices:
+            kind = choice[0]
+            if kind == previous or (previous, kind) in {('M', 'L'), ('m', 'l')}:
+                body = choice[1:]
+                separator = '' if body.startswith('-') else ' '
+                spellings.append((separator + body, kind))
+            else:
+                spellings.append((choice, kind))
+        spelling, previous = min(spellings, key=lambda item: len(item[0]))
+        parts.append(spelling)
+        control = points[:2] if command == 'Q' else None
+        current = points[-2:]
+    return ''.join(parts)
+
+
+@lru_cache(maxsize=512)
+def glyph_uses(text, weight):
+    parts = []
+    advance = 0
+    for char in text:
+        if char != ' ':
+            position = f' x="{advance}"' if advance else ''
+            parts.append(f'<use href="#{glyph_id(char, weight)}"{position}/>')
+        advance += FONT['weights'][str(weight)]['glyphs'][char]['advance']
+    return ''.join(parts)
+
+
+def glyph_definitions(used, shared):
+    return ('<defs>' + ''.join(f'<path id="{glyph_id(char, weight)}" d="{glyph_path(char, weight)}"/>'
+                              for weight, char in sorted(used))
+            + ''.join(f'<g id="{name}">{glyph_uses(text, 400)}</g>' for text, name in shared.items()) + '</defs>')
+
+
+@lru_cache(maxsize=512)
+def text_run(text, x, y, size=16, weight=400, css='text', right=False, reference=None):
+    """Place glyph references using font-unit advances; only run origins are rounded."""
+    font = FONT['weights'][str(weight)]
+    if right:
+        x -= text_width(text, size, weight)
+    # Retain the exact scale for all three sizes with the 2048-unit Inter em.
+    scale = format(size / font['unitsPerEm'], '.11f').rstrip('0').lstrip('0')
+    content = f'<use href="#{reference}"/>' if reference else glyph_uses(text, weight)
+    return (f'<g class="{css}" transform="translate({number(x)} {number(y)})scale({scale} -{scale})">'
+            + content + '</g>')
+
+
+def palette_style(theme):
+    ink, green, blue, amber, axis = PALETTES[theme]
+    return (f'svg{{color:{ink}}}.s0{{fill:{green}}}.s1{{fill:{blue}}}'
+            f'.s2{{fill:{amber}}}.axis{{stroke:{axis}}}')
+
+
+def svg(title, subtitle, groups, names, description=None, theme=None):
     """Zero-based linear bars; groups have independent maxima, direct labels and values."""
-    subtitle_lines = wrap(subtitle, width=48)
+    used = set()
+    # Reuse the three server labels too when the chart has multiple row groups.
+    shared = {name: f'n{i}' for i, name in enumerate(names)} if len(groups) > 1 else {}
+
+    def text(value, x, y, size=16, weight=400, css='text', right=False):
+        used.update((weight, char) for char in value if char != ' ')
+        reference = shared.get(value) if weight == 400 else None
+        return text_run(value, x, y, size, weight, css, right, reference)
+
+    subtitle_lines = wrap_text(subtitle)
     subtitle_extra = (len(subtitle_lines) - 1) * 20
     height = 82 + subtitle_extra + sum((42 if label else 18) + len(values) * 53 for label, values in groups)
     if description is None:
@@ -193,29 +333,28 @@ def svg(title, subtitle, groups, names, description=None):
             for label, values in groups)
     parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="400" height="{height}" viewBox="0 0 400 {height}" role="img" aria-labelledby="title desc">',
              f'<title id="title">{escape(title)}</title><desc id="desc">{escape(description)}</desc>',
-             '<style>svg{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;'
-             'color:#172e2b;background:#f7f8f3}text{fill:currentColor;font-size:16px}.title{font-size:21px;font-weight:700}'
-             '.sub{font-size:14px}.group{font-weight:650}.s0{fill:#176249}.s1{fill:#6776a5}.s2{fill:#a56a2c}'
-             '.axis{stroke:#9cafa4}@media(prefers-color-scheme: dark){svg{color:#e4eee7;background:#111d1b}'
-             '.s0{fill:#a4d6ab}.s1{fill:#aab9ef}.s2{fill:#edba7d}.axis{stroke:#6c8778}}</style>',
-             f'<text x="24" y="32" class="title">{escape(title)}</text>']
-    parts.extend(f'<text x="24" y="{56 + i * 20}" class="sub">{escape(line)}</text>'
+             '<style>.text,.title,.sub,.group{fill:currentColor}.axis{fill:none}'
+             + (palette_style(theme) if theme else palette_style('site-light')
+                + '@media(prefers-color-scheme: dark){' + palette_style('site-dark') + '}') + '</style>',
+             text(title, 24, 32, 21, 700, 'title')]
+    parts.extend(text(line, 24, 56 + i * 20, 14, css='sub')
                  for i, line in enumerate(subtitle_lines))
     y = 88 + subtitle_extra
     for label, values in groups:
         if label:
-            parts.append(f'<text x="24" y="{y}" class="group">{escape(label)}</text>')
+            parts.append(text(label, 24, y, weight=600, css='group'))
             y += 24
         top = y + 5
         for i, (name, value) in enumerate(zip(names, values)):
             width = 352 * value / max(values)
-            parts.extend([f'<text x="24" y="{y}">{escape(name)}</text>',
-                          f'<text x="376" y="{y}" text-anchor="end">{fmt(value)}</text>',
+            parts.extend([text(name, 24, y),
+                          text(fmt(value), 376, y, right=True),
                           f'<rect class="s{i}" x="24" y="{y + 10}" width="{width:.3f}" height="12" rx="2"/>'])
             y += 53
         parts.append(f'<path class="axis" d="M24 {top}V{y - 26}"/>')
-        parts.append(f'<text x="24" y="{y - 7}" class="sub">0</text>')
+        parts.append(text('0', 24, y - 7, 14, css='sub'))
         y += 18
+    parts.insert(3, glyph_definitions(used, shared))
     parts.append('</svg>\n')
     return '\n'.join(parts)
 
@@ -226,14 +365,16 @@ def assets(data):
     response_groups = [('Boards list (chars/returned board)' if k == 'boards' else rows[k]['label'] + ' (chars)',
                         rows[k]['values']) for k in ('boards', 'cards_summary', 'actions', 'details', 'comments')]
     defs = data['definitions']
-    return dict(zip(CHARTS, [
-        svg('16 cards in one list', 'Response text, characters. Lower is smaller.',
-            [('Summary mode', rows['cards_summary']['values'])], names, description=hero_description(data)),
-        svg('Measured response text', 'Chars; independent zero-based row scales.', response_groups, names),
-        svg('Tool definitions', 'Claude tokens from /context, one session. Node not measured. Lower is smaller.',
-            [('', defs['values'][:2])],
-            [f'{names[i]} ({defs["tool_counts"][i]} tools)' for i in range(2)]),
-    ]))
+    specifications = [
+        ('16 cards in one list', 'Response text, characters. Lower is smaller.',
+         [('Summary mode', rows['cards_summary']['values'])], names, hero_description(data)),
+        ('Measured response text', 'Chars; independent zero-based row scales.', response_groups, names, None),
+        ('Tool definitions', 'Claude tokens from /context, one session. Node not measured. Lower is smaller.',
+         [('', defs['values'][:2])],
+         [f'{names[i]} ({defs["tool_counts"][i]} tools)' for i in range(2)], None),
+    ]
+    return {name if theme is None else variant(name, theme): svg(*spec, theme=theme)
+            for name, spec in zip(CHARTS, specifications) for theme in (None, 'light', 'dark')}
 
 
 def replace_blocks(source, generated):

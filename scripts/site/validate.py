@@ -505,19 +505,40 @@ def page_url(file):
     return BASE + (relative[:-10] if relative.endswith('index.html') else relative)
 
 
-def validate_svg(source):
+def validate_svg(source, chart=False):
     # Reject active content and network references before parsing or rendering any asset.
     require(not re.search(r'<!DOCTYPE|<!ENTITY|<\?', source, re.I), 'SVG declarations are forbidden')
     root = ET.fromstring(source)
     require(root.tag == '{http://www.w3.org/2000/svg}svg', 'Expected an SVG root')
+    ids = [node.get('id') for node in root.iter() if node.get('id') is not None]
+    require(len(ids) == len(set(ids)), 'Duplicate SVG id')
     for node in root.iter():
         tag = node.tag.rsplit('}', 1)[-1].lower()
         require(tag not in {'script', 'foreignobject', 'image'}, f'Forbidden SVG element: {tag}')
-        for key in node.attrib:
+        if chart:
+            require(tag in {'svg', 'title', 'desc', 'style', 'path', 'rect', 'defs', 'g', 'use'},
+                    f'Chart text must be outlines; unexpected element: {tag}')
+            require(not any('background' in key.lower() for key in node.attrib),
+                    'Chart backgrounds are forbidden')
+            if tag == 'rect':
+                require(node.get('class') in {'s0', 's1', 's2'} and node.get('height') == '12',
+                        'Chart rectangles must be bars, not backgrounds')
+        for key, value in node.attrib.items():
             name = key.rsplit('}', 1)[-1].lower()
-            require(name != 'href' and not name.startswith('on'), f'Forbidden SVG attribute: {name}')
+            require(not name.startswith('on'), f'Forbidden SVG attribute: {name}')
+            if name == 'href':
+                require(node.tag == '{http://www.w3.org/2000/svg}use' and key == 'href'
+                        and re.fullmatch(r'#[A-Za-z0-9_-]+', value),
+                        'Only same-document fragment href on SVG use is allowed')
+                require(value[1:] in ids, f'Dangling SVG fragment: {value}')
     decoded = ''.join(root.itertext()) + ''.join(value for node in root.iter() for value in node.attrib.values())
     require(not re.search(r'url\s*\(|@import|\\', decoded, re.I), 'SVG resource references are forbidden')
+    if chart:
+        require(not re.search(r'\bbackground(?:-[\w-]+)?\s*:', decoded, re.I),
+                'Chart backgrounds are forbidden')
+        require(root.get('role') == 'img' and root.get('aria-labelledby') == 'title desc'
+                and all(root.find(f'{{*}}{tag}[@id="{tag}"]') is not None for tag in ('title', 'desc')),
+                'Charts must retain accessible titles and descriptions')
 
 
 def validate_image(attrs, url):
@@ -529,7 +550,40 @@ def validate_image(attrs, url):
     target, _ = local_file(source, url)
     require(target is not None and target.is_relative_to(SITE / 'assets') and target.suffix == '.svg',
             'Images must use local SVG assets')
-    validate_svg(target.read_text())
+    validate_svg(target.read_text(), chart=target.name in GENERATE_BENCHMARKS.GENERATED_CHARTS)
+
+
+def contrast(foreground, background):
+    def luminance(color):
+        channels = [int(color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+        return sum(weight * (value / 12.92 if value <= .04045 else ((value + .055) / 1.055) ** 2.4)
+                   for weight, value in zip((.2126, .7152, .0722), channels))
+    first, second = sorted((luminance(foreground), luminance(background)))
+    return (second + .05) / (first + .05)
+
+
+def check_chart_palettes():
+    backgrounds = GENERATE_BENCHMARKS.BACKGROUNDS
+    site_backgrounds = re.findall(r'--bg:\s*(#[0-9a-f]{6})', (SITE / 'assets/style.css').read_text())
+    require(site_backgrounds == [backgrounds['site-light'], backgrounds['site-dark']],
+            'Chart contrast targets must match the site backgrounds')
+    for theme, (text, *bars, axis) in GENERATE_BENCHMARKS.PALETTES.items():
+        require(contrast(text, backgrounds[theme]) >= 4.5, f'Insufficient chart text contrast: {theme}')
+        require(all(contrast(bar, backgrounds[theme]) >= 3 for bar in bars),
+                f'Insufficient chart bar contrast: {theme}')
+        require(contrast(axis, backgrounds[theme]) >= 3, f'Insufficient chart axis contrast: {theme}')
+
+
+def check_readme_charts(blocks):
+    pictures = re.findall(
+        r'<picture><source media="\(prefers-color-scheme: dark\)" srcset="site/assets/([^"<>]+)">'
+        r'<img src="site/assets/([^"<>]+)" alt="[^"<>]+" width="400"></picture>', '\n'.join(blocks))
+    expected = [(GENERATE_BENCHMARKS.variant(name, 'dark'), GENERATE_BENCHMARKS.variant(name, 'light'))
+                for name in GENERATE_BENCHMARKS.CHARTS]
+    require(pictures == expected, 'README charts must use dark/light picture variants')
+    for pair in expected:
+        for name in pair:
+            require((SITE / 'assets' / name).is_file(), f'Missing README chart variant: {name}')
 
 
 def check_measured(data, readme, home):
@@ -537,6 +591,8 @@ def check_measured(data, readme, home):
     marker = GENERATE_BENCHMARKS.MARKER
     md_blocks, html_blocks = marker.findall(readme), marker.findall(home)
     require(len(md_blocks) == len(html_blocks) == 2, 'Expected two measured blocks per page')
+    check_readme_charts(md_blocks)
+    check_chart_palettes()
     for text in (readme, home):
         require(data['date'] in text, 'Missing measured date')
     md_rows = [[cell.strip() for cell in line.strip('|').split('|')]
@@ -573,7 +629,7 @@ def check_measured(data, readme, home):
                                             'site measured blocks' if html else 'README measured blocks')
     for name, expected in GENERATE_BENCHMARKS.assets(data).items():
         source = (SITE / 'assets' / name).read_text()
-        validate_svg(source)
+        validate_svg(source, chart=True)
         GENERATE_BENCHMARKS.check_generated(source, expected, name)
 
 
@@ -1042,7 +1098,7 @@ def validate():
     require(html_sizes[SITE / 'index.html'] <= 9000, f'Home HTML exceeds 9,000 bytes: {html_sizes[SITE / "index.html"]}')
     require(sum(html_sizes.values()) <= 104 * 1024, 'Total HTML exceeds 104 KiB')
     for asset in SITE.rglob('*.svg'):
-        validate_svg(asset.read_text())
+        validate_svg(asset.read_text(), chart=asset.name in GENERATE_BENCHMARKS.GENERATED_CHARTS)
     favicon = ET.parse(SITE / 'assets/favicon.svg').getroot()
     require(favicon.get('data-mark') == 'tm', 'Favicon must use the independent TM mark')
     validate_png()
@@ -1194,27 +1250,54 @@ class BenchmarkTests(unittest.TestCase):
                 self.assertEqual(root.get('width'), '400')
                 self.assertEqual(root.get('viewBox'), f'0 0 400 {root.get("height")}')
                 self.assertGreater(int(root.get('height')), 0)
-                label_y = None
+                self.assertFalse(any(node.tag.endswith('text') for node in root))
                 bar_y = None
-                for node in root:
-                    if node.tag.endswith('text') and node.get('class') is None:
-                        label_y = int(node.get('y'))
-                    elif node.tag.endswith('rect'):
+                children = list(root)
+                values = iter(self.data['definitions']['values'][:2] if 'definitions' in name else
+                              [value for row in self.data['rows'] if row['id'] in
+                               (('cards_summary',) if 'cards' in name else
+                                ('boards', 'cards_summary', 'actions', 'details', 'comments'))
+                               for value in row['values']])
+                for i, node in enumerate(children):
+                    if node.tag.endswith('rect'):
                         current_y = int(node.get('y'))
-                        self.assertEqual(current_y - label_y, 10)
+                        expected = ET.fromstring(GENERATE_BENCHMARKS.text_run(
+                            f'{next(values):,}', 376, current_y - 10, right=True))
+                        self.assertEqual(children[i - 1].attrib, expected.attrib)
+                        self.assertEqual([node.attrib for node in children[i - 1]],
+                                         [node.attrib for node in expected])
+                        self.assertEqual(children[i - 2].get('class'), 'text')
                         if bar_y is not None:
                             self.assertGreaterEqual(current_y - bar_y, 53)
                         bar_y = current_y
+                self.assertIsNone(next(values, None))
+                validate_svg(source, chart=True)
+        page = Page()
+        page.feed(self.home)
+        page.finish()
+        assets = GENERATE_BENCHMARKS.assets(self.data)
+        for tag, attrs in page.elements:
+            if tag == 'img':
+                height = ET.fromstring(assets[Path(attrs['src']).name]).get('height')
+                self.assertEqual(attrs['height'], height)
 
     def test_definition_caveat_is_wrapped_subtitle_not_group(self):
         source = GENERATE_BENCHMARKS.assets(self.data)['benchmark-definitions.svg']
         root = ET.fromstring(source)
         self.assertFalse(any(node.get('class') == 'group' for node in root))
-        lines = [node.text for node in root if node.get('class') == 'sub' and node.text != '0']
+        lines = GENERATE_BENCHMARKS.wrap_text(
+            'Claude tokens from /context, one session. Node not measured. Lower is smaller.')
         self.assertEqual(' '.join(lines),
                          'Claude tokens from /context, one session. Node not measured. Lower is smaller.')
         self.assertGreater(len(lines), 1)
-        self.assertTrue(all(len(line) <= 48 for line in lines))
+        self.assertTrue(all(GENERATE_BENCHMARKS.text_width(line, 14) <= 352 for line in lines))
+        for first, second in zip(lines, lines[1:]):
+            self.assertGreater(GENERATE_BENCHMARKS.text_width(first + ' ' + second.split()[0], 14), 352)
+        expected = [ET.fromstring(GENERATE_BENCHMARKS.text_run(line, 24, 56 + i * 20, 14, css='sub'))
+                    for i, line in enumerate(lines)]
+        actual = [node for node in root if node.get('class') == 'sub'][:-1]
+        self.assertEqual([(node.attrib, [child.attrib for child in node]) for node in actual],
+                         [(node.attrib, [child.attrib for child in node]) for node in expected])
 
     def test_hero_alt_matches_description_and_measured_values(self):
         expected = ('16 cards in one list, response characters: '
@@ -1224,7 +1307,7 @@ class BenchmarkTests(unittest.TestCase):
         page.finish()
         hero = next(attrs for tag, attrs in page.elements if tag == 'img')
         self.assertEqual(hero['alt'], expected)
-        self.assertIn(f'![{expected}]', self.readme)
+        self.assertIn(f'alt="{expected}"', self.readme)
         root = ET.fromstring(GENERATE_BENCHMARKS.assets(self.data)['benchmark-cards.svg'])
         self.assertEqual(root.find('{http://www.w3.org/2000/svg}desc').text, expected)
         changed = json.loads(json.dumps(self.data))
@@ -1236,16 +1319,135 @@ class BenchmarkTests(unittest.TestCase):
         self.assertIn('Comments on that card, 2 comments (chars)', self.home)
         self.assertNotIn('Comments on that card (2)', self.readme + self.home)
 
-    def test_stale_asset(self):
+    def test_stale_asset_and_variants(self):
         original = Path.read_text
-        asset = SITE / 'assets' / GENERATE_BENCHMARKS.CHARTS[0]
+        for name in GENERATE_BENCHMARKS.GENERATED_CHARTS:
+            asset = SITE / 'assets' / name
 
-        def stale(path, *args, **kwargs):
-            source = original(path, *args, **kwargs)
-            return source + '\n' if path == asset else source
+            def stale(path, *args, **kwargs):
+                source = original(path, *args, **kwargs)
+                return source + '\n' if path == asset else source
 
-        with patch.object(Path, 'read_text', stale), self.assertRaisesRegex(ValueError, 'Stale measured output'):
-            check_measured(self.data, self.readme, self.home)
+            with self.subTest(chart=name), patch.object(Path, 'read_text', stale):
+                with self.assertRaisesRegex(ValueError, 'Stale measured output'):
+                    check_measured(self.data, self.readme, self.home)
+
+    def test_missing_readme_variant(self):
+        original = Path.is_file
+        for name in GENERATE_BENCHMARKS.GENERATED_CHARTS:
+            if name in GENERATE_BENCHMARKS.CHARTS:
+                continue
+            def missing(path):
+                return False if path.name == name else original(path)
+
+            with self.subTest(chart=name), patch.object(Path, 'is_file', missing):
+                with self.assertRaisesRegex(ValueError, 'Missing README chart variant'):
+                    check_measured(self.data, self.readme, self.home)
+
+    def test_readme_picture_required(self):
+        for old, new in (('<picture>', '<div>'), ('prefers-color-scheme: dark', 'prefers-color-scheme: light'),
+                         ('benchmark-cards-light.svg', 'benchmark-cards.svg')):
+            with self.subTest(change=old), self.assertRaisesRegex(ValueError, 'picture variants'):
+                check_measured(self.data, self.readme.replace(old, new), self.home)
+
+    def test_inter_ascii_data_and_layout(self):
+        font = GENERATE_BENCHMARKS.FONT
+        self.assertEqual(font['family'], 'Inter')
+        self.assertEqual(font['release'], 'v4.1')
+        self.assertEqual(set(font['weights']), {'400', '600', '700'})
+        for weight, data in font['weights'].items():
+            with self.subTest(weight=weight):
+                self.assertEqual(set(data['glyphs']), {chr(code) for code in range(0x20, 0x7f)})
+                self.assertEqual(data['unitsPerEm'], 2048)
+                for char, glyph in data['glyphs'].items():
+                    self.assertGreater(glyph['advance'], 0)
+                    self.assertEqual(bool(glyph['path']), char != ' ')
+                    self.assertRegex(glyph['path'], r'^[MLQCZ0-9. -]*$')
+                text = '16 cards, 29,141'
+                size = 16
+                width = sum(data['glyphs'][char]['advance'] for char in text) * size / data['unitsPerEm']
+                self.assertEqual(GENERATE_BENCHMARKS.text_width(text, size, int(weight)), width)
+                self.assertEqual(GENERATE_BENCHMARKS.text_run(text, 376, 100, weight=int(weight), right=True),
+                                 GENERATE_BENCHMARKS.text_run(text, 376 - width, 100, weight=int(weight)))
+        self.assertNotEqual(GENERATE_BENCHMARKS.text_run('Inter', 24, 32, weight=400),
+                            GENERATE_BENCHMARKS.text_run('Inter', 24, 32, weight=700))
+        # Equal-length strings need different wrapping with proportional glyph advances.
+        self.assertEqual(len(GENERATE_BENCHMARKS.wrap_text('iiii iiii', width=40)), 1)
+        self.assertEqual(len(GENERATE_BENCHMARKS.wrap_text('WWWW WWWW', width=40)), 2)
+
+    def test_glyph_definitions_are_unique_used_and_size_independent(self):
+        for name, source in GENERATE_BENCHMARKS.assets(self.data).items():
+            with self.subTest(chart=name):
+                root = ET.fromstring(source)
+                definitions = root.find('{*}defs')
+                self.assertIsNotNone(definitions)
+                paths = definitions.findall('{*}path')
+                ids = [node.get('id') for node in paths]
+                self.assertEqual(len(ids), len(set(ids)))
+                glyph_refs = {node.get('href')[1:] for node in root.findall('.//{*}use')
+                              if node.get('href')[1:] in ids}
+                self.assertEqual(set(ids), glyph_refs)
+                self.assertEqual(ids, sorted(ids, key=lambda value: ({'r': 400, 's': 600, 'b': 700}[value[0]],
+                                                                    int(value[1:], 16))))
+                for node in paths:
+                    weight = {'r': 400, 's': 600, 'b': 700}[node.get('id')[0]]
+                    char = chr(int(node.get('id')[1:], 16))
+                    self.assertEqual(node.get('d'), GENERATE_BENCHMARKS.glyph_path(char, weight))
+                # Small subtitles and full-size labels share one regular 'r' outline.
+                self.assertEqual(ids.count('r72'), 1)
+                self.assertGreater(sum(node.get('href') == '#r72' for node in root.findall('.//{*}use')), 1)
+                for node in root.findall('{*}path'):
+                    self.assertEqual(node.get('class'), 'axis')
+                if 'responses' in name:
+                    self.assertEqual(len(definitions.findall('{*}g')), 3)
+                    for i in range(3):
+                        self.assertEqual(sum(node.get('href') == f'#n{i}' for node in root.findall('.//{*}use')), 5)
+        run = ET.fromstring(GENERATE_BENCHMARKS.text_run('A A', 24, 32))
+        self.assertEqual([node.get('href') for node in run], ['#r41', '#r41'])
+        font = GENERATE_BENCHMARKS.FONT['weights']['400']
+        self.assertEqual(run[1].get('x'), str(font['glyphs']['A']['advance'] + font['glyphs'][' ']['advance']))
+        self.assertIn('scale(.0078125 -.0078125)', run.get('transform'))
+
+    def test_fixed_and_adaptive_palettes(self):
+        check_chart_palettes()
+        self.assertEqual(contrast('#000000', '#ffffff'), 21)
+        self.assertEqual(contrast('#ffffff', '#ffffff'), 1)
+        for name, source in GENERATE_BENCHMARKS.assets(self.data).items():
+            self.assertEqual('prefers-color-scheme' in source, name in GENERATE_BENCHMARKS.CHARTS)
+        with patch.dict(GENERATE_BENCHMARKS.PALETTES, {'light': ('#ffffff',) * 5}):
+            with self.assertRaisesRegex(ValueError, 'text contrast'):
+                check_chart_palettes()
+        original = GENERATE_BENCHMARKS.PALETTES['light']
+        with patch.dict(GENERATE_BENCHMARKS.PALETTES, {'light': (original[0], '#ffffff', *original[2:])}):
+            with self.assertRaisesRegex(ValueError, 'bar contrast'):
+                check_chart_palettes()
+
+    def test_chart_backgrounds_and_live_text_rejected(self):
+        source = GENERATE_BENCHMARKS.assets(self.data)['benchmark-cards.svg']
+        height = ET.fromstring(source).get('height')
+        for replacement in ('<style>svg{background:#ffffff}', '<style>svg{background-color:#ffffff}',
+                            '<style>svg{BACKGROUND: white}'):
+            with self.subTest(css=replacement), self.assertRaisesRegex(ValueError, 'backgrounds'):
+                validate_svg(source.replace('<style>', replacement), chart=True)
+        for fragment in (f'<rect width="400" height="{height}"/>', '<rect width="100%" height="100%"/>',
+                         f'<rect class="s0" width="400" height="{height}"/>'):
+            with self.subTest(rect=fragment), self.assertRaisesRegex(ValueError, 'backgrounds'):
+                validate_svg(source.replace('</svg>', fragment + '</svg>'), chart=True)
+        with self.assertRaisesRegex(ValueError, 'backgrounds'):
+            validate_svg(source.replace('<svg ', '<svg background="#ffffff" '), chart=True)
+        with self.assertRaisesRegex(ValueError, 'outlines'):
+            validate_svg(source.replace('</svg>', '<text>Fallback font</text></svg>'), chart=True)
+
+    def test_generated_background_rejected(self):
+        original = Path.read_text
+        for name in GENERATE_BENCHMARKS.GENERATED_CHARTS:
+            def background(path, *args, **kwargs):
+                source = original(path, *args, **kwargs)
+                return source.replace('<style>', '<style>svg{background:white}') if path.name == name else source
+
+            with self.subTest(chart=name), patch.object(Path, 'read_text', background):
+                with self.assertRaisesRegex(ValueError, 'backgrounds'):
+                    check_measured(self.data, self.readme, self.home)
 
     def test_missing_exception_row(self):
         for html in (False, True):
@@ -1282,6 +1484,39 @@ class BenchmarkTests(unittest.TestCase):
                 validate_svg('<svg xmlns="http://www.w3.org/2000/svg">' + fragment + '</svg>')
         with self.assertRaisesRegex(ValueError, 'declarations'):
             validate_svg('<!DOCTYPE svg [<!ENTITY x "payload">]><svg xmlns="http://www.w3.org/2000/svg"/>')
+
+    def test_svg_use_local_fragments_resolve(self):
+        validate_svg('<svg xmlns="http://www.w3.org/2000/svg"><use href="#glyph_0-1"/>'
+                     '<defs><path id="glyph_0-1" d="M0 0H1V1Z"/></defs></svg>')
+        for tag in ('a', 'path', 'g', 'svg'):
+            with self.subTest(tag=tag), self.assertRaisesRegex(ValueError, 'Only same-document'):
+                validate_svg('<svg xmlns="http://www.w3.org/2000/svg"><path id="glyph"/>'
+                             f'<{tag} href="#glyph"/></svg>')
+        with self.assertRaisesRegex(ValueError, 'Duplicate SVG id'):
+            validate_svg('<svg xmlns="http://www.w3.org/2000/svg"><path id="glyph"/>'
+                         '<path id="glyph"/><use href="#glyph"/></svg>')
+
+    def test_svg_use_external_href_fails(self):
+        for href in ('https://example.com/chart.svg#glyph', '//example.com/chart.svg#glyph',
+                     'data:image/svg+xml,payload', 'file:///tmp/chart.svg#glyph', 'other.svg#glyph',
+                     '#glyph?query', '#glyph/child', '#glyph%20', ' #glyph', '#', ''):
+            for chart in (False, True):
+                with self.subTest(href=href, chart=chart), self.assertRaisesRegex(ValueError, 'Only same-document'):
+                    validate_svg('<svg xmlns="http://www.w3.org/2000/svg"><path id="glyph"/>'
+                                 f'<use href="{href}"/></svg>', chart=chart)
+
+    def test_svg_use_dangling_fragment_fails(self):
+        for chart in (False, True):
+            with self.subTest(chart=chart), self.assertRaisesRegex(ValueError, 'Dangling SVG fragment'):
+                validate_svg('<svg xmlns="http://www.w3.org/2000/svg"><use href="#missing"/></svg>', chart=chart)
+
+    def test_svg_use_xlink_href_fails(self):
+        for href in ('#glyph', 'https://example.com/chart.svg#glyph'):
+            for chart in (False, True):
+                with self.subTest(href=href, chart=chart), self.assertRaisesRegex(ValueError, 'Only same-document'):
+                    validate_svg('<svg xmlns="http://www.w3.org/2000/svg" '
+                                 'xmlns:xlink="http://www.w3.org/1999/xlink"><path id="glyph"/>'
+                                 f'<use xlink:href="{href}"/></svg>', chart=chart)
 
     def test_local_svg_images_only(self):
         for src in ('https://example.com/chart.svg', '//example.com/chart.svg', 'assets/social.png',
