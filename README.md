@@ -61,7 +61,7 @@ Claude Code /context in one session; rows over 1k display-rounded to 0.1k. Node 
 
 One board, one day, one account. trello-mcp at commit cb40466 (v1.0.3); Atlassian hosted https://mcp.trello.com/v1 over OAuth, results captured verbatim from a headless Claude Code session; @delorenj/mcp-server-trello 1.8.1 via npx. Board list figures are characters per returned board over different sets (16 / 15 / 29; Node includes 13 closed boards; the extra trello-mcp board is a guest board in another organization). Card details and comments use one card with two comments. The board is private, so others cannot rerun on the same data. Official results reflect its hosted version on that date. Tool definitions are Claude tokens from /context; chars/4 would give about 5,146 for trello-mcp instead of 8,107.
 
-[Aggregate data](docs/benchmarks/2026-10-17.json). Percent fewer = round(100 * (1 - ours/theirs)); per-board values are rounded totals/count.
+[Aggregate data](docs/benchmarks/2026-10-17.json). [Method and harness](docs/benchmarks/method.md). Percent fewer = round(100 * (1 - ours/theirs)); per-board values are rounded totals/count.
 
 I use Trello with AI assistants a lot, so I built trello-mcp to make it lighter and easier to use.
 

@@ -1,0 +1,7 @@
+[{"name":"tools","tool":"__tools_list__"},
+ {"name":"boards","tool":"board_find","args":{}},
+ {"name":"cards_list","tool":"card_find","args":{"listId":"LIST_ID"}},
+ {"name":"cards_list_full","tool":"card_find","args":{"listId":"LIST_ID","detail":"full"}},
+ {"name":"activity50","tool":"board_activity","args":{"boardId":"BOARD_ID","limit":50}},
+ {"name":"card_get","tool":"card_get","args":{"cardId":"CARD_ID","detail":"full"}},
+ {"name":"comments","tool":"comment_find","args":{"cardId":"CARD_ID","limit":20}}]

@@ -93,6 +93,8 @@ jobs:
           fi
       - name: Vet
         run: go vet ./...
+      - name: Benchmark harness tests
+        run: python3 -I "$GITHUB_WORKSPACE/tests/benchmark_harness_test.py"
       - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.13

@@ -609,6 +609,7 @@ def check_measured(data, readme, home):
     md_blocks, html_blocks = marker.findall(readme), marker.findall(home)
     require(len(md_blocks) == len(html_blocks) == 2, 'Expected two measured blocks per page')
     check_readme_charts(md_blocks)
+    require((ROOT / 'docs/benchmarks/method.md').is_file(), 'Missing benchmark method and harness target')
     check_chart_palettes()
     for text in (readme, home):
         require(data['date'] in text, 'Missing measured date')
@@ -1260,6 +1261,20 @@ class BenchmarkTests(unittest.TestCase):
 
     def test_generated_measurements(self):
         check_measured(self.data, self.readme, self.home)
+
+    def test_method_link_is_readme_only(self):
+        self.assertIn('[Method and harness](docs/benchmarks/method.md)', self.readme)
+        self.assertNotIn('docs/benchmarks/method.md', self.home)
+
+    def test_missing_method_target(self):
+        original = Path.is_file
+
+        def missing(path):
+            return False if path == ROOT / 'docs/benchmarks/method.md' else original(path)
+
+        with patch.object(Path, 'is_file', missing):
+            with self.assertRaisesRegex(ValueError, 'Missing benchmark method and harness target'):
+                check_measured(self.data, self.readme, self.home)
 
     def test_chart_intrinsic_dimensions_and_bar_spacing(self):
         for name, source in GENERATE_BENCHMARKS.assets(self.data).items():

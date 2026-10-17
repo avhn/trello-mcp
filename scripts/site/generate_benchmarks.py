@@ -205,7 +205,8 @@ def blocks(data, html=False):
     else:
         detail = ('## Measured comparison\n\n' + '\n\n'.join(charts) + '\n\n' + definition_note(data)
                   + '\n\n' + markdown_table(headers, table_rows(data)) + '\n\n' + method(data)
-                  + '\n\n[Aggregate data](docs/benchmarks/2026-10-17.json). Percent fewer = round(100 * (1 - ours/theirs)); '
+                  + '\n\n[Aggregate data](docs/benchmarks/2026-10-17.json). '
+                  '[Method and harness](docs/benchmarks/method.md). Percent fewer = round(100 * (1 - ours/theirs)); '
                   'per-board values are rounded totals/count.\n\n' + '\n\n'.join(OWNER)
                   + f'\n\nFeatures checked {data["date"]}.\n\n'
                   + markdown_table(['Feature', 'trello-mcp', f'[Official]({OFFICIAL})', f'[Node 1.8.1]({NODE})'], FEATURES)
