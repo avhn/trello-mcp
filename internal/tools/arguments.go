@@ -123,6 +123,10 @@ func dateCursor(v string) bool {
 
 // decimalPosition matches JSON number syntax, so strings Trello may parse
 // differently (hex, digit separators, a sign or bare dot) never reach it.
+// cardShortLink matches the code in a trello.com/c/<shortLink> URL. Trello resolves it, but
+// ownership checks compare the full card id, so callers are told how to look that id up.
+var cardShortLink = regexp.MustCompile(`^[A-Za-z0-9]{8}$`)
+
 var decimalPosition = regexp.MustCompile(`^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$`)
 
 // validate rejects unknown fields, nulls, duplicate keys, bad types and unsafe path components.
@@ -370,6 +374,9 @@ func validateAt(raw json.RawMessage, d definition, location string) (arguments, 
 			a.values[key] = v
 			if (strings.HasSuffix(key, "Id") || key == "idBoard" || key == "idValue") && (key != "idValue" || v != "") && !trello.ValidID(v) {
 				return a, fmt.Errorf("invalid %s", path)
+			}
+			if key == "cardId" && cardShortLink.MatchString(v) {
+				return a, fmt.Errorf("%s %q is a card short link (from a trello.com/c/%s URL), not a card id; call card_find with the board's boardId (or nameFilter, or mine:true) and retry with the id of the item whose url contains /c/%s/", path, v, v, v)
 			}
 		}
 	}

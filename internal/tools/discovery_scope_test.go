@@ -84,27 +84,27 @@ func TestDiscoveryOpenFilters(t *testing.T) {
 
 // TestArchivedCardKnownID requires actual-parent authorization even when discovery omits a card.
 func TestArchivedCardKnownID(t *testing.T) {
-	const archived = `{"id":"archived","name":"Archived card","idBoard":"b1","idList":"l1","closed":true}`
+	const archived = `{"id":"archived-card","name":"Archived card","idBoard":"b1","idList":"l1","closed":true}`
 	for _, tc := range []struct {
 		name, args string
 		allowed    []string
 		failed     bool
 	}{
-		{"allowed", `{"cardId":"archived"}`, []string{"w1"}, false},
-		{"outside-allowlist", `{"cardId":"archived"}`, []string{"other"}, true},
-		{"supplied-board-cannot-override-parent", `{"cardId":"archived","boardId":"b2"}`, []string{"w1"}, true},
+		{"allowed", `{"cardId":"archived-card"}`, []string{"w1"}, false},
+		{"outside-allowlist", `{"cardId":"archived-card"}`, []string{"other"}, true},
+		{"supplied-board-cannot-override-parent", `{"cardId":"archived-card","boardId":"b2"}`, []string{"w1"}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Discovery first omits the archived card. Known-ID access must then resolve
 			// its actual board and workspace before fetching the card projection.
 			expected := []requestSpec{
 				{"/members/me/cards", query("fields", cardSummaryFields, "filter", "open"), `[]`},
-				{"/cards/archived", query("fields", "idBoard"), `{"idBoard":"b1"}`},
+				{"/cards/archived-card", query("fields", "idBoard"), `{"idBoard":"b1"}`},
 				{"/boards/b1", query("fields", "id,name,url,idOrganization,closed"), boardJSON},
 				{"/organizations/w1", query("fields", "id,name,displayName"), workspaceJSON},
 			}
 			if !tc.failed {
-				expected = append(expected, requestSpec{"/cards/archived", query("fields", cardFields), archived})
+				expected = append(expected, requestSpec{"/cards/archived-card", query("fields", cardFields), archived})
 			}
 			var requests atomic.Int32
 			fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -132,7 +132,7 @@ func TestArchivedCardKnownID(t *testing.T) {
 			if failed != tc.failed || int(requests.Load()) != len(expected) {
 				t.Fatalf("known-ID access: %s, failed=%t, requests=%d", text, failed, requests.Load())
 			}
-			if !failed && (!strings.Contains(text, `"id":"archived"`) || !strings.Contains(text, `"closed":true`)) {
+			if !failed && (!strings.Contains(text, `"id":"archived-card"`) || !strings.Contains(text, `"closed":true`)) {
 				t.Errorf("archived card not returned: %s", text)
 			}
 			if failed && strings.Contains(text, "Archived card") {

@@ -69,6 +69,8 @@ func TestArgumentErrorDetails(t *testing.T) {
 		{"card_create", `{"listId":"l1","name":"Test","checklist":{"name":false,"items":["x"]}}`, `checklist.name must be a string`},
 		{"card_create", `{"listId":"l1","name":"Test","checklist":{}}`, `checklist.items is required`},
 		{"card_get", `{"cardId":null}`, `cardId must be a string`},
+		{"card_get", `{"cardId":"QprgpMhG"}`, `cardId "QprgpMhG" is a card short link (from a trello.com/c/QprgpMhG URL), not a card id; call card_find with the board's boardId (or nameFilter, or mine:true) and retry with the id of the item whose url contains /c/QprgpMhG/`},
+		{"comment_create", `{"cardId":"ATi872Hl","text":"x"}`, `cardId "ATi872Hl" is a card short link (from a trello.com/c/ATi872Hl URL), not a card id; call card_find with the board's boardId (or nameFilter, or mine:true) and retry with the id of the item whose url contains /c/ATi872Hl/`},
 		{"card_find", `{"limit":"1"}`, `limit must be an integer`},
 		{"card_find", `{"limit":20.5}`, `limit must be an integer`},
 		{"card_find", `{"limit":1e400}`, `limit must be an integer`},
