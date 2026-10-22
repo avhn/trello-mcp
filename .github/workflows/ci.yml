@@ -97,7 +97,7 @@ jobs:
         run: python3 -I "$GITHUB_WORKSPACE/tests/benchmark_harness_test.py"
       - uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.13
+          version: v2.15
       - name: Test with race detector
         run: go test -race ./...
       - name: Build
