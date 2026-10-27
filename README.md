@@ -1,4 +1,4 @@
-<h1 align="center">trello-mcp</h1>
+<h1 align="center"><img src="docs/assets/logo.svg" width="88" height="88" alt=""><br>trello-mcp</h1>
 
 <p align="center">
   Local Trello MCP server in Go. 48 tools, compact responses, guest boards.

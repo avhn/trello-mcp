@@ -67,10 +67,32 @@ def render_scanlines():
                         rect(x + col * scale, y + row * scale, scale, scale, color)
             x += scale * 6
 
+    def rounded(px, py, x0, y0, x1, y1, r):
+        dx, dy = px - min(max(px, x0 + r), x1 - r), py - min(max(py, y0 + r), y1 - r)
+        return x0 <= px <= x1 and y0 <= py <= y1 and dx * dx + dy * dy <= r * r
+
+    def interlock_piece(px, py):
+        # Top card, column and the concave fillet between them, on the favicon's 22-unit grid.
+        fillet = 7 <= px <= 9 and 10 <= py <= 12 and (px - 9) ** 2 + (py - 12) ** 2 >= 4
+        return rounded(px, py, 0, 0, 13, 10, 2) or rounded(px, py, 0, 0, 7, 22, 2) or fillet
+
+    def mark(x, y, size, color, samples=4):
+        # Original Interlock mark (site/assets/favicon.svg), not a product or platform logo.
+        for row in range(size):
+            for col in range(size):
+                hits = 0
+                for sy in range(samples):
+                    for sx in range(samples):
+                        px = (col + (sx + .5) / samples) * 22 / size
+                        py = (row + (sy + .5) / samples) * 22 / size
+                        hits += interlock_piece(px, py) or interlock_piece(22 - px, 22 - py)
+                if hits:
+                    a = hits / samples ** 2
+                    start = ((y + row) * WIDTH + x + col) * 3
+                    pixels[start:start + 3] = bytes(round(c * a + b * (1 - a)) for c, b in zip(color, background))
+
     rect(0, 0, WIDTH, 12, accent)
-    rect(82, 70, 54, 54, accent)
-    # Original TM monogram, not a product or platform logo.
-    text('TM', 92, 86, 3, background)
+    mark(82, 70, 54, (232, 87, 42))
     text('GO + MODEL CONTEXT PROTOCOL', 162, 86, 3, accent)
     text('TRELLO-MCP', 82, 177, 12, ink)
     text('LOCAL TRELLO MCP SERVER', 82, 300, 4, ink)

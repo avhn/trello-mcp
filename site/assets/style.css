@@ -32,7 +32,7 @@ a:focus-visible, summary:focus-visible, pre:focus-visible, .copy:focus-visible {
 .header-inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem 2rem; padding-block: 1.15rem; }
 .brand, .site-nav a { min-width: 44px; min-height: 44px; padding: .4rem .5rem; }
 .brand { display: inline-flex; gap: .65rem; align-items: center; color: var(--ink); text-decoration: none; font-size: 1.15rem; font-weight: 750; letter-spacing: -.04em; }
-.brand svg { flex-shrink: 0; }
+.brand svg { flex-shrink: 0; width: 30px; height: 30px; fill: #e8572a; }
 .site-nav { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; }
 .site-nav a { display: inline-flex; align-items: center; color: var(--muted); font-size: .92rem; text-decoration: none; }
 .site-nav a[aria-current="page"] { color: var(--accent); text-decoration: underline; font-weight: 700; }

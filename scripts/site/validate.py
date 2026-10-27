@@ -65,7 +65,7 @@ SEMVER = re.compile(r'\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?')
 def validate_brand(source):
     footer = re.search(r'<footer\b[^>]*>(.*?)</footer>', source, re.S)
     require(footer is not None and TRADEMARK in footer.group(1), 'Missing footer trademark notice')
-    require('data-mark="tm"' in source, 'Missing independent TM monogram')
+    require('data-mark="interlock"' in source, 'Missing independent Interlock mark')
     require(not re.search(r'#(?:0079bf|0052cc)\b', source, re.I), 'Do not use platform brand colors')
 
 
@@ -1119,7 +1119,7 @@ def validate():
         validate_svg(asset.read_text(), chart=asset.name in GENERATE_BENCHMARKS.GENERATED_CHARTS,
                      theme=chart_theme(asset.name))
     favicon = ET.parse(SITE / 'assets/favicon.svg').getroot()
-    require(favicon.get('data-mark') == 'tm', 'Favicon must use the independent TM mark')
+    require(favicon.get('data-mark') == 'interlock', 'Favicon must use the independent Interlock mark')
     validate_png()
 
     # Docs, README and the setup mirror.
@@ -1551,18 +1551,18 @@ class ParserTests(unittest.TestCase):
         return page
 
     def test_independent_mark_and_notice(self):
-        validate_brand('<header data-mark="tm"></header><footer>' + TRADEMARK + '</footer>')
+        validate_brand('<header data-mark="interlock"></header><footer>' + TRADEMARK + '</footer>')
 
     def test_missing_trademark_notice(self):
         with self.assertRaisesRegex(ValueError, 'trademark'):
-            validate_brand('<header data-mark="tm"></header><footer>Independent</footer>')
+            validate_brand('<header data-mark="interlock"></header><footer>Independent</footer>')
 
     def test_platform_brand_colors(self):
         with self.assertRaisesRegex(ValueError, 'brand colors'):
-            validate_brand('<header data-mark="tm" fill="#0079BF"></header><footer>' + TRADEMARK + '</footer>')
+            validate_brand('<header data-mark="interlock" fill="#0079BF"></header><footer>' + TRADEMARK + '</footer>')
 
     def test_missing_independent_mark(self):
-        with self.assertRaisesRegex(ValueError, 'monogram'):
+        with self.assertRaisesRegex(ValueError, 'Interlock mark'):
             validate_brand('<header></header><footer>' + TRADEMARK + '</footer>')
 
     def test_balanced_html_and_svg(self):
