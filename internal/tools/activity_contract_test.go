@@ -17,7 +17,8 @@ func TestDocumentedActivityProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	text := string(data)
+	// Windows checkouts may convert docs to CRLF.
+	text := strings.ReplaceAll(string(data), "\r\n", "\n")
 	start, end := "<!-- activity-example:start -->", "<!-- activity-example:end -->"
 	if strings.Count(text, start) != 1 || strings.Count(text, end) != 1 {
 		t.Fatal("activity example markers missing or ambiguous")
