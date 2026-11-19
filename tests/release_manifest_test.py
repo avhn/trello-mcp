@@ -155,7 +155,8 @@ class ReleaseTests(unittest.TestCase):
 
     def test_workflows_require_native_windows_auth_and_repeated_lock_checks(self):
         commands = ['go test ./internal/credentials/... ./internal/auth/...',
-                    "go test -run 'Lock|ConcurrentSaves' -count=20 ./internal/credentials/"]
+                    "go test -run 'Lock|ConcurrentSaves' -count=20 ./internal/credentials/",
+                    'go test ./internal/config/... ./internal/tools/...']
         for name in ('ci.yml', 'release.yml'):
             with self.subTest(workflow=name):
                 workflow = (ROOT / '.github/workflows' / name).read_text()
@@ -167,7 +168,7 @@ class ReleaseTests(unittest.TestCase):
                 self.assertIn('      - uses: actions/setup-go@v7\n        with:\n'
                               '          go-version-file: go.mod\n          cache: true\n', job)
                 self.assertEqual(re.findall(r'^        run: (.+)$', job, re.MULTILINE), commands)
-                self.assertEqual(len(re.findall(r'^\s+run:', job, re.MULTILINE)), 2)
+                self.assertEqual(len(re.findall(r'^\s+run:', job, re.MULTILINE)), 3)
                 self.assertEqual(re.findall(r'^      - uses: (.+)$', job, re.MULTILINE),
                                  ['actions/checkout@v7', 'actions/setup-go@v7'])
                 self.assertNotRegex(job, r'(?m)^\s*(?:if|continue-on-error|shell|permissions):')

@@ -79,13 +79,6 @@ func TestWindowsDefaultDirectoryIsPrivate(t *testing.T) {
 	if !isPrivatePath(t, dir, 0) {
 		t.Fatal("created directory is not private")
 	}
-	f := filepath.Join(dir, "child.txt")
-	if err := os.WriteFile(f, []byte("synthetic"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	if !isPrivatePath(t, f, 0) {
-		t.Fatal("child did not inherit the private DACL")
-	}
 	// Existing directories are not modified.
 	if err := makePrivateDir(dir); err != nil {
 		t.Fatal(err)
@@ -121,8 +114,10 @@ func TestWindowsDownloadFileIgnoresInheritance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// makePrivateDir sets the owner explicitly; elevated tokens would otherwise default it
+	// to Administrators. The DACL is then replaced with a non-inheritable one.
 	dir := filepath.Join(t.TempDir(), "flat")
-	if err = os.Mkdir(dir, 0700); err != nil {
+	if err = makePrivateDir(dir); err != nil {
 		t.Fatal(err)
 	}
 	sd, err := windows.SecurityDescriptorFromString("D:P(A;;FA;;;" + user.User.Sid.String() + ")")

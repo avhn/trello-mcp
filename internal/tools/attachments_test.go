@@ -259,10 +259,6 @@ func TestAttachmentDownload(t *testing.T) {
 		t.Error("download not private")
 	}
 	original := info
-	info, err = os.Stat(s.config.DownloadDir)
-	if err != nil {
-		t.Fatal(err)
-	}
 	if !isPrivatePath(t, s.config.DownloadDir, 0700) {
 		t.Error("directory not private")
 	}
