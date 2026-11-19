@@ -1,4 +1,4 @@
-//go:build !unix
+//go:build !unix && !windows
 
 package tools
 
@@ -9,5 +9,5 @@ import (
 )
 
 func openUpload(_, _ string, _ os.FileInfo) (*os.File, error) {
-	return nil, trello.PolicyDenied("upload platform safety", "path uploads unavailable on this platform because file paths cannot be verified; supply base64 or use a Unix host")
+	return nil, trello.PolicyDenied("upload platform safety", "path uploads unavailable on this platform because file paths cannot be verified; supply base64 or use a Unix or Windows host")
 }

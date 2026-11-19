@@ -69,6 +69,8 @@ jobs:
         run: go test ./internal/credentials/... ./internal/auth/...
       - name: Repeat credential lock and concurrent-save tests
         run: go test -run 'Lock|ConcurrentSaves' -count=20 ./internal/credentials/
+      - name: Test config and attachment transfers with Windows DACLs
+        run: go test ./internal/config/... ./internal/tools/...
 
   check:
     strategy:

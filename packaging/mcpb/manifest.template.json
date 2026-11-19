@@ -75,14 +75,14 @@
     "download_dir": {
       "type": "directory",
       "title": "Attachment download directory (optional)",
-      "description": "Absolute download directory (empty uses temporary storage); Windows refuses downloads and this setting cannot enable them.",
+      "description": "Absolute download directory (empty uses temporary storage); it must be private to your account.",
       "required": false,
       "default": ""
     },
     "upload_dir": {
       "type": "directory",
       "title": "Attachment upload directory (optional)",
-      "description": "Absolute path-upload directory (empty disables path uploads); Windows refuses path uploads and this setting cannot enable them.",
+      "description": "Absolute path-upload staging directory (empty uses trello-mcp/uploads in your configuration directory; off disables path uploads).",
       "required": false,
       "default": ""
     }

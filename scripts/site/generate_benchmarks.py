@@ -48,7 +48,7 @@ FEATURES = [
     ['Guest boards', 'Yes', "Not reached in the owner's check, 2026-10-16", 'Yes'],
     ['Delete comments', 'Yes', 'No: list, add, edit', 'Yes'],
     ['Create, update, delete labels', 'Yes', 'No: list, attach, detach', 'Yes'],
-    ['Attachments', 'Upload and download to disk, opt-in, Unix', 'Listing only',
+    ['Attachments', 'Staged uploads, downloads to disk', 'Listing only',
      'Any local path upload, inline base64 download'],
     ['Per-object workspace allowlist', 'Yes', 'Per-workspace OAuth consent',
      'Listing and some workspace operations'],

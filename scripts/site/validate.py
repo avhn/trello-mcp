@@ -754,8 +754,10 @@ def check_desktop_contract(setup, tools_doc, manifest, health_source):
             'Desktop static health help must distinguish local config from Trello access')
     for setting in ('download_dir', 'upload_dir'):
         description = manifest['user_config'][setting]['description']
-        require('Windows refuses' in description and 'cannot enable' in description,
-                f'Desktop {setting} must retain Windows refusal guidance')
+        required = (('temporary storage', 'must be private') if setting == 'download_dir'
+                    else ('trello-mcp/uploads', 'off disables path uploads'))
+        require(all(text in description for text in required) and 'refuses' not in description,
+                f'Desktop {setting} must describe its default and privacy or opt-out')
 
 
 def check_faq(page, schema):
@@ -1763,7 +1765,7 @@ class SetupContractTests(unittest.TestCase):
                          ('"access":"unverified; call workspace_find"', '"access":"verified"')):
             with self.subTest(old=old), self.assertRaises(ValueError):
                 check_desktop_contract(self.setup.replace(old, new), self.tools, self.manifest, self.health)
-        for old in ('macOS and Windows amd64 are supported; Windows on Arm is not claimed.', 'Windows refuses',
+        for old in ('macOS and Windows amd64 are supported; Windows on Arm is not claimed.',
                     'without changing token permissions', 'https://avhn.github.io/trello-mcp/setup/'):
             manifest = json.loads(json.dumps(self.manifest).replace(old, 'removed'))
             with self.subTest(old=old), self.assertRaises(ValueError):

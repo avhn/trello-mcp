@@ -156,20 +156,16 @@ class BundleTests(unittest.TestCase):
             self.assertIn(required, configuration)
         self.assertNotIn("retain your settings", configuration)
 
-    def test_windows_transfer_warnings_cannot_be_enabled_by_settings(self):
+    def test_windows_transfer_settings_describe_supported_behavior(self):
         for target in packaging.TARGETS:
             with self.subTest(target=target):
                 manifest = packaging.manifest("6.7.8", target)
-                for setting, operation in (("download_dir", "downloads"),
-                                           ("upload_dir", "path uploads")):
+                for setting, required in (("download_dir", "must be private to your account"),
+                                          ("upload_dir", "off disables path uploads")):
                     description = manifest["user_config"][setting]["description"]
-                    self.assertIn(f"Windows refuses {operation}", description)
-                    self.assertIn("this setting cannot enable them", description)
-        configuration = (ROOT / "docs/configuration.md").read_text()
-        for required in ("Local path uploads and attachment downloads are refused even when directories",
-                         "setting directories cannot enable them", "Base64 uploads and URL attachments remain",
-                         "alternatives subject to write/profile policy"):
-            self.assertIn(required, configuration)
+                    self.assertIn(required, description)
+                    self.assertNotIn("refuses", description)
+        self.assertIn("Windows uses `os.Root` to confine paths", (ROOT / "docs/tools.md").read_text())
 
     def test_settings_and_substitution_contract(self):
         manifest = packaging.manifest("6.7.8", "desktop")

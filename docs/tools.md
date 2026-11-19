@@ -465,18 +465,18 @@ and are omitted. No attachment bodies or previews are returned. Use the returned
 `id` of an `isUpload: true` item as `attachmentId` for `attachment_download`; link
 attachments cannot be downloaded (use their `url`) and are refused as ownership denials.
 
-Uploads accept regular local files (not symlinks) or standard base64. Path
-uploads are disabled by default. To enable them, set `TRELLO_UPLOAD_DIR` to an
-absolute directory containing only files intended for upload. A `path` may be
-relative to that root or absolute inside it after cleaning; paths escaping the
-root, including `..` escapes, are refused. The root is opened without following
-symlinks, and each child component is opened relative to a pinned directory
-descriptor without following symlinks. Dot-files and dot-directories inside the
-root are allowed. Path verification requires Unix (including Linux and macOS);
-Windows and other unsupported platforms refuse path uploads even with a configured directory.
-Configuring directories cannot enable Windows local path uploads or attachment downloads. Base64
-uploads and URL attachments remain alternatives subject to write/profile policy. Base64 uploads still work without
-`TRELLO_UPLOAD_DIR` and require `fileName`.
+Uploads accept regular local files (not symlinks) or standard base64. Path uploads use a staging root. When `TRELLO_UPLOAD_DIR` is unset, the root is
+`trello-mcp/uploads` under the user configuration directory, alongside `state.json`
+(and uses `XDG_CONFIG_HOME` when set). It is created private on first upload and must stay private to the current user. Only
+files inside the root can be uploaded. Set the variable to an absolute directory
+for a custom root, or `off` to disable path uploads. If no configuration directory
+can be resolved, path uploads are disabled. A `path` may be relative to the root or
+absolute inside it after cleaning; paths escaping the root are refused. Unix opens
+components without following symlinks. Windows uses `os.Root` to confine paths and
+rejects a symlink or junction root or final file. Files with more than one hard link
+are refused on every platform. Other platforms refuse path
+uploads. Base64 uploads and URL attachments remain alternatives subject to
+write/profile policy. Base64 uploads are unaffected and require `fileName`.
 
 Filenames are sanitized and MIME types validated. Both directions have a 10 MiB
 cap. URL attachments are passed to Trello; this process never fetches arbitrary URLs.
@@ -486,16 +486,18 @@ card-scoped metadata endpoint. The HTTP download uses OAuth Authorization,
 attachment `fileName` rather than display name, and no query credentials. All
 redirects are refused, so credentials cannot follow even a same-origin redirect.
 
-`TRELLO_DOWNLOAD_DIR` defaults to `os.TempDir()/trello-mcp`. Missing directories
-are created as 0700. Existing directories must be private, owned by the current
-user and not symlinks. A pinned directory root and exclusive 0600 creation avoid
+`TRELLO_DOWNLOAD_DIR` defaults to `os.TempDir()/trello-mcp`. Missing directories are created private. Existing directories must be owned by the
+current user and private; symlinks and junctions are refused. On Windows the
+existing directory must grant access only to the current user, SYSTEM and
+Administrators, verified through the opened directory handle. Unix keeps 0700
+directories and exclusive 0600 file creation. A pinned directory root avoids
 following or overwriting target symlinks. Names are
 `attachmentId-sanitized_fileName`. If that name exists, `-1` through `-100` is tried before the
 extension; the call fails only after all 101 candidates are unavailable, and nothing is ever overwritten.
 Use the returned `path`, not a predicted name.
 Failed or oversized transfers are removed. Results contain only `path`, `size`,
-`mimeType`, never inline file bodies. Directory ownership verification is
-currently Unix-only (including Linux and macOS); other platforms fail closed.
+`mimeType`, never inline file bodies. On Windows each file is created exclusively relative to
+the opened directory with an explicit owner-only DACL; other platforms fail closed.
 
 ## Review requirements
 

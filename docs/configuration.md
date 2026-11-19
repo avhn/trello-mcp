@@ -15,8 +15,8 @@ PATH, use the absolute path the installer printed.
 | `TRELLO_ALLOWED_WORKSPACES` | unrestricted | Comma-separated workspace ids or canonical names, not display names; additional server policy, not token permissions |
 | `TRELLO_TOOLS` | `all` | Comma-separated tool names or prefix groups: `workspace`, `board`, `list`, `card`, `comment`, `checklist`, `member`, `label`, `customfield`, `attachment`, `server` |
 | `TRELLO_READ_ONLY` | `0` or `false` (or saved scope `read`) | Opt-in: `1` or `true` hides all 29 mutation/transfer tools, including local-file downloads; 19 tools remain. Any other value is an error. `0` or `false` cannot override a saved read-only token |
-| `TRELLO_DOWNLOAD_DIR` | `os.TempDir()/trello-mcp` | Absolute download directory; created as 0700, existing directories must be private and owned by the current user. Windows refuses downloads even when set |
-| `TRELLO_UPLOAD_DIR` | unset (path uploads disabled) | Absolute root for local-file uploads; only regular files inside this directory may be uploaded, without following symlinks. Windows refuses path uploads even when set |
+| `TRELLO_DOWNLOAD_DIR` | `os.TempDir()/trello-mcp` | Absolute download directory; created private, existing directories must be owned by the current user and private. Windows allows only the owner, SYSTEM and Administrators. Symlinks and junctions are refused |
+| `TRELLO_UPLOAD_DIR` | unset (user configuration directory/trello-mcp/uploads; created private on first upload) | Absolute root for local-file uploads; only regular files inside it may be uploaded. Unset uses the private uploads subdirectory of the user configuration directory; set to off to disable. Windows confines paths to the root and refuses symlink or junction roots and files |
 | `TRELLO_MCP_CREDENTIALS` | `~/.secrets/.trello-mcp.secret` | Absolute dotenv credential file path; `auth --file PATH` overrides it for that command |
 | Shared fallback | `~/.secrets.env` | Read only the three Trello keys if no earlier source exists; auth never modifies it |
 | `TRELLO_TOKEN_SCOPE` (file only) | unknown, writable | `read` forces read-only; `read,write` permits writes subject to server policy |
@@ -347,19 +347,24 @@ round-trip evidence. These observations are not upstream maxima or Unicode evide
 - Read-only profile. `TRELLO_READ_ONLY=1` hides every Trello mutation and
   attachment transfer, including local-file downloads. Local defaults can still
   change. This does not replace a suitably scoped Trello token.
-- Confined local uploads. Path uploads are disabled unless `TRELLO_UPLOAD_DIR`
-  is set. Only regular files inside that root can be read, using a pinned root
-  descriptor and no-symlink component traversal on Unix; other platforms fail
-  closed. Choose a dedicated staging directory, not your home or a credential
-  directory. Dot-files are not excluded. Base64 uploads do not need this setting
-  because the caller already supplies the bytes.
+- Confined local uploads. Path uploads default to `trello-mcp/uploads` under the
+  user configuration directory (the same directory as `state.json`; `XDG_CONFIG_HOME`
+  applies). It is created private on first upload and must stay private. Only files inside it can be
+  uploaded. Set `TRELLO_UPLOAD_DIR` to an absolute dedicated staging directory, or
+  `off` to disable path uploads. Without a resolvable configuration directory,
+  path uploads are disabled. Unix uses a pinned root and no-symlink component
+  traversal. Windows confines access to the root with `os.Root` and rejects a
+  symlink or junction root or final file. Hard-linked files are refused. Other platforms fail closed. Dot-files
+  are not excluded. Base64 uploads are unaffected.
 - Defensive HTTP handling. Requests have deadlines, redirects are refused,
   credentials are scrubbed from errors, and upstream error bodies are never
   returned.
-- Windows limitations. Local path uploads and attachment downloads are refused even when directories
-  are configured; setting directories cannot enable them. Base64 uploads and URL attachments remain
-  alternatives subject to write/profile policy. Transfers fail closed because their filesystem ownership
-  and path checks require Unix.
+- Windows transfer security. Downloads create missing directories with an owner-only
+  DACL. Existing directories must be owned by the current user and grant access only
+  to that user, SYSTEM and Administrators; symlinks and junctions are refused. The
+  check uses the opened directory handle. Uploads are confined with `os.Root`; the
+  root and final file cannot be symlinks or junctions. Other unsupported platforms
+  refuse local path uploads and downloads.
 
 ## Rate limits and retries
 

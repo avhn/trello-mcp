@@ -24,3 +24,14 @@ func TestDownloadOwner(t *testing.T) {
 		t.Error("foreign owner accepted")
 	}
 }
+
+func isPrivatePath(t *testing.T, path string, mode os.FileMode) bool {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return info.Mode().Perm() == mode
+}
+
+func makePublicDir(dir string) error { return os.Mkdir(dir, 0755) }

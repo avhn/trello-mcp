@@ -121,12 +121,13 @@ func TestDownloadDirectory(t *testing.T) {
 	}
 }
 
-// TestUploadDirectory leaves path uploads disabled by default and requires an absolute root.
+// TestUploadDirectory defaults to a staging root, honors off and requires an absolute root.
 func TestUploadDirectory(t *testing.T) {
-	for _, dir := range []string{"", credentialTestDir(t), "relative/uploads"} {
+	configDir := credentialTestDir(t)
+	for _, dir := range []string{"", "off", credentialTestDir(t), "relative/uploads"} {
 		values := map[string]string{"TRELLO_API_KEY": "synthetic-key", "TRELLO_TOKEN": "synthetic-token", "TRELLO_UPLOAD_DIR": dir}
-		c, err := parseTest(func(k string) string { return values[k] }, func() (string, error) { return credentialTestDir(t), nil })
-		if dir != "" && !filepath.IsAbs(dir) {
+		c, err := parseTest(func(k string) string { return values[k] }, func() (string, error) { return configDir, nil })
+		if dir != "" && dir != "off" && !filepath.IsAbs(dir) {
 			if err == nil || !strings.Contains(err.Error(), "TRELLO_UPLOAD_DIR must be an absolute path") {
 				t.Errorf("relative upload directory: %v", err)
 			}
@@ -135,8 +136,18 @@ func TestUploadDirectory(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if c.UploadDir != dir {
-			t.Errorf("upload directory got %s; want %s", c.UploadDir, dir)
+		want := dir
+		switch dir {
+		case "":
+			want = filepath.Join(configDir, "trello-mcp", "uploads")
+		case "off":
+			want = ""
+		}
+		if c.UploadDirManaged != (dir == "") {
+			t.Errorf("upload directory %q managed %t", dir, c.UploadDirManaged)
+		}
+		if c.UploadDir != want {
+			t.Errorf("upload directory got %s; want %s", c.UploadDir, want)
 		}
 	}
 }

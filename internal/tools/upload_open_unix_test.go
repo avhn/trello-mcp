@@ -27,7 +27,7 @@ func TestUploadRejectsAncestorSymlink(t *testing.T) {
 	if err = os.Symlink(private, link); err != nil {
 		t.Fatal(err)
 	}
-	data, err := readUpload(base, filepath.Join(link, "settings.json"))
+	data, err := readUpload(base, filepath.Join(link, "settings.json"), false)
 	if err == nil || len(data) != 0 {
 		t.Fatalf("ancestor symlink accepted: %q, %v", data, err)
 	}

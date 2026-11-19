@@ -73,9 +73,10 @@ func (s *Service) attachmentAdd(ctx context.Context, a arguments) (any, error) {
 }
 
 // readUpload confines paths to the configured root and reads only a verified regular-file descriptor.
-func readUpload(root, path string) ([]byte, error) {
+// A managed (default) root is created on first use and must be private to the current user.
+func readUpload(root, path string, managed bool) ([]byte, error) {
 	if root == "" {
-		return nil, trello.PolicyDenied("TRELLO_UPLOAD_DIR", "path uploads are disabled; set TRELLO_UPLOAD_DIR to a dedicated staging directory to enable them, or supply base64")
+		return nil, trello.PolicyDenied("TRELLO_UPLOAD_DIR", "path uploads are disabled (TRELLO_UPLOAD_DIR=off or no configuration directory); set TRELLO_UPLOAD_DIR to a dedicated staging directory to enable them, or supply base64")
 	}
 	root = filepath.Clean(root)
 	if !filepath.IsAbs(root) {
@@ -91,9 +92,18 @@ func readUpload(root, path string) ([]byte, error) {
 	if err != nil || !filepath.IsLocal(rel) || rel == "." {
 		return nil, trello.PolicyDenied("TRELLO_UPLOAD_DIR", "upload path must name a file inside TRELLO_UPLOAD_DIR; use a file under the configured root")
 	}
-	info, err := os.Lstat(filepath.Join(root, rel))
+	// The checked root stays open so the opened file can be matched against it afterward.
+	var checked *os.Root
+	if managed {
+		checked, err = privateRoot(root)
+		if err != nil {
+			return nil, trello.PolicyDenied("TRELLO_UPLOAD_DIR", "the default staging directory must be a private directory owned by the current user; fix its permissions or set TRELLO_UPLOAD_DIR")
+		}
+		defer func() { _ = checked.Close() }()
+	}
+	info, err := inspectUpload(root, rel)
 	if err != nil {
-		return nil, fmt.Errorf("inspect upload file: %w", err)
+		return nil, err
 	}
 	if !info.Mode().IsRegular() || info.Size() > trello.MaxAttachmentBytes {
 		return nil, trello.PolicyDenied("upload file safety", "upload must be a regular file at most 10 MiB, not a symlink; stage a regular file under TRELLO_UPLOAD_DIR")
@@ -103,6 +113,13 @@ func readUpload(root, path string) ([]byte, error) {
 		return nil, err
 	}
 	defer func() { _ = f.Close() }()
+	if checked != nil {
+		opened, statErr := f.Stat()
+		entry, entryErr := checked.Lstat(rel)
+		if statErr != nil || entryErr != nil || !os.SameFile(entry, opened) {
+			return nil, trello.PolicyDenied("upload file safety", "the default staging directory changed while opening; retry with a stable regular file under TRELLO_UPLOAD_DIR")
+		}
+	}
 	data, err := io.ReadAll(io.LimitReader(f, trello.MaxAttachmentBytes+1))
 	if err != nil {
 		return nil, err
@@ -124,7 +141,7 @@ func (s *Service) attachmentUpload(ctx context.Context, a arguments) (any, error
 	var err error
 	name := a.str("fileName")
 	if a.has("path") {
-		data, err = readUpload(s.config.UploadDir, a.str("path"))
+		data, err = readUpload(s.config.UploadDir, a.str("path"), s.config.UploadDirManaged)
 		if name == "" {
 			name = filepath.Base(a.str("path"))
 		}
@@ -161,35 +178,38 @@ func (s *Service) attachmentUpload(ctx context.Context, a arguments) (any, error
 }
 
 // downloadRoot pins the checked directory inode. Exclusive creates below this root cannot follow links.
-func downloadRoot(dir string) (*os.Root, error) {
+func downloadRoot(dir string) (*os.Root, error) { return privateRoot(dir) }
+
+// privateRoot creates a missing directory owner-only, then pins an existing private one.
+func privateRoot(dir string) (*os.Root, error) {
 	// A trailing separator can make Lstat follow a directory symlink on Unix.
 	dir = filepath.Clean(dir)
 	if !filepath.IsAbs(dir) {
 		return nil, fmt.Errorf("download directory must be absolute")
 	}
-	if err := os.MkdirAll(dir, 0700); err != nil {
+	if err := makePrivateDir(dir); err != nil {
 		return nil, err
 	}
 	info, err := os.Lstat(dir)
 	if err != nil {
 		return nil, err
 	}
-	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 || info.Mode().Perm()&0077 != 0 {
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return nil, trello.PolicyDenied("download directory safety", "download directory must be a private directory, not a symlink; choose a private TRELLO_DOWNLOAD_DIR")
 	}
-	if err = checkDownloadOwner(info); err != nil {
+	if err = checkDownloadPrivate(nil, info); err != nil {
 		return nil, err
 	}
-	root, err := os.OpenRoot(dir)
+	root, err := openRoot(dir)
 	if err != nil {
 		return nil, err
 	}
 	opened, err := root.Stat(".")
-	if err != nil || !os.SameFile(info, opened) || opened.Mode().Perm()&0077 != 0 {
+	if err != nil || !os.SameFile(info, opened) {
 		_ = root.Close()
 		return nil, trello.PolicyDenied("download directory safety", "download directory changed while opening; retry with a stable private TRELLO_DOWNLOAD_DIR")
 	}
-	if err = checkDownloadOwner(opened); err != nil {
+	if err = checkDownloadPrivate(root, opened); err != nil {
 		_ = root.Close()
 		return nil, err
 	}
@@ -216,7 +236,7 @@ func downloadFileName(id, clean string, attempt int) string {
 
 func (s *Service) attachmentDownload(ctx context.Context, a arguments) (any, error) {
 	if !fileTransfersSupported {
-		return nil, trello.PolicyDenied("download platform safety", "downloads unavailable on this platform because directory ownership cannot be verified; use a Unix host")
+		return nil, checkDownloadPrivate(nil, nil)
 	}
 	card, id := a.str("cardId"), a.str("attachmentId")
 	board, err := s.access.ObjectBoard(ctx, "cards", card, a.str("boardId"))
@@ -255,7 +275,7 @@ func (s *Service) attachmentDownload(ctx context.Context, a arguments) (any, err
 	const maxSuffix = 100
 	for attempt := 0; attempt <= maxSuffix; attempt++ {
 		name = downloadFileName(id, clean, attempt)
-		f, err = root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		f, err = createDownloadFile(root, name)
 		if err == nil {
 			break
 		}
@@ -286,4 +306,8 @@ func (s *Service) attachmentDownload(ctx context.Context, a arguments) (any, err
 		Size     int64  `json:"size"`
 		MimeType string `json:"mimeType"`
 	}{filepath.Join(dir, name), n, mimeType}, nil
+}
+
+func hardLinkDenied() error {
+	return trello.PolicyDenied("upload file safety", "upload file has more than one hard link; stage a copy under TRELLO_UPLOAD_DIR instead of a link")
 }

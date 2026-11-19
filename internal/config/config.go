@@ -23,6 +23,8 @@ type Config struct {
 	StatePath         string
 	DownloadDir       string
 	UploadDir         string
+	// UploadDirManaged marks the default staging root, which the server creates and checks.
+	UploadDirManaged bool
 }
 
 // HasCredentials reports whether the full credential pair is available.
@@ -50,7 +52,9 @@ func Parse(env func(string) string, configDir, homeDir func() (string, error)) (
 		return c, err
 	}
 	// Env-only sessions can run without a usable home or state directory.
+	stateDir := ""
 	if err == nil {
+		stateDir = dir
 		c.StatePath = filepath.Join(dir, "state.json")
 	}
 	c.AllowedWorkspaces, err = split(env("TRELLO_ALLOWED_WORKSPACES"))
@@ -77,9 +81,18 @@ func Parse(env func(string) string, configDir, homeDir func() (string, error)) (
 	} else if !filepath.IsAbs(c.DownloadDir) {
 		return c, fmt.Errorf("TRELLO_DOWNLOAD_DIR must be an absolute path")
 	}
-	c.UploadDir = env("TRELLO_UPLOAD_DIR")
-	if c.UploadDir != "" && !filepath.IsAbs(c.UploadDir) {
-		return c, fmt.Errorf("TRELLO_UPLOAD_DIR must be an absolute path")
+	// Path uploads default to a dedicated staging directory; "off" disables them.
+	switch upload := env("TRELLO_UPLOAD_DIR"); {
+	case upload == "off":
+	case upload == "":
+		if stateDir != "" {
+			c.UploadDir = filepath.Join(stateDir, "uploads")
+			c.UploadDirManaged = true
+		}
+	case !filepath.IsAbs(upload):
+		return c, fmt.Errorf("TRELLO_UPLOAD_DIR must be an absolute path or off")
+	default:
+		c.UploadDir = upload
 	}
 	return c, nil
 }

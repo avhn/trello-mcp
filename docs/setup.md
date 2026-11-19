@@ -322,7 +322,7 @@ For a CLI install:
 2. Remove the registration using the command below, or delete the `trello` entry from each client file above and restart that client.
 3. Delete the exact binary you installed, for example `rm "$HOME/.local/bin/trello-mcp"`, or `trello-mcp.exe` in the Windows install directory.
 4. On Windows remove only the PATH entry the installer added, in your user environment variables. Leave the machine PATH alone.
-5. Optional cleanup: the selection file `trello-mcp/state.json` under your user configuration directory (`XDG_CONFIG_HOME` when set) and the download directory `trello-mcp` under your temporary directory, or `TRELLO_DOWNLOAD_DIR`.
+5. Optional cleanup: the selection file `trello-mcp/state.json` under your user configuration directory (`XDG_CONFIG_HOME` when set) the upload staging directory `trello-mcp/uploads` beside it (or `TRELLO_UPLOAD_DIR`), and the download directory `trello-mcp` under your temporary directory, or `TRELLO_DOWNLOAD_DIR`.
 
 ```sh
 "/absolute/path/to/trello-mcp" auth logout

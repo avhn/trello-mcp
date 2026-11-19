@@ -255,7 +255,7 @@ func TestAttachmentDownload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm() != 0600 {
+	if !isPrivatePath(t, path, 0600) {
 		t.Error("download not private")
 	}
 	original := info
@@ -263,7 +263,7 @@ func TestAttachmentDownload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm() != 0700 {
+	if !isPrivatePath(t, s.config.DownloadDir, 0700) {
 		t.Error("directory not private")
 	}
 	for attempt := 1; attempt <= 2; attempt++ {
@@ -312,9 +312,9 @@ func TestDownloadRejectsUnsafeStorage(t *testing.T) {
 			case "not-directory":
 				err = os.WriteFile(dir, []byte("keep"), 0600)
 			case "public-directory":
-				err = os.Mkdir(dir, 0755)
+				err = makePublicDir(dir)
 			case "file-symlink":
-				err = os.Mkdir(dir, 0700)
+				err = makePrivateDir(dir)
 				if err == nil {
 					err = os.Symlink(filepath.Join(base, "outside"), filepath.Join(dir, "at1-report_final.txt"))
 				}
@@ -364,7 +364,7 @@ func TestDownloadFailureCleansPartialFile(t *testing.T) {
 			defer fake.Close()
 			s := testService(t, fake, nil)
 			s.config.DownloadDir = filepath.Join(t.TempDir(), "download")
-			if err := os.Mkdir(s.config.DownloadDir, 0700); err != nil {
+			if err := makePrivateDir(s.config.DownloadDir); err != nil {
 				t.Fatal(err)
 			}
 			original := filepath.Join(s.config.DownloadDir, "at1-report_final.txt")
@@ -430,7 +430,7 @@ func TestDownloadCollisionExhaustion(t *testing.T) {
 	defer fake.Close()
 	s := testService(t, fake, nil)
 	s.config.DownloadDir = filepath.Join(t.TempDir(), "private")
-	if err := os.Mkdir(s.config.DownloadDir, 0700); err != nil {
+	if err := makePrivateDir(s.config.DownloadDir); err != nil {
 		t.Fatal(err)
 	}
 	for attempt := 0; attempt <= 100; attempt++ {
@@ -472,5 +472,74 @@ func TestDownloadFileName(t *testing.T) {
 		if got != "at1-"+test.want || len(got) > len("at1-")+120 {
 			t.Errorf("%q: got %q; want %q", test.input, got, "at1-"+test.want)
 		}
+	}
+}
+
+// TestUploadCreatesStagingRoot lets the default staging directory work before it exists.
+func TestUploadCreatesStagingRoot(t *testing.T) {
+	if !fileTransfersSupported {
+		t.Skip("local file transfers are refused on this platform")
+	}
+	root := filepath.Join(t.TempDir(), "config", "trello-mcp", "uploads")
+	if _, err := readUpload(root, "../escape.txt", true); err == nil {
+		t.Fatal("escaping path accepted")
+	}
+	if _, err := os.Lstat(root); !os.IsNotExist(err) {
+		t.Fatalf("invalid request created the staging root: %v", err)
+	}
+	explicit := filepath.Join(t.TempDir(), "explicit")
+	if _, err := readUpload(explicit, "missing.txt", false); err == nil {
+		t.Fatal("missing explicit root accepted")
+	}
+	if _, err := os.Lstat(explicit); !os.IsNotExist(err) {
+		t.Fatalf("explicit root was created: %v", err)
+	}
+	if _, err := readUpload(root, "missing.txt", true); err == nil {
+		t.Fatal("missing staged file accepted")
+	}
+	if !isPrivatePath(t, root, 0700) {
+		t.Fatal("staging root not created private")
+	}
+	if err := os.WriteFile(filepath.Join(root, "staged.txt"), []byte("synthetic"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	data, err := readUpload(root, "staged.txt", true)
+	if err != nil || string(data) != "synthetic" {
+		t.Fatalf("staged upload: %q %v", data, err)
+	}
+	public := filepath.Join(t.TempDir(), "public")
+	if err := makePublicDir(public); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(public, "staged.txt"), []byte("synthetic"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readUpload(public, "staged.txt", true); err == nil || !strings.Contains(err.Error(), "default staging directory must be a private") {
+		t.Fatalf("public managed root accepted: %v", err)
+	}
+	if _, err := readUpload(public, "staged.txt", false); err != nil {
+		t.Fatalf("explicit root rejected: %v", err)
+	}
+}
+
+// TestUploadRejectsHardLinks keeps a staged link from exposing a file outside the root.
+func TestUploadRejectsHardLinks(t *testing.T) {
+	if !fileTransfersSupported {
+		t.Skip("local file transfers are refused on this platform")
+	}
+	base := t.TempDir()
+	root := filepath.Join(base, "uploads")
+	if err := os.Mkdir(root, 0700); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(base, "outside.txt")
+	if err := os.WriteFile(outside, []byte("synthetic outside data"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Link(outside, filepath.Join(root, "linked.txt")); err != nil {
+		t.Skipf("cannot create hard link: %v", err)
+	}
+	if _, err := readUpload(root, "linked.txt", false); err == nil || !strings.Contains(err.Error(), "hard link") {
+		t.Fatalf("hard-linked upload accepted: %v", err)
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/avhn/trello-mcp/internal/trello"
 	"golang.org/x/sys/unix"
@@ -42,6 +43,11 @@ func openUpload(root, path string, info os.FileInfo) (*os.File, error) {
 	if err != nil || !opened.Mode().IsRegular() || !os.SameFile(info, opened) {
 		_ = f.Close()
 		return nil, trello.PolicyDenied("upload file safety", "upload file changed while opening; retry with a stable regular file under TRELLO_UPLOAD_DIR")
+	}
+	// A hard link's other names may lie outside the staging root.
+	if stat, ok := opened.Sys().(*syscall.Stat_t); !ok || uint64(stat.Nlink) != 1 {
+		_ = f.Close()
+		return nil, hardLinkDenied()
 	}
 	if err = unix.SetNonblock(fd, false); err != nil {
 		_ = f.Close()

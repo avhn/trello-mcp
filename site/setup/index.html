@@ -229,7 +229,7 @@ TRELLO_TOOLS = "workspace_find,board_find,board_use,list_find,card_find,card_get
 <li>Remove the registration using the command below, or delete the <code>trello</code> entry from each client file above and restart that client.</li>
 <li>Delete the exact binary you installed, for example <code>rm "$HOME/.local/bin/trello-mcp"</code>, or <code>trello-mcp.exe</code> in the Windows install directory.</li>
 <li>On Windows remove only the PATH entry the installer added, in your user environment variables. Leave the machine PATH alone.</li>
-<li>Optional cleanup: the selection file <code>trello-mcp/state.json</code> under your user configuration directory (<code>XDG_CONFIG_HOME</code> when set) and the download directory <code>trello-mcp</code> under your temporary directory, or <code>TRELLO_DOWNLOAD_DIR</code>.</li>
+<li>Optional cleanup: the selection file <code>trello-mcp/state.json</code> under your user configuration directory (<code>XDG_CONFIG_HOME</code> when set) the upload staging directory <code>trello-mcp/uploads</code> beside it (or <code>TRELLO_UPLOAD_DIR</code>), and the download directory <code>trello-mcp</code> under your temporary directory, or <code>TRELLO_DOWNLOAD_DIR</code>.</li>
 </ol>
 <pre><code class="language-sh">"/absolute/path/to/trello-mcp" auth logout
 # Source install, using the resolved variable from Install:
